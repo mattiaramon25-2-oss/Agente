@@ -1,6 +1,8 @@
 """Collegamento al modello servito da LM Studio (API compatibile con OpenAI)."""
 
+import http.client
 import json
+import urllib.parse
 import urllib.request
 from typing import Callable
 
@@ -22,6 +24,21 @@ def _leggi_json_http(url: str, timeout: float) -> dict:
         return json.load(risposta)
 
 
+def _controlla_indirizzo(base_url: str, url: str) -> None:
+    """Rifiuta prima della richiesta gli indirizzi scritti male (per esempio http://localhost:1234v1)."""
+    try:
+        parti = urllib.parse.urlsplit(url)
+        valido = parti.scheme in ("http", "https") and bool(parti.hostname)
+        parti.port  # solleva ValueError se la porta non è un numero
+    except ValueError:
+        valido = False
+    if not valido:
+        raise ErroreServer(
+            f"LMSTUDIO_BASE_URL non è un indirizzo valido: '{base_url}'. "
+            "Esempio: http://localhost:1234/v1"
+        )
+
+
 def verifica_server(
     base_url: str,
     modello: str,
@@ -30,8 +47,14 @@ def verifica_server(
 ) -> None:
     """Controlla che LM Studio risponda e che `modello` sia tra quelli restituiti da GET /models."""
     url = base_url.rstrip("/") + "/models"
+    _controlla_indirizzo(base_url, url)
     try:
         risposta = leggi_json(url, timeout)
+    except http.client.HTTPException as eccezione:
+        raise ErroreServer(
+            f"Risposta HTTP non valida da LM Studio all'indirizzo {url} ({eccezione!r}). "
+            "Controlla LMSTUDIO_BASE_URL."
+        ) from None
     except ValueError as eccezione:  # anche json.JSONDecodeError
         raise ErroreServer(f"Risposta non valida da {url}: {eccezione}") from None
     except OSError as eccezione:  # URLError, TimeoutError, connessione rifiutata

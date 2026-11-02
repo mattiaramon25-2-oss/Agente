@@ -71,3 +71,20 @@ def test_crea_modello():
     assert modello.bound.openai_api_base == URL
     nomi = [s["function"]["name"] for s in modello.kwargs["tools"]]
     assert nomi == ["ora_corrente"]
+
+
+@pytest.mark.parametrize("indirizzo", ["http://localhost:1234v1", "http//localhost:1234/v1", "localhost:1234/v1"])
+def test_indirizzo_non_valido(indirizzo):
+    leggi = LettoreFinto(ELENCO)
+    with pytest.raises(ErroreServer) as errore:
+        verifica_server(indirizzo, "google/gemma-4-e2b", leggi_json=leggi)
+    assert "LMSTUDIO_BASE_URL" in str(errore.value)
+    assert leggi.url_letti == []
+
+
+def test_errore_del_protocollo_http():
+    import http.client
+
+    with pytest.raises(ErroreServer) as errore:
+        verifica_server(URL, "google/gemma-4-e2b", leggi_json=LettoreFinto(http.client.InvalidURL("x")))
+    assert "LM Studio" in str(errore.value)
