@@ -75,7 +75,10 @@ def crea_grafo(modello, strumenti: list[BaseTool]):
 
     def nodo_limite(stato: StatoConversazione) -> dict:
         in_sospeso = [
-            ToolMessage(_errore("limite di chiamate raggiunto"), tool_call_id=c["id"], name=c["name"])
+            # status="error": la chiamata non è stata eseguita.
+            ToolMessage(
+                _errore("limite di chiamate raggiunto"), tool_call_id=c["id"], name=c["name"], status="error"
+            )
             for c in stato["messages"][-1].tool_calls
         ]
         return {"messages": [*in_sospeso, AIMessage(TESTO_LIMITE)]}
