@@ -1,6 +1,21 @@
 # Assistente del laboratorio
 
-Progetto del corso «Deep Learning e LLM: costruire chatbot e agenti». La cartella del progetto è `assistente-laboratorio/`; all'inizio contiene soltanto questo file. Struttura, dipendenze e comandi verranno definiti con la specifica e il piano.
+Progetto del corso «Deep Learning e LLM: costruire chatbot e agenti». Questo file sta alla radice della repository; il progetto è nella cartella `assistente-laboratorio/`. Specifica e piano sono in `assistente-laboratorio/docs/superpowers/`.
+
+## Struttura e comandi
+
+Dentro `assistente-laboratorio/`:
+
+- `assistente/`: `strumenti.py` (orologio), `configurazione.py` e `fuso.py` (variabili d'ambiente, rilevamento del fuso), `modello.py` (LM Studio), `grafo.py` (stato, nodi, instradamento), `terminale.py` (ciclo di chat), `__main__.py` (avvio).
+- `tests/`: test automatici; `finti.py` contiene il modello finto; `test_reale_*.py` sono le prove reali.
+- Dipendenze in `requirements.txt` (applicazione) e `requirements-dev.txt` (più pytest), versioni fissate.
+
+Comandi (PowerShell, da `assistente-laboratorio/`, con `.\.venv\Scripts\Activate.ps1`):
+
+- Test automatici: `python -m pytest` (le prove reali risultano `skipped`).
+- Prova reale con LM Studio: `python -m pytest --lmstudio -m lmstudio -v -s`.
+- Prova reale con Docker: `python -m pytest --docker -m docker -v -s`.
+- Avvio diretto: `python -m assistente`. Avvio con Docker: `.\avvia.ps1`.
 
 ## Obiettivo
 
