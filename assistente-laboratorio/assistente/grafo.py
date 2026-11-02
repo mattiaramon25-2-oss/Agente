@@ -42,9 +42,21 @@ def _errore(testo: str) -> str:
     return json.dumps({"errore": testo}, ensure_ascii=False)
 
 
+def _malformate(messaggio) -> list[dict]:
+    """Chiamate con argomenti non JSON: vanno chiuse anche loro, o la cronologia resta invalida."""
+    return list(getattr(messaggio, "invalid_tool_calls", None) or [])
+
+
+def _malformate_chiuse(messaggio, testo: str) -> list[ToolMessage]:
+    return [
+        ToolMessage(_errore(testo), tool_call_id=c.get("id") or "", name=c.get("name") or "", status="error")
+        for c in _malformate(messaggio)
+    ]
+
+
 def instrada_dopo_modello(stato: StatoConversazione) -> Literal["strumenti", "limite", "__end__"]:
     ultimo = stato["messages"][-1]
-    if not getattr(ultimo, "tool_calls", None):
+    if not getattr(ultimo, "tool_calls", None) and not _malformate(ultimo):
         return END
     if stato["giri_strumento"] >= MAX_GIRI_STRUMENTO:
         return "limite"
@@ -71,6 +83,9 @@ def crea_grafo(modello, strumenti: list[BaseTool]):
                 except Exception as eccezione:  # anche argomenti non validi
                     contenuto = _errore(f"Argomenti non validi per {chiamata['name']}: {eccezione}")
             risultati.append(ToolMessage(contenuto, tool_call_id=chiamata["id"], name=chiamata["name"]))
+        risultati += _malformate_chiuse(
+            stato["messages"][-1], "Argomenti non validi: devono essere JSON, per esempio {\"fuso\": \"Europe/Rome\"}."
+        )
         return {"messages": risultati, "giri_strumento": stato["giri_strumento"] + 1}
 
     def nodo_limite(stato: StatoConversazione) -> dict:
@@ -81,6 +96,7 @@ def crea_grafo(modello, strumenti: list[BaseTool]):
             )
             for c in stato["messages"][-1].tool_calls
         ]
+        in_sospeso += _malformate_chiuse(stato["messages"][-1], "limite di chiamate raggiunto")
         return {"messages": [*in_sospeso, AIMessage(TESTO_LIMITE)]}
 
     costruttore = StateGraph(StatoConversazione)

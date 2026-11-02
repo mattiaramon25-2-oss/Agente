@@ -118,3 +118,35 @@ def test_giri_ripartono_a_ogni_turno():
     cronologia = esegui_turno(grafo, cronologia, FUSO, "due")
     assert cronologia[-1].content == "fine 2"
     assert TESTO_LIMITE not in [m.content for m in cronologia]
+
+
+def test_chiamata_con_json_malformato():
+    # Un modello piccolo può produrre argomenti che non sono JSON: finiscono in invalid_tool_calls.
+    malformata = AIMessage(
+        content="",
+        invalid_tool_calls=[
+            {"name": "ora_corrente", "args": "{fuso: Europe/Rome", "id": "z1", "error": None,
+             "type": "invalid_tool_call"}
+        ],
+    )
+    modello, grafo = prepara([malformata, AIMessage("ok")])
+    cronologia = esegui_turno(grafo, [], FUSO, "che ore sono?")
+    risultati = [m for m in cronologia if isinstance(m, ToolMessage)]
+    assert [m.tool_call_id for m in risultati] == ["z1"]
+    assert "errore" in json.loads(risultati[0].content)
+    assert len(modello.chiamate) == 2
+    assert cronologia[-1].content == "ok"
+
+
+def test_limite_chiude_anche_le_chiamate_malformate():
+    malformata = AIMessage(
+        content="",
+        invalid_tool_calls=[
+            {"name": "ora_corrente", "args": "{", "id": "z9", "error": None, "type": "invalid_tool_call"}
+        ],
+    )
+    chiamate = [chiamata_orologio(FUSO, f"c{i}") for i in range(1, 4)]
+    _, grafo = prepara([*chiamate, malformata])
+    cronologia = esegui_turno(grafo, [], FUSO, "che ore sono?")
+    assert cronologia[-1].content == TESTO_LIMITE
+    assert "z9" in [m.tool_call_id for m in cronologia if isinstance(m, ToolMessage)]
