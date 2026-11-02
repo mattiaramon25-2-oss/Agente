@@ -1,0 +1,11 @@
+services:
+  assistente:
+    build: .
+    env_file: .env
+    environment:
+      # Dentro il container LM Studio si raggiunge con un indirizzo diverso: lo si prende dal .env.
+      LMSTUDIO_BASE_URL: ${LMSTUDIO_BASE_URL_DOCKER:?Imposta LMSTUDIO_BASE_URL_DOCKER nel file .env}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    stdin_open: true
+    tty: true
