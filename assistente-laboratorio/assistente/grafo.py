@@ -48,7 +48,7 @@ def messaggio_sistema(fuso_utente: str) -> SystemMessage:
         "elimina le note solo per ID; se l'utente non indica l'ID, prima elencale e chiedigli quale eliminare; "
         "prima di eliminare, anche se una sola nota corrisponde, mostra ID e testo e chiedi conferma all'utente.\n"
         "Se lo strumento del meteo dichiara di aver scelto una città tra più corrispondenze, dillo all'utente "
-        "nominando la città scelta."
+        "nominando la città scelta; se il risultato del meteo contiene una nota, riferiscila all'utente."
     )
 
 

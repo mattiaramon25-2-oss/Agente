@@ -60,7 +60,7 @@ def test_citta_ambigua():
 
 
 def test_al_massimo_quattro_alternative():
-    risultati = [UDINE] + [{**UDINE, "name": f"Udine {i}"} for i in range(6)]
+    risultati = [UDINE] + [{**UDINE, "admin1": f"Regione {i}"} for i in range(6)]
     assert len(meteo_attuale("Udine", client(geo={"results": risultati}, forecast=CORRENTE))["altre_corrispondenze"]) == 4
 
 
@@ -127,3 +127,47 @@ def test_alternative_identiche_alla_scelta_escluse():
     altra = {"name": "Udine", "admin1": "Karnali Province", "country": "Nepal", "latitude": 28.9, "longitude": 81.8}
     r = meteo_attuale("Udine", client(geo={"results": [UDINE, doppione, altra]}, forecast=CORRENTE))
     assert r["altre_corrispondenze"] == ["Udine (Karnali Province, Nepal)"]
+
+
+def test_scadenza_totale_anche_con_risposte_lente():
+    """Il timeout di httpx vale per fase: serve una scadenza totale, o il ponte MCP scade per primo."""
+    import time
+
+    def lento(richiesta):
+        time.sleep(0.5)
+        return httpx.Response(200, json={"results": [UDINE]})
+
+    inizio = time.monotonic()
+    with pytest.raises(ErroreStrumento, match="Servizio meteo: nessuna risposta entro 0.3 secondi"):
+        meteo_attuale("Udine", httpx.Client(transport=httpx.MockTransport(lento)), tempo_totale=0.3)
+    assert time.monotonic() - inizio < 0.45
+
+
+def test_tempo_totale_predefinito_sotto_il_ponte():
+    from assistente.client_mcp import TIMEOUT_CHIAMATA
+    from logica.meteo import TEMPO_TOTALE
+
+    assert TEMPO_TOTALE == 8.0 and TEMPO_TOTALE < TIMEOUT_CHIAMATA
+
+
+def test_solo_omonimi_tra_le_alternative():
+    """Il geocoding restituisce anche ricerche approssimate (Forlini, Forlimpopoli): non sono ambiguità."""
+    forli = {**UDINE, "name": "Forlì", "admin1": "Emilia-Romagna"}
+    simili = [{**UDINE, "name": n, "admin1": "x"} for n in ("Forlini", "Forlimpopoli")]
+    omonimo = {**UDINE, "name": "forlì", "admin1": "Altrove", "country": "Italia"}
+    r = meteo_attuale("Forlì", client(geo={"results": [forli, *simili, omonimo]}, forecast=CORRENTE))
+    assert r["altre_corrispondenze"] == ["forlì (Altrove, Italia)"] and "nota" not in r
+
+
+def test_nome_diverso_da_quello_chiesto_dichiarato():
+    pordenone = {**UDINE, "name": "Pordenone"}
+    r = meteo_attuale("Pordenon", client(geo={"results": [pordenone]}, forecast=CORRENTE))
+    assert r["nota"] == "Nessuna località chiamata esattamente 'Pordenon': scelta 'Pordenone'."
+
+
+def test_omonimi_della_citta_scelta_contano_anche_se_tradotta():
+    parigi = {**UDINE, "name": "Parigi", "admin1": "Île-de-France", "country": "Francia"}
+    texas = {"name": "Paris", "admin1": "Texas", "country": "Stati Uniti", "latitude": 33.6, "longitude": -95.5}
+    r = meteo_attuale("Paris", client(geo={"results": [parigi, texas]}, forecast=CORRENTE))
+    assert r["altre_corrispondenze"] == ["Paris (Texas, Stati Uniti)"]
+    assert r["nota"] == "Nessuna località chiamata esattamente 'Paris': scelta 'Parigi'."

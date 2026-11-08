@@ -5,13 +5,19 @@ tra più corrispondenze viene dichiarata nel risultato, mai scelta in silenzio. 
 rete restano sempre distinti da «città non trovata», e nessun dato viene inventato.
 """
 
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as TempoScaduto
+
 import httpx
 
 from logica.errori import ErroreStrumento
 
 URL_GEOCODING = "https://geocoding-api.open-meteo.com/v1/search"
 URL_FORECAST = "https://api.open-meteo.com/v1/forecast"
-TIMEOUT_METEO = 4.0  # due richieste da 4 s restano sotto i 10 s del ponte MCP
+TIMEOUT_METEO = 4.0  # per fase di httpx (connessione, lettura...): non limita la durata totale
+# Scadenza totale dello strumento, sotto i 10 s del ponte MCP: così l'errore arriva dal meteo e non dal ponte.
+# Copre anche la risoluzione DNS, che in httpx non ha un timeout proprio.
+TEMPO_TOTALE = 8.0
 ALTERNATIVE_MASSIME = 4
 FONTE = "Open-Meteo"
 
@@ -105,8 +111,21 @@ def _alternativa(corrispondenza: object) -> str | None:
     return f"{nome} ({', '.join(dettagli)})" if dettagli else nome
 
 
-def meteo_attuale(city: object, http: httpx.Client, timeout: float = TIMEOUT_METEO) -> dict:
-    """Meteo attuale per `city`; solleva ErroreStrumento con un messaggio che distingue la causa."""
+def meteo_attuale(
+    city: object, http: httpx.Client, timeout: float = TIMEOUT_METEO, tempo_totale: float = TEMPO_TOTALE
+) -> dict:
+    """Meteo attuale per `city`, entro `tempo_totale` secondi; solleva ErroreStrumento distinguendo la causa."""
+    esecutore = ThreadPoolExecutor(max_workers=1)
+    try:
+        return esecutore.submit(_meteo, city, http, timeout).result(timeout=tempo_totale)
+    except TempoScaduto:
+        # La richiesta in corso finisce da sola nel thread di lavoro; il risultato viene scartato.
+        raise ErroreStrumento(f"Servizio meteo: nessuna risposta entro {tempo_totale:g} secondi.") from None
+    finally:
+        esecutore.shutdown(wait=False)
+
+
+def _meteo(city: object, http: httpx.Client, timeout: float) -> dict:
     if not isinstance(city, str) or not city.strip():
         raise ErroreStrumento("Indica il nome di una città.")
     nome_richiesto = city.strip()
@@ -147,14 +166,20 @@ def meteo_attuale(city: object, http: httpx.Client, timeout: float = TIMEOUT_MET
     if isinstance(codice, bool) or not isinstance(codice, int):
         raise _non_valida("campo 'weather_code' mancante")
 
-    # Voci con la stessa etichetta della città scelta (stesso nome, regione e paese) non sono un'ambiguità.
+    # Alternative: solo omonimi del nome chiesto o di quello scelto (il geocoding aggiunge ricerche
+    # approssimate, come Forlini per Forlì, che non sono ambiguità). Voci con la stessa etichetta della
+    # città scelta (stesso nome, regione e paese) non sono un'ambiguità.
+    nomi_validi = {nome_richiesto.casefold(), nome.casefold()}
     etichetta_scelta = _alternativa(scelta)
     altre = []
-    for etichetta in (_alternativa(r) for r in risultati[1:]):
-        if etichetta and etichetta != etichetta_scelta and etichetta not in altre:
+    for corrispondenza in risultati[1:]:
+        etichetta = _alternativa(corrispondenza)
+        if not etichetta or corrispondenza["name"].casefold() not in nomi_validi:
+            continue
+        if etichetta != etichetta_scelta and etichetta not in altre:
             altre.append(etichetta)
     altre = altre[:ALTERNATIVE_MASSIME]
-    return {
+    risultato = {
         "citta": {
             "nome": nome,
             "regione": _testo(scelta.get("admin1")),
@@ -169,3 +194,6 @@ def meteo_attuale(city: object, http: httpx.Client, timeout: float = TIMEOUT_MET
         "ora_riferimento": ora + _scarto(previsione.get("utc_offset_seconds")),
         "fonte": FONTE,
     }
+    if nome.casefold() != nome_richiesto.casefold():  # sostituzione dichiarata, mai silenziosa
+        risultato["nota"] = f"Nessuna località chiamata esattamente '{nome_richiesto}': scelta '{nome}'."
+    return risultato
