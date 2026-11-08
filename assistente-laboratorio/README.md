@@ -13,6 +13,7 @@ l'assistente avvia da solo, interroga con la discovery (`tools/list`) e spegne a
 | `ora_corrente(fuso)` | data e ora attuali nel fuso IANA indicato, per esempio `Asia/Tokyo` |
 | `converti_unita(valore, da, a)` | conversione tra unità metriche di lunghezza, massa e volume, e tra °C e °F |
 | `calcola(espressione)` | espressioni aritmetiche con `+ - * / % **` e parentesi, senza `eval`, in aritmetica decimale esatta |
+| `calcola_scadenza(data_inizio, giorni, lavorativi)` | data di scadenza aggiungendo giorni di calendario o lavorativi (festività nazionali italiane 2026–2028 da `risorse/festivita_italia.json`); risultato indicativo, senza valore legale |
 
 Nome, descrizione e schema degli strumenti arrivano dal server, non sono riscritti nell'assistente.
 Ogni chiamata eseguita con successo compare nel terminale con la sua origine, per esempio
@@ -30,6 +31,7 @@ passare al modello, una sola per nome, secondo il file `.env`:
 | Strumento | Variabile | Valori | Dove gira |
 |---|---|---|---|
 | `calcola` | `VARIANTE_CALCOLATRICE` | `mcp`, `locale` | `mcp`: nel server, via MCP; `locale`: funzione Python con `@tool` nel processo dell'assistente (`assistente/calcolatrice_locale.py`) |
+| `calcola_scadenza` | `VARIANTE_SCADENZE` | `mcp`, `fastapi` | `mcp`: nel server, via MCP; `fastapi`: servizio HTTP (`servizio_api/`, avviato dall'assistente sulla porta `API_PORTA`) chiamato da un wrapper scritto a mano e registrato con `@tool` (`assistente/wrapper_scadenze.py`) |
 
 Le due versioni hanno lo stesso nome, la stessa descrizione, lo stesso schema degli argomenti e la
 stessa logica (`logica/calcolatrice.py`): cambia solo il percorso. Unica differenza dovuta ai
@@ -42,6 +44,14 @@ La differenza si vede:
   (`[calcola · locale: (3+4)*2]`);
 - nei log: con `locale` la chiamata compare solo in `logs/assistente.log` (`origine=locale`),
   perché non c'è un altro processo; con `mcp` compare anche in `logs/server_mcp.log`.
+
+Lo stesso vale per le scadenze («Se parto il 23 dicembre 2026, quando scadono 3 giorni
+lavorativi?», risposta 29 dicembre): con `fastapi` la chiamata compare in `logs/assistente.log`
+(`origine=fastapi`) e in `logs/servizio_api.log` (`endpoint=/scadenza`), non nel log del server MCP.
+Nel wrapper nome, descrizione e schema sono scritti a mano (non c'è discovery): un test controlla
+che coincidano con il catalogo MCP. Nella richiesta HTTP i valori viaggiano come testo, quindi per
+gli argomenti di tipo sbagliato le due varianti danno entrambe un errore in italiano, ma con testi
+che possono differire.
 
 ## Requisiti
 
@@ -69,6 +79,8 @@ Poi aprire `.env` e controllare i valori:
 | `LMSTUDIO_BASE_URL_DOCKER` | solo per Docker | indirizzo di LM Studio visto dal container |
 | `MCP_PORTA` | sì | porta locale del server MCP (intero tra 1024 e 65535), per esempio `8765` |
 | `VARIANTE_CALCOLATRICE` | sì | `mcp` oppure `locale`: quale versione di `calcola` vede il modello |
+| `VARIANTE_SCADENZE` | sì | `mcp` oppure `fastapi`: quale versione di `calcola_scadenza` vede il modello |
+| `API_PORTA` | solo con `fastapi` | porta locale del servizio FastAPI, diversa da `MCP_PORTA`, per esempio `8766` |
 | `FUSO_ORARIO` | no | fuso IANA di riserva se il rilevamento automatico non riesce |
 
 Per vedere gli identificativi disponibili:
@@ -80,7 +92,8 @@ Per vedere gli identificativi disponibili:
 Nessuna credenziale è necessaria: il file `.env` resta fuori da Git.
 
 Chi ha già un `.env` creato prima del server MCP deve aggiungere a mano le righe nuove di
-`.env.example` (`MCP_PORTA=8765`, `VARIANTE_CALCOLATRICE=mcp`): senza, l'avvio si ferma con
+`.env.example` (`MCP_PORTA=8765`, `VARIANTE_CALCOLATRICE=mcp`, `VARIANTE_SCADENZE=mcp`,
+`API_PORTA=8766`): senza, l'avvio si ferma con
 `Variabili d'ambiente mancanti: …` e il nome delle variabili.
 
 ## Avvio diretto
@@ -122,6 +135,19 @@ client MCP; ascolta solo su `127.0.0.1`, all'indirizzo `http://127.0.0.1:8765/mc
 python -m server_mcp --porta 8765
 ```
 
+### Il servizio FastAPI da solo
+
+Anche il servizio delle scadenze si può avviare da solo; FastAPI genera la descrizione OpenAPI
+(`http://127.0.0.1:8766/openapi.json`) e una pagina interattiva per provarlo
+(`http://127.0.0.1:8766/docs`):
+
+```powershell
+python -m servizio_api --porta 8766
+```
+
+Esempio di richiesta: `http://127.0.0.1:8766/scadenza?data_inizio=2026-12-23&giorni=3&lavorativi=true`.
+Gli errori sono risposte `400` con `{"errore": "..."}` in italiano.
+
 ## Log
 
 Ogni chiamata a uno strumento lascia una traccia in due file della cartella `logs/` (fuori da Git;
@@ -131,7 +157,9 @@ con Docker è montata sull'host):
   `origine`, `tool`, `call_id`, `argomenti`, `esito` (`ok`, `errore_tool`, `errore_collegamento`,
   `strumento_sconosciuto`, `limite`), `risultato` e `tool_message.call_id`;
 - `logs/server_mcp.log`: ogni chiamata ricevuta dal server con argomenti ed esito, più l'output
-  della libreria MCP.
+  della libreria MCP;
+- `logs/servizio_api.log` (solo con `VARIANTE_SCADENZE=fastapi`): avvio e arresto del servizio e
+  ogni richiesta a `/scadenza` con argomenti ed esito.
 
 Il `call_id` del modello non arriva al server (l'identificativo del protocollo è un altro): le due
 tracce si confrontano per strumento, argomenti e ora. Una risposta plausibile senza la riga
@@ -149,8 +177,9 @@ docker compose build
 .\avvia.ps1
 ```
 
-Il server MCP gira nello stesso container dell'assistente: la porta non viene pubblicata.
-`compose.yaml` richiede `MCP_PORTA` nel file `.env` e monta `./logs`, così i log restano sull'host.
+Il server MCP (e, con `VARIANTE_SCADENZE=fastapi`, il servizio FastAPI) gira nello stesso container
+dell'assistente: le porte non vengono pubblicate. `compose.yaml` richiede `MCP_PORTA`,
+`VARIANTE_CALCOLATRICE` e `VARIANTE_SCADENZE` nel file `.env` e monta `./logs`, così i log restano sull'host.
 
 Perché lo script: dentro il container il fuso del sistema è UTC, non quello dell'utente.
 `avvia.ps1` legge il fuso di Windows (`(Get-TimeZone).Id`, per esempio `W. Europe Standard Time`)
@@ -189,10 +218,14 @@ Prova reale con LM Studio acceso, ogni domanda in una sessione nuova:
   argomenti giusti e il numero della risposta deve coincidere con il risultato dello strumento;
 - «Quanto fa (3+4)*2?» una volta con la calcolatrice `mcp` e una con quella `locale`: il risultato
   deve essere 14 e il log deve riportare l'origine giusta; più un errore controllato
-  (`__import__('os')` passato direttamente allo strumento) in entrambe le varianti.
+  (`__import__('os')` passato direttamente allo strumento) in entrambe le varianti;
+- «Se parto il 23 dicembre 2026, quando scadono 3 giorni lavorativi?» una volta con le scadenze
+  `mcp` e una con `fastapi`: la scadenza deve essere il 29 dicembre 2026 e, solo con `fastapi`,
+  `logs/servizio_api.log` deve avere la riga della richiesta; più un errore controllato
+  (data `2026-02-30`) in entrambe le varianti.
 
-Le prove reali leggono le variabili dal `.env`; la calcolatrice viene forzata a ciascuna variante
-dal test stesso.
+Le prove reali leggono le variabili dal `.env`; calcolatrice e scadenze vengono forzate a
+ciascuna variante dal test stesso.
 
 ```powershell
 python -m pytest --lmstudio -m lmstudio -v -s
@@ -247,6 +280,19 @@ Il fuso dell'utente è rilevato una volta sola all'avvio, in quest'ordine:
 - **`required variable MCP_PORTA is missing a value`** (con Docker): aggiungere `MCP_PORTA=8765` al file `.env`;
   lo stesso per `VARIANTE_CALCOLATRICE`.
 - **`VARIANTE_CALCOLATRICE non valida`**: i valori ammessi sono `mcp` e `locale`.
+- **Il servizio FastAPI** (solo con `VARIANTE_SCADENZE=fastapi`):
+
+  | Sintomo | Cosa controllare |
+  |---|---|
+  | `Porta … già in uso: … API_PORTA` | un altro programma usa `API_PORTA`: chiuderlo o cambiare porta nel `.env` |
+  | `API_PORTA deve essere diversa da MCP_PORTA` | le due porte nel `.env` coincidono |
+  | `Il servizio FastAPI non è partito` | ultime righe di `logs/servizio_api.log`: dipendenze (`fastapi`, `uvicorn`), percorsi |
+  | `Servizio scadenze non raggiungibile` o `nessuna risposta entro 5 secondi` durante la chat | il servizio è caduto o bloccato: `logs/servizio_api.log`; l'assistente non lo riavvia |
+
+  L'assistente considera pronto il servizio solo quando `/openapi.json` descrive `/scadenza`,
+  non al primo HTTP 200.
+- **`Festività disponibili solo per gli anni 2026–2028`**: con `lavorativi=true` il calcolo è
+  uscito dagli anni del file `risorse/festivita_italia.json`; per altri anni va aggiornato il file.
 - **La calcolatrice rifiuta un'espressione** (`Carattere non consentito`, `Operazione non consentita`,
   `Esponente non ammesso`): è voluto. Sono ammessi solo numeri con il punto decimale, `+ - * / % **`
   e parentesi; niente funzioni, nomi, `//` o notazione scientifica, esponenti interi fino a 1000.

@@ -6,10 +6,12 @@ Progetto del corso «Deep Learning e LLM: costruire chatbot e agenti». Questo f
 
 Dentro `assistente-laboratorio/`:
 
-- `logica/`: logica pura degli strumenti (`orologio.py`, `conversioni.py`, `calcolatrice.py`, `errori.py`), senza dipendenze da MCP, FastAPI o LangChain.
+- `logica/`: logica pura degli strumenti (`orologio.py`, `conversioni.py`, `calcolatrice.py`, `scadenze.py`, `errori.py`), senza dipendenze da MCP, FastAPI o LangChain.
 - `server_mcp/`: registrazione MCP degli strumenti (`server.py`) e avvio (`python -m server_mcp --porta 8765`).
-- `assistente/`: `configurazione.py` e `fuso.py` (variabili d'ambiente, rilevamento del fuso), `modello.py` (LM Studio), `grafo.py` (stato, nodi, instradamento), `client_mcp.py` (discovery e ponte sincrono), `varianti.py` (scelta delle varianti e selezione degli strumenti), `calcolatrice_locale.py` (variante locale di `calcola` con `@tool`), `avvio_server.py` (avvio, attesa e arresto dei processi), `avvio.py` (preparazione degli strumenti), `registro.py` (log), `errori.py`, `terminale.py` (ciclo di chat), `__main__.py` (avvio).
-- `logs/`: `assistente.log` e `server_mcp.log`, fuori da Git.
+- `servizio_api/`: servizio FastAPI delle scadenze (`app.py`) e avvio (`python -m servizio_api --porta 8766`).
+- `risorse/`: dati versionati letti dagli strumenti (`festivita_italia.json`).
+- `assistente/`: `configurazione.py` e `fuso.py` (variabili d'ambiente, rilevamento del fuso), `modello.py` (LM Studio), `grafo.py` (stato, nodi, instradamento), `client_mcp.py` (discovery e ponte sincrono), `varianti.py` (scelta delle varianti e selezione degli strumenti), `calcolatrice_locale.py` (variante locale di `calcola` con `@tool`), `wrapper_scadenze.py` (variante FastAPI di `calcola_scadenza`: wrapper HTTP con `@tool`), `avvio_server.py` (avvio, attesa e arresto dei processi), `avvio.py` (preparazione degli strumenti), `registro.py` (log), `errori.py`, `terminale.py` (ciclo di chat), `__main__.py` (avvio).
+- `logs/`: `assistente.log`, `server_mcp.log` e `servizio_api.log`, fuori da Git.
 - `tests/`: test automatici; `finti.py` contiene modello e strumenti finti; `reale.py` l'ambiente comune delle prove reali; `test_reale_*.py` sono le prove reali.
 - Dipendenze in `requirements.txt` (applicazione) e `requirements-dev.txt` (più pytest), versioni fissate.
 
