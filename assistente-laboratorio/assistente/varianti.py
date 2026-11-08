@@ -11,13 +11,21 @@ from langchain_core.tools import BaseTool
 from assistente.calcolatrice_locale import crea_calcolatrice_locale
 from assistente.configurazione import Configurazione
 from assistente.errori import ErroreAvvio
+from assistente.wrapper_scadenze import crea_wrapper_scadenze
 
 
-def crea_sostituti(config: Configurazione) -> list[BaseTool]:
-    """Versioni non MCP richieste dal .env; ciascuna prende il posto dello strumento MCP omonimo."""
+def crea_sostituti(config: Configurazione, *, url_api: str | None = None) -> list[BaseTool]:
+    """Versioni non MCP richieste dal .env; ciascuna prende il posto dello strumento MCP omonimo.
+
+    `url_api` è l'indirizzo del servizio FastAPI già avviato (serve con VARIANTE_SCADENZE=fastapi).
+    """
     sostituti: list[BaseTool] = []
     if config.variante_calcolatrice == "locale":
         sostituti.append(crea_calcolatrice_locale())
+    if config.variante_scadenze == "fastapi":
+        if url_api is None:
+            raise ErroreAvvio("Variante FastAPI delle scadenze richiesta, ma il servizio non è stato avviato.")
+        sostituti.append(crea_wrapper_scadenze(url_api))
     return sostituti
 
 
