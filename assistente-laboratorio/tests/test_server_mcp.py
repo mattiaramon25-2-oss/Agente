@@ -6,7 +6,14 @@ from datetime import datetime, timezone
 from fastmcp import Client
 
 from logica.conversioni import UNITA_AMMESSE
-from server_mcp.server import NOME_CONVERTITORE, NOME_OROLOGIO, NOME_SERVER, crea_server
+from server_mcp.server import (
+    DESCRIZIONE_CALCOLATRICE,
+    NOME_CALCOLATRICE,
+    NOME_CONVERTITORE,
+    NOME_OROLOGIO,
+    NOME_SERVER,
+    crea_server,
+)
 
 
 def con_client(funzione, **opzioni):
@@ -25,7 +32,7 @@ def test_nome_del_server():
 
 def test_catalogo():
     strumenti = con_client(lambda c: c.list_tools())
-    assert {s.name for s in strumenti} == {NOME_CONVERTITORE, NOME_OROLOGIO}
+    assert {s.name for s in strumenti} == {NOME_CONVERTITORE, NOME_OROLOGIO, NOME_CALCOLATRICE}
     (convertitore,) = [s for s in strumenti if s.name == NOME_CONVERTITORE]
     schema = convertitore.inputSchema
     assert schema["required"] == ["valore", "da", "a"]
@@ -70,3 +77,24 @@ def test_orologio_fuso_sconosciuto(caplog):
     r = con_client(lambda c: c.call_tool(NOME_OROLOGIO, {"fuso": "Mars/Olympus"}, raise_on_error=False))
     assert r.is_error and "Fuso orario sconosciuto: 'Mars/Olympus'" in r.content[0].text
     assert "tool=ora_corrente" in caplog.text and "esito=errore" in caplog.text
+
+
+def test_calcola_nel_catalogo():
+    (calcolatrice,) = [s for s in con_client(lambda c: c.list_tools()) if s.name == "calcola"]
+    assert NOME_CALCOLATRICE == "calcola"
+    assert calcolatrice.description == DESCRIZIONE_CALCOLATRICE == (
+        "Calcola un'espressione aritmetica con numeri decimali (punto come separatore), + - * / % ** "
+        'e parentesi. Esempio: espressione="(3 + 4) * 2".'
+    )
+    assert calcolatrice.inputSchema["required"] == ["espressione"]
+    assert calcolatrice.inputSchema["properties"]["espressione"]["type"] == "string"
+
+
+def test_calcola_via_mcp():
+    r = con_client(lambda c: c.call_tool("calcola", {"espressione": "(3 + 4) * 2"}))
+    assert r.structured_content == {"espressione": "(3 + 4) * 2", "risultato": 14}
+
+
+def test_calcola_rifiuto_via_mcp():
+    r = con_client(lambda c: c.call_tool("calcola", {"espressione": "__import__('os')"}, raise_on_error=False))
+    assert r.is_error and "non consentit" in r.content[0].text

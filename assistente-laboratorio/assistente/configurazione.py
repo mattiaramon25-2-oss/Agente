@@ -3,7 +3,8 @@
 from dataclasses import dataclass
 from typing import Mapping
 
-OBBLIGATORIE = ("LMSTUDIO_BASE_URL", "LMSTUDIO_MODEL", "MCP_PORTA")
+OBBLIGATORIE = ("LMSTUDIO_BASE_URL", "LMSTUDIO_MODEL", "MCP_PORTA", "VARIANTE_CALCOLATRICE")
+VARIANTI_CALCOLATRICE = ("mcp", "locale")
 PORTA_MINIMA = 1024
 PORTA_MASSIMA = 65535
 
@@ -13,6 +14,8 @@ class Configurazione:
     base_url: str
     modello: str
     porta_mcp: int
+    # Valore predefinito solo per comodità di costruzione: nell'ambiente la variabile è obbligatoria.
+    variante_calcolatrice: str = "mcp"
 
 
 class ErroreConfigurazione(Exception):
@@ -26,6 +29,13 @@ def leggi_porta(nome: str, valore: str) -> int:
             f"{nome} non valida: '{valore}'. Usa un numero intero tra {PORTA_MINIMA} e {PORTA_MASSIMA}, per esempio 8765."
         )
     return int(valore)
+
+
+def leggi_variante(nome: str, valore: str, ammessi: tuple[str, ...]) -> str:
+    normalizzato = valore.strip().lower()
+    if normalizzato not in ammessi:
+        raise ErroreConfigurazione(f"{nome} non valida: '{valore.strip()}'. Valori ammessi: {', '.join(ammessi)}.")
+    return normalizzato
 
 
 def carica_configurazione(env: Mapping[str, str]) -> Configurazione:
@@ -42,4 +52,7 @@ def carica_configurazione(env: Mapping[str, str]) -> Configurazione:
         base_url=valori["LMSTUDIO_BASE_URL"],
         modello=valori["LMSTUDIO_MODEL"],
         porta_mcp=leggi_porta("MCP_PORTA", valori["MCP_PORTA"]),
+        variante_calcolatrice=leggi_variante(
+            "VARIANTE_CALCOLATRICE", valori["VARIANTE_CALCOLATRICE"], VARIANTI_CALCOLATRICE
+        ),
     )

@@ -12,6 +12,7 @@ l'assistente avvia da solo, interroga con la discovery (`tools/list`) e spegne a
 |---|---|
 | `ora_corrente(fuso)` | data e ora attuali nel fuso IANA indicato, per esempio `Asia/Tokyo` |
 | `converti_unita(valore, da, a)` | conversione tra unità metriche di lunghezza, massa e volume, e tra °C e °F |
+| `calcola(espressione)` | espressioni aritmetiche con `+ - * / % **` e parentesi, senza `eval`, in aritmetica decimale esatta |
 
 Nome, descrizione e schema degli strumenti arrivano dal server, non sono riscritti nell'assistente.
 Ogni chiamata eseguita con successo compare nel terminale con la sua origine, per esempio
@@ -19,6 +20,28 @@ Ogni chiamata eseguita con successo compare nel terminale con la sua origine, pe
 
 Struttura: `logica/` contiene la logica pura degli strumenti, `server_mcp/` la registrazione MCP,
 `assistente/` l'agente (grafo, collegamento al modello, client MCP, avvio dei processi, terminale).
+
+### Varianti di uno strumento
+
+Per confrontare i modi di collegare uno strumento (lezione 5), alcuni strumenti esistono anche
+fuori dal server MCP. Il server li espone sempre tutti; è l'assistente a scegliere quale versione
+passare al modello, una sola per nome, secondo il file `.env`:
+
+| Strumento | Variabile | Valori | Dove gira |
+|---|---|---|---|
+| `calcola` | `VARIANTE_CALCOLATRICE` | `mcp`, `locale` | `mcp`: nel server, via MCP; `locale`: funzione Python con `@tool` nel processo dell'assistente (`assistente/calcolatrice_locale.py`) |
+
+Le due versioni hanno lo stesso nome, la stessa descrizione, lo stesso schema degli argomenti e la
+stessa logica (`logica/calcolatrice.py`): cambia solo il percorso. Unica differenza dovuta ai
+framework: FastMCP rifiuta un argomento in più che il modello dovesse inventare, mentre `@tool` lo
+ignora. Per confrontarle si fa la stessa domanda
+(per esempio «Quanto fa (3+4)*2?») dopo aver cambiato la variabile nel `.env` e riavviato.
+La differenza si vede:
+
+- nella riga di benvenuto (`calcola (mcp)` oppure `calcola (locale)`) e nella riga del terminale
+  (`[calcola · locale: (3+4)*2]`);
+- nei log: con `locale` la chiamata compare solo in `logs/assistente.log` (`origine=locale`),
+  perché non c'è un altro processo; con `mcp` compare anche in `logs/server_mcp.log`.
 
 ## Requisiti
 
@@ -45,6 +68,7 @@ Poi aprire `.env` e controllare i valori:
 | `LMSTUDIO_MODEL` | sì | identificativo del modello, come restituito da `GET /v1/models` |
 | `LMSTUDIO_BASE_URL_DOCKER` | solo per Docker | indirizzo di LM Studio visto dal container |
 | `MCP_PORTA` | sì | porta locale del server MCP (intero tra 1024 e 65535), per esempio `8765` |
+| `VARIANTE_CALCOLATRICE` | sì | `mcp` oppure `locale`: quale versione di `calcola` vede il modello |
 | `FUSO_ORARIO` | no | fuso IANA di riserva se il rilevamento automatico non riesce |
 
 Per vedere gli identificativi disponibili:
@@ -55,8 +79,9 @@ Per vedere gli identificativi disponibili:
 
 Nessuna credenziale è necessaria: il file `.env` resta fuori da Git.
 
-Chi ha già un `.env` creato prima del server MCP deve aggiungere a mano la riga `MCP_PORTA=8765`
-(vedi `.env.example`): senza, l'avvio si ferma con `Variabili d'ambiente mancanti: MCP_PORTA`.
+Chi ha già un `.env` creato prima del server MCP deve aggiungere a mano le righe nuove di
+`.env.example` (`MCP_PORTA=8765`, `VARIANTE_CALCOLATRICE=mcp`): senza, l'avvio si ferma con
+`Variabili d'ambiente mancanti: …` e il nome delle variabili.
 
 ## Avvio diretto
 
@@ -79,10 +104,10 @@ Esempio (ingresso inviato con una pipe):
 ```
 Assistente del laboratorio
 Fuso orario: Europe/Berlin (computer locale)
-Strumenti: converti_unita (mcp), ora_corrente (mcp)
+Strumenti: converti_unita (mcp), ora_corrente (mcp), calcola (mcp)
 Scrivi «esci» o premi Ctrl+C per uscire.
 Tu: [ora_corrente · mcp: Asia/Tokyo]
-Assistente: Attualmente a Tokyo sono le ore **22:23** di domenica 8 novembre 2026.
+Assistente: Attualmente a Tokyo sono le ore **23:23:46** di domenica 8 novembre 2026.
 Tu: [converti_unita · mcp: 2.5, km, m]
 Assistente: 2,5 km sono **2500 metri**.
 Tu: Arrivederci.
@@ -161,7 +186,13 @@ Prova reale con LM Studio acceso, ogni domanda in una sessione nuova:
   giusto e l'ora della risposta deve essere quella calcolata; più un errore controllato
   (`Mars/Olympus` passato direttamente allo strumento, senza modello);
 - cinque domande di conversione: l'ultima chiamata a `converti_unita` del turno deve avere gli
-  argomenti giusti e il numero della risposta deve coincidere con il risultato dello strumento.
+  argomenti giusti e il numero della risposta deve coincidere con il risultato dello strumento;
+- «Quanto fa (3+4)*2?» una volta con la calcolatrice `mcp` e una con quella `locale`: il risultato
+  deve essere 14 e il log deve riportare l'origine giusta; più un errore controllato
+  (`__import__('os')` passato direttamente allo strumento) in entrambe le varianti.
+
+Le prove reali leggono le variabili dal `.env`; la calcolatrice viene forzata a ciascuna variante
+dal test stesso.
 
 ```powershell
 python -m pytest --lmstudio -m lmstudio -v -s
@@ -213,6 +244,11 @@ Il fuso dell'utente è rilevato una volta sola all'avvio, in quest'ordine:
 
   Un processo acceso o un HTTP 200 non bastano: l'assistente considera pronto il server solo quando
   la discovery (`tools/list`) riesce.
-- **`required variable MCP_PORTA is missing a value`** (con Docker): aggiungere `MCP_PORTA=8765` al file `.env`.
+- **`required variable MCP_PORTA is missing a value`** (con Docker): aggiungere `MCP_PORTA=8765` al file `.env`;
+  lo stesso per `VARIANTE_CALCOLATRICE`.
+- **`VARIANTE_CALCOLATRICE non valida`**: i valori ammessi sono `mcp` e `locale`.
+- **La calcolatrice rifiuta un'espressione** (`Carattere non consentito`, `Operazione non consentita`,
+  `Esponente non ammesso`): è voluto. Sono ammessi solo numeri con il punto decimale, `+ - * / % **`
+  e parentesi; niente funzioni, nomi, `//` o notazione scientifica, esponenti interi fino a 1000.
 - **`Fuso orario: Europe/Berlin` anche se si è in Italia**: Windows chiama il fuso dell'Europa centrale
   `W. Europe Standard Time`, che la tabella standard traduce in `Europe/Berlin`. È la stessa ora di Roma.

@@ -21,6 +21,7 @@ def ambiente(monkeypatch, tmp_path, porta, popen_registrati):
         "LMSTUDIO_BASE_URL": "http://localhost:1234/v1",
         "LMSTUDIO_MODEL": "finto",
         "MCP_PORTA": str(porta),
+        "VARIANTE_CALCOLATRICE": "mcp",
     }.items():
         monkeypatch.setenv(nome, valore)
     monkeypatch.setattr(avvio, "load_dotenv", lambda **k: None)
@@ -87,3 +88,28 @@ def test_porta_mancante(ambiente, monkeypatch, capsys):
     monkeypatch.delenv("MCP_PORTA")
     assert avvio.main() == 1
     assert "MCP_PORTA" in capsys.readouterr().err
+
+
+def chiedi_calcolo(ambiente):
+    stato = ambiente["_stato"]
+    stato["righe"][:] = ["quanto fa (3+4)*2?", "esci"]
+    stato["risposte"][:] = [chiamata("calcola", {"espressione": "(3 + 4) * 2"}), AIMessage("14")]
+    assert avvio.main() == 0
+    return stato["stampate"]
+
+
+def test_variante_locale_non_tocca_il_server(ambiente, monkeypatch):
+    monkeypatch.setenv("VARIANTE_CALCOLATRICE", "locale")
+    stampate = chiedi_calcolo(ambiente)
+    assert "calcola (locale)" in next(r for r in stampate if r.startswith("Strumenti: "))
+    assert "[calcola · locale: (3 + 4) * 2]" in stampate
+    log = ambiente["log_assistente"].read_text(encoding="utf-8")
+    assert "origine=locale tool=calcola" in log and "varianti calcolatrice=locale" in log
+    assert "tool=calcola" not in ambiente["log_server"].read_text(encoding="utf-8")
+
+
+def test_variante_mcp(ambiente):
+    stampate = chiedi_calcolo(ambiente)
+    assert "calcola (mcp)" in next(r for r in stampate if r.startswith("Strumenti: "))
+    assert "[calcola · mcp: (3 + 4) * 2]" in stampate
+    assert "tool=calcola" in ambiente["log_server"].read_text(encoding="utf-8")

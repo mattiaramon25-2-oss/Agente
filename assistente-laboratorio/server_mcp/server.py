@@ -9,6 +9,7 @@ from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 from pydantic import WithJsonSchema
 
+from logica.calcolatrice import SCHEMA_ESPRESSIONE, calcola
 from logica.conversioni import UNITA_AMMESSE, converti
 from logica.errori import ErroreStrumento
 from logica.orologio import ora_corrente, ora_utc
@@ -16,6 +17,7 @@ from logica.orologio import ora_corrente, ora_utc
 NOME_SERVER = "Strumenti laboratorio"
 NOME_CONVERTITORE = "converti_unita"
 NOME_OROLOGIO = "ora_corrente"
+NOME_CALCOLATRICE = "calcola"
 
 DESCRIZIONE_CONVERTITORE = (
     "Converte un valore tra unità metriche della stessa grandezza (lunghezza, massa, volume) "
@@ -24,6 +26,11 @@ DESCRIZIONE_CONVERTITORE = (
 DESCRIZIONE_OROLOGIO = (
     "Restituisce data e ora attuali nel fuso orario indicato. "
     '`fuso`: nome IANA, per esempio "Europe/Rome" o "Asia/Tokyo".'
+)
+# Identica alla docstring della variante locale (assistente/calcolatrice_locale.py): lo verifica un test.
+DESCRIZIONE_CALCOLATRICE = (
+    "Calcola un'espressione aritmetica con numeri decimali (punto come separatore), + - * / % ** "
+    'e parentesi. Esempio: espressione="(3 + 4) * 2".'
 )
 
 registro = logging.getLogger("server_mcp")
@@ -71,5 +78,11 @@ def crea_server(*, adesso: Callable[[], datetime] = ora_utc) -> FastMCP:
         ],
     ) -> dict:
         return esegui_registrato(NOME_OROLOGIO, {"fuso": fuso}, lambda: ora_corrente(fuso, adesso()))
+
+    @server.tool(name=NOME_CALCOLATRICE, description=DESCRIZIONE_CALCOLATRICE)
+    def calcola_mcp(
+        espressione: Annotated[Any, WithJsonSchema(SCHEMA_ESPRESSIONE)],
+    ) -> dict:
+        return esegui_registrato(NOME_CALCOLATRICE, {"espressione": espressione}, lambda: calcola(espressione))
 
     return server

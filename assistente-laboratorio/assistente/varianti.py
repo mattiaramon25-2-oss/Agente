@@ -8,7 +8,17 @@ from typing import Sequence
 
 from langchain_core.tools import BaseTool
 
+from assistente.calcolatrice_locale import crea_calcolatrice_locale
+from assistente.configurazione import Configurazione
 from assistente.errori import ErroreAvvio
+
+
+def crea_sostituti(config: Configurazione) -> list[BaseTool]:
+    """Versioni non MCP richieste dal .env; ciascuna prende il posto dello strumento MCP omonimo."""
+    sostituti: list[BaseTool] = []
+    if config.variante_calcolatrice == "locale":
+        sostituti.append(crea_calcolatrice_locale())
+    return sostituti
 
 
 def seleziona_strumenti(remoti: list[BaseTool], sostituti: Sequence[BaseTool] = ()) -> list[BaseTool]:
