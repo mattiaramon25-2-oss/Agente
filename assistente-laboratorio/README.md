@@ -31,8 +31,10 @@ passare al modello, una sola per nome, secondo il file `.env`:
 |---|---|---|---|
 | `calcola` | `VARIANTE_CALCOLATRICE` | `mcp`, `locale` | `mcp`: nel server, via MCP; `locale`: funzione Python con `@tool` nel processo dell'assistente (`assistente/calcolatrice_locale.py`) |
 
-Le due versioni hanno lo stesso nome, la stessa descrizione, lo stesso schema e la stessa logica
-(`logica/calcolatrice.py`): cambia solo il percorso. Per confrontarle si fa la stessa domanda
+Le due versioni hanno lo stesso nome, la stessa descrizione, lo stesso schema degli argomenti e la
+stessa logica (`logica/calcolatrice.py`): cambia solo il percorso. Unica differenza dovuta ai
+framework: FastMCP rifiuta un argomento in più che il modello dovesse inventare, mentre `@tool` lo
+ignora. Per confrontarle si fa la stessa domanda
 (per esempio «Quanto fa (3+4)*2?») dopo aver cambiato la variabile nel `.env` e riavviato.
 La differenza si vede:
 

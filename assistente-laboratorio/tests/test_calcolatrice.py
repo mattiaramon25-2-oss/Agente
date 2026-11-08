@@ -35,3 +35,11 @@ def test_rifiuti(espressione, frammento):
 def test_non_testo(valore):
     with pytest.raises(ErroreStrumento, match="testo"):
         calcola(valore)
+
+
+@pytest.mark.parametrize("espressione, atteso", [
+    ("2 ** 200", 2 ** 200), ("10 ** 60 + 1", 10 ** 60 + 1), ("10 ** 60 % 7", 10 ** 60 % 7),
+    ("99999999999999999999999999 * 99999999999999999999999999", 99999999999999999999999999 ** 2),
+])
+def test_interi_grandi_esatti(espressione, atteso):
+    assert calcola(espressione)["risultato"] == atteso

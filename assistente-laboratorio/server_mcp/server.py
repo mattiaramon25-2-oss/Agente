@@ -9,7 +9,7 @@ from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 from pydantic import WithJsonSchema
 
-from logica.calcolatrice import calcola
+from logica.calcolatrice import SCHEMA_ESPRESSIONE, calcola
 from logica.conversioni import UNITA_AMMESSE, converti
 from logica.errori import ErroreStrumento
 from logica.orologio import ora_corrente, ora_utc
@@ -81,9 +81,7 @@ def crea_server(*, adesso: Callable[[], datetime] = ora_utc) -> FastMCP:
 
     @server.tool(name=NOME_CALCOLATRICE, description=DESCRIZIONE_CALCOLATRICE)
     def calcola_mcp(
-        espressione: Annotated[
-            Any, WithJsonSchema({"type": "string", "description": "Espressione aritmetica, per esempio (3 + 4) * 2"})
-        ],
+        espressione: Annotated[Any, WithJsonSchema(SCHEMA_ESPRESSIONE)],
     ) -> dict:
         return esegui_registrato(NOME_CALCOLATRICE, {"espressione": espressione}, lambda: calcola(espressione))
 

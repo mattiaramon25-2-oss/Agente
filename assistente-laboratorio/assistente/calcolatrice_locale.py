@@ -6,10 +6,13 @@ la chiamata resta nel processo dell'agente e compare solo in logs/assistente.log
 """
 
 import json
+from typing import Annotated, Any
 
 from langchain_core.tools import BaseTool, tool
+from pydantic import WithJsonSchema
 
 from assistente.client_mcp import TIPO_STRUMENTO
+from logica.calcolatrice import SCHEMA_ESPRESSIONE
 from logica.calcolatrice import calcola as calcola_logica
 from logica.errori import ErroreStrumento
 
@@ -17,8 +20,10 @@ ORIGINE_LOCALE = "locale"
 
 
 def crea_calcolatrice_locale() -> BaseTool:
+    # Stesso schema della variante MCP; Any lascia arrivare alla logica anche un valore non testuale,
+    # così il messaggio d'errore è lo stesso (in italiano) nelle due varianti.
     @tool
-    def calcola(espressione: str) -> str:
+    def calcola(espressione: Annotated[Any, WithJsonSchema(SCHEMA_ESPRESSIONE)]) -> str:
         """Calcola un'espressione aritmetica con numeri decimali (punto come separatore), + - * / % ** e parentesi. Esempio: espressione="(3 + 4) * 2"."""  # noqa: E501
         try:
             return json.dumps(calcola_logica(espressione), ensure_ascii=False)

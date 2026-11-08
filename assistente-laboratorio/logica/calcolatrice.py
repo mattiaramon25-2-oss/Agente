@@ -14,6 +14,10 @@ LUNGHEZZA_MASSIMA = 200
 ESPONENTE_MASSIMO = 1000
 LIMITE_RISULTATO = Decimal("1e300")
 CIFRE_SIGNIFICATIVE = 15
+# Ogni valore ammesso (sotto 1e300) ha al massimo 300 cifre intere: con 400 cifre gli interi restano esatti.
+PRECISIONE = 400
+# Schema JSON dell'argomento `espressione`, unico per tutte le varianti (MCP e locale).
+SCHEMA_ESPRESSIONE = {"type": "string", "description": "Espressione aritmetica, per esempio (3 + 4) * 2"}
 CARATTERI_AMMESSI = set("0123456789.+-*/%() ")
 
 _BINARI = (ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Mod, ast.Pow)
@@ -95,7 +99,7 @@ def calcola(espressione: object) -> dict:
         raise ErroreStrumento("Espressione non valida: errore di sintassi.") from None
 
     with localcontext() as contesto:
-        contesto.prec = 50
+        contesto.prec = PRECISIONE
         try:
             risultato = _valuta(albero, testo)
         except DivisionByZero:  # per esempio 0 ** -1
