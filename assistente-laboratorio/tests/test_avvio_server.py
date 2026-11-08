@@ -135,3 +135,48 @@ def test_arresto_ordinato_registrato(porta, tmp_path):
         pass
     assert avviato.processo.returncode == 0
     assert "arresto server" in log.read_text(encoding="utf-8")
+
+
+def test_porta_occupata_su_tutte_le_interfacce(porta, tmp_path):
+    """Un programma in ascolto su 0.0.0.0 occupa la porta anche per 127.0.0.1 (su Windows il bind riuscirebbe)."""
+    from assistente.avvio_server import porta_libera
+
+    with socket.socket() as occupante:
+        occupante.bind(("0.0.0.0", porta))
+        occupante.listen()
+        assert not porta_libera(porta)
+
+
+class ProcessoLento:
+    """Finto processo che non si chiude: il primo wait viene interrotto da Ctrl+C."""
+
+    def __init__(self):
+        self.ucciso = False
+        self.attese = 0
+
+    def poll(self):
+        return 0 if self.ucciso else None
+
+    def send_signal(self, segnale):
+        pass
+
+    def terminate(self):
+        pass
+
+    def kill(self):
+        self.ucciso = True
+
+    def wait(self, timeout=None):
+        self.attese += 1
+        if self.attese == 1:
+            raise KeyboardInterrupt
+        return 0
+
+
+def test_ctrl_c_durante_l_arresto_uccide_comunque(monkeypatch):
+    from assistente.avvio_server import ferma
+
+    processo = ProcessoLento()
+    with pytest.raises(KeyboardInterrupt):
+        ferma(processo, attesa=0.1)
+    assert processo.ucciso
