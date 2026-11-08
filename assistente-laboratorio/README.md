@@ -252,9 +252,11 @@ qualche secondo ciascuno.
 Le prove reali sono saltate (`skipped`) se non vengono richieste esplicitamente.
 Prova reale con LM Studio acceso, ogni domanda in una sessione nuova:
 
-- cinque domande sull'ora: il modello deve chiamare davvero `ora_corrente` (via MCP) con il fuso
-  giusto e l'ora della risposta deve essere quella calcolata; più un errore controllato
-  (`Mars/Olympus` passato direttamente allo strumento, senza modello);
+- cinque domande su ora e data: il modello deve chiamare davvero `ora_corrente` (via MCP) con il
+  fuso giusto; per le quattro domande sull'ora l'ora della risposta deve essere quella calcolata,
+  per «Che giorno è oggi?» la risposta deve contenere il giorno della settimana o il giorno del mese
+  restituiti dallo strumento; più un errore controllato (`Mars/Olympus` passato direttamente allo
+  strumento, senza modello);
 - cinque domande di conversione: l'ultima chiamata a `converti_unita` del turno deve avere gli
   argomenti giusti e il numero della risposta deve coincidere con il risultato dello strumento;
 - «Quanto fa (3+4)*2?» una volta con la calcolatrice `mcp` e una con quella `locale`: il risultato

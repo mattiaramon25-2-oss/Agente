@@ -4,6 +4,7 @@ Si attiva solo con: python -m pytest --lmstudio -m lmstudio -v -s
 """
 
 import json
+import re
 from datetime import datetime, timedelta
 
 import pytest
@@ -68,10 +69,16 @@ def test_il_modello_usa_l_orologio(ambiente, domanda, fuso_atteso, chiede_ora):
     validi = [r for r in risultati if "errore" not in r]
     assert validi, "nessun risultato valido dello strumento"
     assert isinstance(risposta, AIMessage) and risposta.text.strip()
+    istante = datetime.fromisoformat(validi[-1]["data_ora"])
     if chiede_ora:
-        istante = datetime.fromisoformat(validi[-1]["data_ora"])
         assert any(forma in risposta.text for forma in forme_dell_ora(istante)), (
             f"l'ora della risposta non corrisponde a {istante:%H:%M}"
+        )
+    else:  # «Che giorno è oggi?»: il giorno della settimana o il giorno del mese restituiti dallo strumento
+        giorno_settimana = validi[-1]["giorno_settimana"]
+        giorno_del_mese = re.search(rf"(?<!\d){istante.day}(?!\d)", risposta.text)
+        assert giorno_settimana in risposta.text.casefold() or giorno_del_mese, (
+            f"la risposta non contiene né «{giorno_settimana}» né il giorno {istante.day}"
         )
     assert f"origine=mcp tool={NOME_OROLOGIO}" in righe_del_log(inizio_log)
 
