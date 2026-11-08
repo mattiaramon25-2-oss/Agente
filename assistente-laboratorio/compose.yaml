@@ -7,6 +7,7 @@ services:
       LMSTUDIO_BASE_URL: ${LMSTUDIO_BASE_URL_DOCKER:?Imposta LMSTUDIO_BASE_URL_DOCKER nel file .env}
       # Il server MCP gira nello stesso container: la porta non va pubblicata.
       MCP_PORTA: ${MCP_PORTA:?Imposta MCP_PORTA nel file .env, per esempio MCP_PORTA=8765}
+      VARIANTE_CALCOLATRICE: ${VARIANTE_CALCOLATRICE:?Imposta VARIANTE_CALCOLATRICE nel file .env (mcp oppure locale)}
     volumes:
       # I log restano leggibili sull'host anche dopo --rm.
       - ./logs:/app/logs
