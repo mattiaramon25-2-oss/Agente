@@ -21,6 +21,9 @@ def test_variabili_mancanti():
     assert "LMSTUDIO_MODEL" in messaggio
     assert "MCP_PORTA" in messaggio
     assert ".env.example" in messaggio
+    # Chi ha già un .env non deve sovrascriverlo: il messaggio chiede di aggiungere, non di copiare.
+    assert "Copia .env.example in .env" not in messaggio
+    assert "Aggiungi" in messaggio
 
 
 def test_variabile_vuota():

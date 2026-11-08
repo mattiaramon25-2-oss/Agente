@@ -1,6 +1,6 @@
 """Interfaccia da terminale: ciclo di chat, uscita e stampa."""
 
-from typing import Callable, Mapping
+from typing import Callable, Mapping, Sequence
 
 from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 
@@ -11,7 +11,15 @@ PAROLA_USCITA = "esci"
 NESSUNA_RISPOSTA = "(nessuna risposta dal modello)"
 
 
-def _righe_strumenti(nuovi: list[BaseMessage], origini: Mapping[str, str]) -> list[str]:
+def _valori(argomenti: Mapping[str, object], ordine: Sequence[str]) -> str:
+    """Valori degli argomenti nell'ordine dello schema (il modello può mandarli in qualsiasi ordine)."""
+    nomi = [n for n in ordine if n in argomenti] + [n for n in argomenti if n not in ordine]
+    return ", ".join(str(argomenti[n]) for n in nomi)
+
+
+def _righe_strumenti(
+    nuovi: list[BaseMessage], origini: Mapping[str, str], parametri: Mapping[str, Sequence[str]]
+) -> list[str]:
     """Una riga per ogni chiamata eseguita con successo in questo turno, con la variante usata."""
     richieste = {
         chiamata["id"]: chiamata
@@ -25,7 +33,7 @@ def _righe_strumenti(nuovi: list[BaseMessage], origini: Mapping[str, str]) -> li
             chiamata = richieste.get(messaggio.tool_call_id)
             if chiamata:
                 nome = chiamata["name"]
-                valori = ", ".join(str(v) for v in (chiamata.get("args") or {}).values())
+                valori = _valori(chiamata.get("args") or {}, parametri.get(nome, ()))
                 righe.append(f"[{nome} · {origini.get(nome, '?')}: {valori}]")
     return righe
 
@@ -36,8 +44,10 @@ def esegui_sessione(
     leggi: Callable[[str], str] = input,
     scrivi: Callable[[str], None] = print,
     origini: Mapping[str, str] | None = None,
+    parametri: Mapping[str, Sequence[str]] | None = None,
 ) -> None:
     origini = dict(origini or {})
+    parametri = dict(parametri or {})
     scrivi("Assistente del laboratorio")
     scrivi(f"Fuso orario: {fuso.fuso} ({fuso.origine})")
     if origini:
@@ -67,7 +77,7 @@ def esegui_sessione(
             scrivi(f"Errore: {eccezione}")
             continue
 
-        for riga in _righe_strumenti(nuova[len(cronologia):], origini):
+        for riga in _righe_strumenti(nuova[len(cronologia):], origini, parametri):
             scrivi(riga)
         cronologia = nuova
         risposta = nuova[-1].text.strip() if isinstance(nuova[-1], AIMessage) else ""

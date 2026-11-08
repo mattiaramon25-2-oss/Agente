@@ -67,7 +67,7 @@ def test_avvio_completo(ambiente):
 def test_chiamata_reale_attraverso_il_server(ambiente):
     stato = ambiente["_stato"]
     stato["righe"][:] = ["2,5 km in metri?", "esci"]
-    stato["risposte"][:] = [chiamata("converti_unita", {"valore": 2.5, "da": "km", "a": "m"}), AIMessage("2500 m")]
+    stato["risposte"][:] = [chiamata("converti_unita", {"a": "m", "da": "km", "valore": 2.5}), AIMessage("2500 m")]
     assert avvio.main() == 0
     assert "[converti_unita · mcp: 2.5, km, m]" in stato["stampate"]
     assert "origine=mcp tool=converti_unita" in ambiente["log_assistente"].read_text(encoding="utf-8")

@@ -2,7 +2,7 @@ import pytest
 from langchain_core.tools import StructuredTool
 
 from assistente.errori import ErroreAvvio
-from assistente.varianti import origini, seleziona_strumenti
+from assistente.varianti import origini, parametri, seleziona_strumenti
 
 
 def tool(nome, origine=None):
@@ -27,3 +27,9 @@ def test_nomi_duplicati():
 
 def test_origine_mancante_vale_locale():
     assert origini([tool("x")]) == {"x": "locale"}
+
+
+def test_parametri_nell_ordine_dello_schema():
+    schema = {"type": "object", "properties": {"valore": {}, "da": {}, "a": {}}, "required": ["valore", "da", "a"]}
+    mcp = StructuredTool(name="converti_unita", description="d", args_schema=schema, func=lambda **k: "")
+    assert parametri([mcp, tool("x")]) == {"converti_unita": ["valore", "da", "a"], "x": []}

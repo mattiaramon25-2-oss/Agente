@@ -13,7 +13,7 @@ from assistente.grafo import crea_grafo
 from assistente.modello import ErroreServer, crea_modello, verifica_server
 from assistente.registro import LOG_ASSISTENTE, configura_registro
 from assistente.terminale import esegui_sessione
-from assistente.varianti import origini
+from assistente.varianti import origini, parametri
 
 
 def main() -> int:
@@ -25,7 +25,7 @@ def main() -> int:
         fuso = rileva_fuso(os.environ)
         with prepara_strumenti(config) as strumenti:
             grafo = crea_grafo(crea_modello(config, strumenti), strumenti)
-            esegui_sessione(grafo, fuso, origini=origini(strumenti))
+            esegui_sessione(grafo, fuso, origini=origini(strumenti), parametri=parametri(strumenti))
     except (ErroreConfigurazione, ErroreServer, ErroreAvvio) as errore:
         print(f"Errore: {errore}", file=sys.stderr)
         return 1

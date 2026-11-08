@@ -34,8 +34,9 @@ def carica_configurazione(env: Mapping[str, str]) -> Configurazione:
     if mancanti:
         raise ErroreConfigurazione(
             "Variabili d'ambiente mancanti: " + ", ".join(mancanti) + ". "
-            "Copia .env.example in .env e imposta i valori "
-            "(l'identificativo del modello è quello restituito da GET /v1/models)."
+            "Aggiungi le righe mancanti al file .env, prendendole da .env.example "
+            "(se il .env non esiste ancora, crealo copiando .env.example). "
+            "L'identificativo del modello è quello restituito da GET /v1/models."
         )
     return Configurazione(
         base_url=valori["LMSTUDIO_BASE_URL"],

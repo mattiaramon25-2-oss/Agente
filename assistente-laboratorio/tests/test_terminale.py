@@ -14,7 +14,7 @@ FUSO = RisultatoFuso("Europe/Rome", "computer locale", None)
 ORIGINI = {"ora_corrente": "mcp"}
 
 
-def sessione(righe, risposte=(), fuso=FUSO, strumenti=None, origini=ORIGINI):
+def sessione(righe, risposte=(), fuso=FUSO, strumenti=None, origini=ORIGINI, parametri=None):
     """Esegue una sessione con ingresso e uscita simulati; restituisce (righe stampate, modello)."""
     modello = ModelloFinto(list(risposte))
     grafo = crea_grafo(modello, strumenti if strumenti is not None else [orologio_finto(ISTANTE)])
@@ -30,7 +30,7 @@ def sessione(righe, risposte=(), fuso=FUSO, strumenti=None, origini=ORIGINI):
             raise riga
         return riga
 
-    esegui_sessione(grafo, fuso, leggi=leggi, scrivi=stampate.append, origini=origini)
+    esegui_sessione(grafo, fuso, leggi=leggi, scrivi=stampate.append, origini=origini, parametri=parametri)
     return stampate, modello
 
 
@@ -145,3 +145,15 @@ def test_benvenuto_con_strumenti():
 def test_benvenuto_senza_strumenti():
     stampate, _ = sessione(["esci"], origini={})
     assert not any(r.startswith("Strumenti:") for r in stampate)
+
+
+def test_argomenti_nell_ordine_dello_schema():
+    # Il modello può mandare gli argomenti in qualsiasi ordine: la riga segue l'ordine dello strumento.
+    stampate, _ = sessione(
+        ["2,5 km in metri?", "esci"],
+        [chiamata("converti_unita", {"a": "m", "da": "km", "valore": 2.5}), AIMessage("2500 m")],
+        strumenti=[strumento_finto('{"risultato": 2500}')],
+        origini={"converti_unita": "mcp"},
+        parametri={"converti_unita": ["valore", "da", "a"]},
+    )
+    assert "[converti_unita · mcp: 2.5, km, m]" in stampate

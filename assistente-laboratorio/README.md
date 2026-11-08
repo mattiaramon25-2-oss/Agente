@@ -83,7 +83,7 @@ Strumenti: converti_unita (mcp), ora_corrente (mcp)
 Scrivi «esci» o premi Ctrl+C per uscire.
 Tu: [ora_corrente · mcp: Asia/Tokyo]
 Assistente: Attualmente a Tokyo sono le ore **22:23** di domenica 8 novembre 2026.
-Tu: [converti_unita · mcp: m, km, 2.5]
+Tu: [converti_unita · mcp: 2.5, km, m]
 Assistente: 2,5 km sono **2500 metri**.
 Tu: Arrivederci.
 ```

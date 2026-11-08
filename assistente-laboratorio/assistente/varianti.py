@@ -25,6 +25,11 @@ def seleziona_strumenti(remoti: list[BaseTool], sostituti: Sequence[BaseTool] = 
     return scelti
 
 
+def parametri(strumenti: Sequence[BaseTool]) -> dict[str, list[str]]:
+    """Da nome dello strumento ai nomi dei suoi argomenti, nell'ordine dello schema."""
+    return {s.name: list(s.args) for s in strumenti}
+
+
 def origini(strumenti: Sequence[BaseTool]) -> dict[str, str]:
     """Da nome dello strumento a origine (`mcp`, `locale`, `fastapi`); `locale` se manca."""
     return {s.name: (s.metadata or {}).get("origine", "locale") for s in strumenti}
