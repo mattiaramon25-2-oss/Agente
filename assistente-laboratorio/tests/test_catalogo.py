@@ -42,7 +42,7 @@ def test_query_non_valida(query):
         cerca(CORSI, query)
 
 
-@pytest.mark.parametrize("n", [0, 21, True, 2.5, "tre", None])
+@pytest.mark.parametrize("n", [0, 21, True, 2.5, "tre"])
 def test_max_results_non_valido(n):
     with pytest.raises(ErroreStrumento, match="tra 1 e 20"):
         cerca(CORSI, "python", n)
@@ -71,6 +71,11 @@ def test_file_reale():
     [{"codice": "A", "titolo": "t", "sede": "s"}],
     [{"codice": "A", "titolo": "t", "sede": "s", "durata_ore": "molte"}],
     {"codice": "A"},
+    [],
+    [{"codice": "A", "titolo": "t", "sede": "s", "durata_ore": 0}],
+    [{"codice": "A", "titolo": "t", "sede": "s", "durata_ore": -5}],
+    [{"codice": "", "titolo": "t", "sede": "s", "durata_ore": 1}],
+    [{"codice": " A-01 ", "titolo": "t", "sede": "s", "durata_ore": 1}],
 ])
 def test_catalogo_malformato(tmp_path, contenuto):
     percorso = tmp_path / "catalogo.json"
@@ -78,3 +83,21 @@ def test_catalogo_malformato(tmp_path, contenuto):
     with pytest.raises(ValueError, match="Catalogo non valido") as errore:
         carica_catalogo(percorso)
     assert "catalogo.json" in str(errore.value)
+
+
+@pytest.mark.parametrize("query, codici", [
+    ("Python base", ["PY-01"]), ("Deep Learning LLM", ["DLL-01"]), ("python pordenone", ["PY-02"]),
+    ("Python per l’analisi", ["PY-02"]), ("Deep Learning e LLM", ["DLL-01"]),
+])
+def test_ricerca_con_piu_parole(query, codici):
+    """Ogni parola deve comparire in codice, titolo o sede: resta una ricerca esatta, non RAG."""
+    assert [c["codice"] for c in cerca(CORSI, query)["risultati"]] == codici
+
+
+def test_parole_non_tutte_presenti():
+    assert cerca(CORSI, "Python astrofisica")["totale"] == 0
+
+
+def test_max_results_nullo_vale_il_predefinito():
+    molti = [{**CORSI[0], "codice": f"X-{i}"} for i in range(25)]
+    assert len(cerca(molti, "python", None)["risultati"]) == 5
