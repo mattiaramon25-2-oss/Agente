@@ -3,7 +3,8 @@
 Assistente da terminale che conversa con un modello locale servito da LM Studio.
 Il flusso è un grafo LangGraph esplicito (`assistente/grafo.py`): il nodo `modello` chiama il modello,
 il nodo `strumenti` esegue lo strumento che il modello chiede, il nodo `limite` chiude il turno
-dopo 3 giri di strumento. La cronologia resta in memoria per la sessione e si perde alla chiusura.
+dopo 3 giri di strumento. La cronologia resta in memoria per la sessione e si perde alla chiusura; le uniche informazioni
+che restano tra una sessione e l'altra sono le note (vedi sotto).
 
 Gli strumenti stanno in un **server MCP** («Strumenti laboratorio», scritto con FastMCP) che
 l'assistente avvia da solo, interroga con la discovery (`tools/list`) e spegne all'uscita:
@@ -15,6 +16,9 @@ l'assistente avvia da solo, interroga con la discovery (`tools/list`) e spegne a
 | `calcola(espressione)` | espressioni aritmetiche con `+ - * / % **` e parentesi, senza `eval`, in aritmetica decimale esatta |
 | `search_catalog(query, max_results)` | cerca corsi dell'ITS nel catalogo locale (`risorse/catalogo_corsi.json`) per parole chiave: un corso compare se ogni parola si trova nel titolo, nella sede o nel codice (`Python base` trova «Programmazione in Python di base»; `corsi di Python` no, perché «corsi» non c'è); elenco breve, al massimo 5 risultati se non indicato (1–20); nessun risultato è una lista vuota, non un errore |
 | `get_item(code)` | tutti i dettagli (titolo, sede, durata in ore) di un corso dato il codice esatto, per esempio `DLL-01` |
+| `add_note(text)` | salva una nota persistente (al massimo 500 caratteri) nell'archivio SQLite `archivio/note.sqlite3`; restituisce ID e data di creazione (UTC) |
+| `list_notes(limit)` | elenca le note dalla più recente (10 se non indicato, 1–50); non modifica nulla |
+| `delete_note(note_id)` | elimina la nota con l'ID esatto; con un ID inesistente non elimina nulla. Gli ID non vengono mai riusati |
 | `calcola_scadenza(data_inizio, giorni, lavorativi)` | data di scadenza aggiungendo giorni di calendario o lavorativi (festività nazionali italiane 2026–2028 da `risorse/festivita_italia.json`); risultato indicativo, senza valore legale |
 
 Nome, descrizione e schema degli strumenti arrivano dal server, non sono riscritti nell'assistente.
@@ -161,14 +165,15 @@ Gli errori sono risposte `400` con `{"errore": "..."}` in italiano.
 
 ## Log
 
-Ogni chiamata a uno strumento lascia una traccia in due file della cartella `logs/` (fuori da Git;
+Ogni chiamata a uno strumento lascia una traccia nei file della cartella `logs/` (fuori da Git;
 con Docker è montata sull'host):
 
 - `logs/assistente.log`: avvio e arresto del server, catalogo scoperto e, per ogni chiamata,
   `origine`, `tool`, `call_id`, `argomenti`, `esito` (`ok`, `errore_tool`, `errore_collegamento`,
   `strumento_sconosciuto`, `limite`), `risultato` e `tool_message.call_id`;
 - `logs/server_mcp.log`: ogni chiamata ricevuta dal server con argomenti ed esito, più l'output
-  della libreria MCP;
+  della libreria MCP; ogni aggiunta o eliminazione di una nota riuscita lascia anche una riga
+  `modifica note operazione=aggiunta|eliminazione id=…`;
 - `logs/servizio_api.log` (solo con `VARIANTE_SCADENZE=fastapi`): avvio e arresto del servizio e
   ogni richiesta a `/scadenza` con argomenti ed esito.
 
@@ -190,7 +195,7 @@ docker compose build
 
 Il server MCP (e, con `VARIANTE_SCADENZE=fastapi`, il servizio FastAPI) gira nello stesso container
 dell'assistente: le porte non vengono pubblicate. `compose.yaml` richiede `MCP_PORTA`,
-`VARIANTE_CALCOLATRICE` e `VARIANTE_SCADENZE` nel file `.env` e monta `./logs`, così i log restano sull'host.
+`VARIANTE_CALCOLATRICE` e `VARIANTE_SCADENZE` nel file `.env` e monta `./logs` e `./archivio`, così log e note restano sull'host anche dopo `--rm`.
 
 Perché lo script: dentro il container il fuso del sistema è UTC, non quello dell'utente.
 `avvia.ps1` legge il fuso di Windows (`(Get-TimeZone).Id`, per esempio `W. Europe Standard Time`)
@@ -237,7 +242,10 @@ Prova reale con LM Studio acceso, ogni domanda in una sessione nuova:
 - catalogo: «Quali corsi di Python ci sono nel catalogo?» (una `search_catalog` con risultati),
   «C'è un corso di astrofisica?» (nessun risultato e nessun codice inventato nella risposta),
   «Quante ore dura il corso di Deep Learning e LLM?» (`search_catalog` e poi `get_item` con
-  `DLL-01` nello stesso turno, risposta 120); più un errore controllato (`get_item` con `XX-99`).
+  `DLL-01` nello stesso turno, risposta 120); più un errore controllato (`get_item` con `XX-99`);
+- note, su un archivio temporaneo (mai quello reale): «Ricordami di consegnare il report venerdì»
+  (una sola `add_note`), «Elimina la nota 99» (errore, nessuna eliminazione), riavvio e «Quali note
+  ho salvato?» (la nota c'è ancora); «Elimina la nota sul report» è solo osservato e riportato.
 
 Le prove reali leggono le variabili dal `.env`; calcolatrice e scadenze vengono forzate a
 ciascuna variante dal test stesso.
@@ -306,6 +314,12 @@ Il fuso dell'utente è rilevato una volta sola all'avvio, in quest'ordine:
 
   L'assistente considera pronto il servizio solo quando `/openapi.json` descrive `/scadenza`,
   non al primo HTTP 200.
+- **Le note**: l'archivio è il file `archivio/note.sqlite3`, fuori da Git e dall'immagine Docker
+  (con Docker la cartella è montata dall'host). Per svuotarlo si cancella il file con l'assistente
+  spento. Il modello elimina solo per ID: se l'ID non è indicato, il messaggio di sistema gli chiede
+  di elencare le note e chiedere quale eliminare (con una sola nota corrispondente un modello
+  piccolo può eliminarla direttamente). `Archivio delle note non accessibile`: il file è bloccato da
+  un altro programma, è danneggiato o la cartella non è scrivibile.
 - **Il catalogo**: il file `risorse/catalogo_corsi.json` (lista di corsi con `codice`, `titolo`,
   `sede`, `durata_ore`) si può modificare; il server lo legge solo all'avvio, quindi dopo una
   modifica va riavviato l'assistente. Con Docker il file è copiato nell'immagine: prima di

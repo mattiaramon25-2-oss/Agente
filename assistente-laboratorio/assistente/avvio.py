@@ -20,14 +20,20 @@ registro = logging.getLogger("assistente.avvio")
 
 @contextmanager
 def prepara_strumenti(
-    config: Configurazione, log_server: Path | None = None, log_api: Path | None = None
+    config: Configurazione,
+    log_server: Path | None = None,
+    log_api: Path | None = None,
+    comando_server: list[str] | None = None,
 ) -> Iterator[list[BaseTool]]:
     """Avvia i processi necessari, seleziona gli strumenti e spegne tutto all'uscita.
 
-    Se un processo non parte, l'ExitStack spegne anche quelli già avviati.
+    Se un processo non parte, l'ExitStack spegne anche quelli già avviati. `comando_server` sostituisce
+    il comando del server MCP (le prove reali lo usano per un archivio delle note temporaneo).
     """
     with ExitStack() as pila:
-        server = pila.enter_context(avvia_server_mcp(config.porta_mcp, log_server or LOG_SERVER))
+        server = pila.enter_context(
+            avvia_server_mcp(config.porta_mcp, log_server or LOG_SERVER, comando=comando_server)
+        )
         url_api = None
         if config.variante_scadenze == "fastapi":
             servizio = pila.enter_context(avvia_servizio_api(config.porta_api, log_api or LOG_API))

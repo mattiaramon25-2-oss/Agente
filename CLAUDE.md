@@ -6,12 +6,13 @@ Progetto del corso «Deep Learning e LLM: costruire chatbot e agenti». Questo f
 
 Dentro `assistente-laboratorio/`:
 
-- `logica/`: logica pura degli strumenti (`orologio.py`, `conversioni.py`, `calcolatrice.py`, `scadenze.py`, `catalogo.py`, `errori.py`), senza dipendenze da MCP, FastAPI o LangChain.
+- `logica/`: logica pura degli strumenti (`orologio.py`, `conversioni.py`, `calcolatrice.py`, `scadenze.py`, `catalogo.py`, `note.py`, `errori.py`), senza dipendenze da MCP, FastAPI o LangChain.
 - `server_mcp/`: registrazione MCP degli strumenti (`server.py`) e avvio (`python -m server_mcp --porta 8765`).
 - `servizio_api/`: servizio FastAPI delle scadenze (`app.py`) e avvio (`python -m servizio_api --porta 8766`).
 - `risorse/`: dati versionati letti dagli strumenti (`festivita_italia.json`, `catalogo_corsi.json`).
 - `assistente/`: `configurazione.py` e `fuso.py` (variabili d'ambiente, rilevamento del fuso), `modello.py` (LM Studio), `grafo.py` (stato, nodi, instradamento), `client_mcp.py` (discovery e ponte sincrono), `varianti.py` (scelta delle varianti e selezione degli strumenti), `calcolatrice_locale.py` (variante locale di `calcola` con `@tool`), `wrapper_scadenze.py` (variante FastAPI di `calcola_scadenza`: wrapper HTTP con `@tool`), `avvio_server.py` (avvio, attesa e arresto dei processi), `avvio.py` (preparazione degli strumenti), `registro.py` (log), `errori.py`, `terminale.py` (ciclo di chat), `__main__.py` (avvio).
 - `logs/`: `assistente.log`, `server_mcp.log` e `servizio_api.log`, fuori da Git.
+- `archivio/`: `note.sqlite3`, l'archivio delle note persistenti, fuori da Git e dall'immagine Docker.
 - `tests/`: test automatici; `finti.py` contiene modello e strumenti finti; `reale.py` l'ambiente comune delle prove reali; `test_reale_*.py` sono le prove reali.
 - Dipendenze in `requirements.txt` (applicazione) e `requirements-dev.txt` (più pytest), versioni fissate.
 
@@ -28,7 +29,7 @@ Un'applicazione da terminale in Python che conversa con un modello locale e:
 
 - organizza il flusso in un grafo LangGraph esplicito (stato, nodi, instradamento riconoscibili);  
 - usa un modello servito da LM Studio, che resta sul computer host;  
-- conserva la cronologia della conversazione per la durata della sessione (nessuna persistenza);  
+- conserva la cronologia della conversazione per la durata della sessione (nessuna persistenza della cronologia; le note sono l'unica persistenza, voluta);  
 - offre uno strumento orologio con fuso orario esplicito, richiesto dal modello tramite tool calling ed eseguito davvero dal programma;  
 - si avvia anche con Docker Compose.
 

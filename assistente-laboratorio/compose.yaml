@@ -14,6 +14,8 @@ services:
     volumes:
       # I log restano leggibili sull'host anche dopo --rm.
       - ./logs:/app/logs
+      # Le note restano sull'host e sopravvivono al container --rm.
+      - ./archivio:/app/archivio
     extra_hosts:
       - "host.docker.internal:host-gateway"
     stdin_open: true

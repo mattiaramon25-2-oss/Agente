@@ -1,7 +1,9 @@
 """Ambiente comune alle prove reali: stesso percorso di `python -m assistente`, senza terminale."""
 
 import os
+import sys
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Iterator, Mapping
 
 from dotenv import load_dotenv
@@ -15,8 +17,13 @@ from assistente.registro import LOG_ASSISTENTE, configura_registro
 
 
 @contextmanager
-def ambiente_reale(variabili: Mapping[str, str] | None = None) -> Iterator[tuple]:
-    """Restituisce (grafo, fuso_utente, strumenti) con LM Studio e i server reali; `variabili` vince sul .env."""
+def ambiente_reale(
+    variabili: Mapping[str, str] | None = None, archivio_note: Path | None = None
+) -> Iterator[tuple]:
+    """Restituisce (grafo, fuso_utente, strumenti) con LM Studio e i server reali; `variabili` vince sul .env.
+
+    Con `archivio_note` il server MCP usa quel file per le note invece dell'archivio reale.
+    """
     precedenti = {nome: os.environ.get(nome) for nome in (variabili or {})}
     os.environ.update(variabili or {})
     try:
@@ -25,7 +32,10 @@ def ambiente_reale(variabili: Mapping[str, str] | None = None) -> Iterator[tuple
         configura_registro(LOG_ASSISTENTE)
         verifica_server(config.base_url, config.modello)
         fuso_utente = rileva_fuso(os.environ).fuso
-        with prepara_strumenti(config) as strumenti:
+        comando = None
+        if archivio_note is not None:
+            comando = [sys.executable, "-m", "server_mcp", "--porta", str(config.porta_mcp), "--note", str(archivio_note)]
+        with prepara_strumenti(config, comando_server=comando) as strumenti:
             grafo = crea_grafo(crea_modello(config, strumenti), strumenti)
             print(f"\nmodello: {config.modello} · fuso utente: {fuso_utente} · strumenti: {[s.name for s in strumenti]}")
             yield grafo, fuso_utente, strumenti
