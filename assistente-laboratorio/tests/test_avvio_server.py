@@ -115,3 +115,14 @@ def test_processo_in_attesa_porta_occupata_parametrizzata(porta, tmp_path):
                 descrizione="servizio prova", variabile_porta="PROVA_PORTA",
             ):
                 pass
+
+
+def test_persistenza_dopo_riavvio(porta, tmp_path):
+    archivio = tmp_path / "note.sqlite3"
+    comando = [sys.executable, "-m", "server_mcp", "--porta", str(porta), "--note", str(archivio)]
+    with avvia_server_mcp(porta, tmp_path / "s.log", comando=comando) as avviato:
+        creata = json.loads(per_nome(avviato.strumenti, "add_note").invoke({"text": "resta dopo il riavvio"}))
+    assert creata["id"] == 1 and avviato.processo.poll() is not None
+    with avvia_server_mcp(porta, tmp_path / "s.log", comando=comando) as avviato:
+        elenco = json.loads(per_nome(avviato.strumenti, "list_notes").invoke({}))
+    assert [n["testo"] for n in elenco["note"]] == ["resta dopo il riavvio"]

@@ -1,6 +1,8 @@
 import asyncio
 import json
 import logging
+import tempfile
+from pathlib import Path
 from datetime import datetime, timezone
 
 from fastmcp import Client
@@ -10,8 +12,11 @@ from server_mcp.server import (
     DESCRIZIONE_CALCOLATRICE,
     DESCRIZIONE_SCADENZE,
     NOME_CALCOLATRICE,
+    NOME_AGGIUNGI_NOTA,
     NOME_CONVERTITORE,
     NOME_DETTAGLIO,
+    NOME_ELENCA_NOTE,
+    NOME_ELIMINA_NOTA,
     NOME_OROLOGIO,
     NOME_RICERCA,
     NOME_SCADENZE,
@@ -21,7 +26,12 @@ from server_mcp.server import (
 
 
 def con_client(funzione, **opzioni):
-    """Esegue `funzione(client)` con un client MCP in memoria, senza rete."""
+    """Esegue `funzione(client)` con un client MCP in memoria, senza rete.
+
+    Se non viene indicato, l'archivio delle note è una cartella temporanea nuova:
+    nessun test scrive nell'archivio reale.
+    """
+    opzioni.setdefault("percorso_note", Path(tempfile.mkdtemp()) / "note.sqlite3")
 
     async def corpo():
         async with Client(crea_server(**opzioni)) as client:
@@ -37,7 +47,8 @@ def test_nome_del_server():
 def test_catalogo():
     strumenti = con_client(lambda c: c.list_tools())
     assert {s.name for s in strumenti} == {
-        NOME_CONVERTITORE, NOME_OROLOGIO, NOME_CALCOLATRICE, NOME_SCADENZE, NOME_RICERCA, NOME_DETTAGLIO
+        NOME_CONVERTITORE, NOME_OROLOGIO, NOME_CALCOLATRICE, NOME_SCADENZE, NOME_RICERCA, NOME_DETTAGLIO,
+        NOME_AGGIUNGI_NOTA, NOME_ELENCA_NOTE, NOME_ELIMINA_NOTA,
     }
     (convertitore,) = [s for s in strumenti if s.name == NOME_CONVERTITORE]
     schema = convertitore.inputSchema
@@ -158,3 +169,43 @@ def test_ricerca_con_max_results_via_mcp():
 def test_dettaglio_inesistente_via_mcp():
     r = con_client(lambda c: c.call_tool("get_item", {"code": "XX-99"}, raise_on_error=False))
     assert r.is_error and "Usa prima search_catalog" in r.content[0].text
+
+
+def test_note_nel_catalogo():
+    assert (NOME_AGGIUNGI_NOTA, NOME_ELENCA_NOTE, NOME_ELIMINA_NOTA) == ("add_note", "list_notes", "delete_note")
+    aggiungi, elenca, elimina = (strumento_mcp(n) for n in ("add_note", "list_notes", "delete_note"))
+    assert aggiungi.inputSchema["required"] == ["text"]
+    assert elenca.inputSchema.get("required", []) == []
+    assert elenca.inputSchema["properties"]["limit"]["default"] == 10
+    assert elimina.inputSchema["required"] == ["note_id"] and "ID esatto" in elimina.description
+
+
+def test_effetti_delle_note_via_mcp(tmp_path, caplog):
+    caplog.set_level(logging.INFO, logger="server_mcp")
+    archivio = tmp_path / "note.sqlite3"
+
+    async def sequenza(c):
+        creata = await c.call_tool("add_note", {"text": "consegnare il report"})
+        elenco = await c.call_tool("list_notes", {})
+        fallita = await c.call_tool("delete_note", {"note_id": 99}, raise_on_error=False)
+        dopo_fallita = await c.call_tool("list_notes", {})
+        eliminata = await c.call_tool("delete_note", {"note_id": 1})
+        return creata, elenco, fallita, dopo_fallita, eliminata
+
+    creata, elenco, fallita, dopo_fallita, eliminata = con_client(sequenza, percorso_note=archivio)
+    assert creata.structured_content["id"] == 1
+    assert [n["testo"] for n in elenco.structured_content["note"]] == ["consegnare il report"]
+    assert fallita.is_error and "Nessuna nota con ID 99" in fallita.content[0].text
+    assert dopo_fallita.structured_content["totale_archivio"] == 1
+    assert eliminata.structured_content == {"id": 1, "testo": "consegnare il report", "esito": "nota eliminata"}
+    assert "modifica note operazione=aggiunta id=1" in caplog.text
+    assert caplog.text.count("operazione=eliminazione") == 1 and "operazione=eliminazione id=1" in caplog.text
+
+
+def test_server_usa_il_percorso_indicato(tmp_path):
+    from logica.note import PERCORSO_NOTE
+
+    esisteva = PERCORSO_NOTE.exists()
+    archivio = tmp_path / "note.sqlite3"
+    con_client(lambda c: c.call_tool("add_note", {"text": "x"}), percorso_note=archivio)
+    assert archivio.exists() and PERCORSO_NOTE.exists() == esisteva

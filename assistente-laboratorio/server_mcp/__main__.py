@@ -3,6 +3,7 @@
 import argparse
 import logging
 import sys
+from pathlib import Path
 
 from server_mcp.server import crea_server
 
@@ -10,6 +11,7 @@ from server_mcp.server import crea_server
 def main() -> None:
     parser = argparse.ArgumentParser(description="Server MCP degli strumenti del laboratorio")
     parser.add_argument("--porta", type=int, required=True, help="porta locale su 127.0.0.1")
+    parser.add_argument("--note", type=Path, default=None, help="file SQLite delle note (predefinito: archivio/note.sqlite3)")
     argomenti = parser.parse_args()
 
     logging.basicConfig(
@@ -18,7 +20,8 @@ def main() -> None:
     registro = logging.getLogger("server_mcp")
     registro.info("avvio server porta=%d", argomenti.porta)
     try:
-        crea_server().run(
+        opzioni = {"percorso_note": argomenti.note} if argomenti.note else {}
+        crea_server(**opzioni).run(
             transport="http",
             host="127.0.0.1",
             port=argomenti.porta,
