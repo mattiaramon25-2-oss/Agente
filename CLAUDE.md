@@ -6,8 +6,11 @@ Progetto del corso «Deep Learning e LLM: costruire chatbot e agenti». Questo f
 
 Dentro `assistente-laboratorio/`:
 
-- `assistente/`: `strumenti.py` (orologio), `configurazione.py` e `fuso.py` (variabili d'ambiente, rilevamento del fuso), `modello.py` (LM Studio), `grafo.py` (stato, nodi, instradamento), `terminale.py` (ciclo di chat), `__main__.py` (avvio).
-- `tests/`: test automatici; `finti.py` contiene il modello finto; `test_reale_*.py` sono le prove reali.
+- `logica/`: logica pura degli strumenti (`orologio.py`, `conversioni.py`, `errori.py`), senza dipendenze da MCP, FastAPI o LangChain.
+- `server_mcp/`: registrazione MCP degli strumenti (`server.py`) e avvio (`python -m server_mcp --porta 8765`).
+- `assistente/`: `configurazione.py` e `fuso.py` (variabili d'ambiente, rilevamento del fuso), `modello.py` (LM Studio), `grafo.py` (stato, nodi, instradamento), `client_mcp.py` (discovery e ponte sincrono), `varianti.py` (selezione degli strumenti), `avvio_server.py` (avvio, attesa e arresto dei processi), `avvio.py` (preparazione degli strumenti), `registro.py` (log), `errori.py`, `terminale.py` (ciclo di chat), `__main__.py` (avvio).
+- `logs/`: `assistente.log` e `server_mcp.log`, fuori da Git.
+- `tests/`: test automatici; `finti.py` contiene modello e strumenti finti; `reale.py` l'ambiente comune delle prove reali; `test_reale_*.py` sono le prove reali.
 - Dipendenze in `requirements.txt` (applicazione) e `requirements-dev.txt` (più pytest), versioni fissate.
 
 Comandi (PowerShell, da `assistente-laboratorio/`, con `.\.venv\Scripts\Activate.ps1`):
@@ -36,7 +39,8 @@ Un'applicazione da terminale in Python che conversa con un modello locale e:
 
 ## Scelte tecniche
 
-- Python, codice sincrono e moduli piccoli, con una separazione semplice tra grafo, collegamento al modello, strumenti e interfaccia da terminale.  
+- Python, codice sincrono e moduli piccoli, con una separazione semplice tra grafo, collegamento al modello, strumenti e interfaccia da terminale. L'unico punto asincrono è il ponte MCP (`assistente/client_mcp.py`).  
+- Gli strumenti sono serviti dal server MCP, avviato e spento dall'assistente; la logica di ogni strumento è scritta una volta sola in `logica/`.  
 - LM Studio sull'host, raggiunto tramite la sua API compatibile con OpenAI.  
 - Indirizzo del server e identificativo del modello solo da variabili d'ambiente. L'identificativo è quello restituito dal server (`GET /v1/models`), mai inventato.  
 - Un file di configurazione di esempio senza credenziali; il file reale resta fuori da Git.  
