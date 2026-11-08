@@ -76,8 +76,8 @@ DESCRIZIONE_ELENCA_NOTE = (
     "Elenca le note salvate, dalla più recente, con ID, testo e data di creazione. Non modifica nulla."
 )
 DESCRIZIONE_ELIMINA_NOTA = (
-    "Elimina definitivamente la nota con l'ID esatto indicato. "
-    "Se l'utente non indica l'ID, prima elenca le note e chiedigli quale eliminare."
+    "Elimina definitivamente la nota con l'ID esatto indicato. Prima di chiamarla mostra all'utente ID e "
+    "testo della nota e chiedi conferma; se l'utente non indica l'ID, prima elenca le note e chiedigli quale eliminare."
 )
 
 registro = logging.getLogger("server_mcp")
@@ -94,6 +94,9 @@ def esegui_registrato(nome: str, argomenti: dict, calcolo: Callable[[], dict]) -
     except ErroreStrumento as errore:
         registro.info("chiamata tool=%s argomenti=%s esito=errore messaggio=%s", nome, _json(argomenti), errore)
         raise ToolError(str(errore)) from None
+    except Exception as errore:  # rete di sicurezza: nessun errore imprevisto in inglese o senza log
+        registro.exception("chiamata tool=%s argomenti=%s esito=errore imprevisto", nome, _json(argomenti))
+        raise ToolError(f"Errore interno dello strumento {nome}: {type(errore).__name__}.") from None
     registro.info("chiamata tool=%s argomenti=%s esito=ok risultato=%s", nome, _json(argomenti), _json(risultato))
     return risultato
 

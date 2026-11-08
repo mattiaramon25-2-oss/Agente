@@ -20,6 +20,7 @@ PERCORSO_NOTE = Path(__file__).resolve().parent.parent / "archivio" / "note.sqli
 LUNGHEZZA_MASSIMA = 500
 LIMITE_MASSIMO = 50
 LIMITE_PREDEFINITO = 10
+ID_MASSIMO = 2**63 - 1  # il massimo INTEGER di SQLite: oltre, nessuna nota può esistere
 
 # Schemi JSON degli argomenti (nomi dalla slide 26), unici per ogni registrazione.
 SCHEMA_TEXT = {"type": "string", "description": f"Testo della nota, al massimo {LUNGHEZZA_MASSIMA} caratteri"}
@@ -98,11 +99,17 @@ class ArchivioNote:
         if numero is None or numero < 1:
             raise ErroreStrumento("note_id deve essere un intero positivo.")
 
+        inesistente = ErroreStrumento(f"Nessuna nota con ID {numero}: niente è stato eliminato.")
+        if numero > ID_MASSIMO:
+            raise inesistente
+
         def operazione(connessione: sqlite3.Connection) -> dict:
             riga = connessione.execute("SELECT testo FROM note WHERE id = ?", (numero,)).fetchone()
             if riga is None:
-                raise ErroreStrumento(f"Nessuna nota con ID {numero}: niente è stato eliminato.")
-            connessione.execute("DELETE FROM note WHERE id = ?", (numero,))
+                raise inesistente
+            # Se un altro processo l'ha appena eliminata, il DELETE non tocca righe: niente falso successo.
+            if connessione.execute("DELETE FROM note WHERE id = ?", (numero,)).rowcount != 1:
+                raise inesistente
             return {"id": numero, "testo": riga[0], "esito": "nota eliminata"}
 
         return self._esegui(operazione)

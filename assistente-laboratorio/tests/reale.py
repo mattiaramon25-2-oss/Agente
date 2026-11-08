@@ -2,6 +2,7 @@
 
 import os
 import sys
+import tempfile
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator, Mapping
@@ -16,13 +17,19 @@ from assistente.modello import crea_modello, verifica_server
 from assistente.registro import LOG_ASSISTENTE, configura_registro
 
 
+def archivio_per_prove(archivio_note: Path | None) -> Path:
+    """L'archivio delle note per una prova reale: mai quello dell'utente."""
+    return archivio_note or Path(tempfile.mkdtemp(prefix="note_prova_")) / "note.sqlite3"
+
+
 @contextmanager
 def ambiente_reale(
     variabili: Mapping[str, str] | None = None, archivio_note: Path | None = None
 ) -> Iterator[tuple]:
     """Restituisce (grafo, fuso_utente, strumenti) con LM Studio e i server reali; `variabili` vince sul .env.
 
-    Con `archivio_note` il server MCP usa quel file per le note invece dell'archivio reale.
+    Il server MCP usa sempre un archivio delle note temporaneo (o `archivio_note`), mai quello reale:
+    il modello potrebbe chiamare add_note o delete_note anche nelle prove di altri strumenti.
     """
     precedenti = {nome: os.environ.get(nome) for nome in (variabili or {})}
     os.environ.update(variabili or {})
@@ -32,9 +39,8 @@ def ambiente_reale(
         configura_registro(LOG_ASSISTENTE)
         verifica_server(config.base_url, config.modello)
         fuso_utente = rileva_fuso(os.environ).fuso
-        comando = None
-        if archivio_note is not None:
-            comando = [sys.executable, "-m", "server_mcp", "--porta", str(config.porta_mcp), "--note", str(archivio_note)]
+        archivio = archivio_per_prove(archivio_note)
+        comando = [sys.executable, "-m", "server_mcp", "--porta", str(config.porta_mcp), "--note", str(archivio)]
         with prepara_strumenti(config, comando_server=comando) as strumenti:
             grafo = crea_grafo(crea_modello(config, strumenti), strumenti)
             print(f"\nmodello: {config.modello} · fuso utente: {fuso_utente} · strumenti: {[s.name for s in strumenti]}")

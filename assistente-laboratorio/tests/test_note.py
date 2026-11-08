@@ -110,3 +110,33 @@ def test_database_corrotto(tmp_path):
     percorso.write_bytes(b"questo non e' un database sqlite" * 10)
     with pytest.raises(ErroreStrumento, match="Archivio delle note non accessibile"):
         ArchivioNote(percorso).elenca()
+
+
+@pytest.mark.parametrize("note_id", ["99999999999999999999", 10**20, 2**63, 1e20])
+def test_id_enorme_non_esiste(archivio, note_id):
+    archivio.aggiungi("a")
+    with pytest.raises(ErroreStrumento, match="Nessuna nota con ID .*niente è stato eliminato"):
+        archivio.elimina(note_id)
+    assert archivio.elenca()["totale_archivio"] == 1
+
+
+def test_eliminazione_gia_avvenuta_altrove_non_e_un_successo(archivio, monkeypatch):
+    """Se un altro processo elimina la nota tra la lettura e il DELETE, non si risponde «nota eliminata»."""
+    import sqlite3
+    from contextlib import closing
+
+    import logica.note
+
+    archivio.aggiungi("bersaglio")
+    connetti = sqlite3.connect  # l'originale, prima della sostituzione
+
+    class ConnessioneConcorrente(sqlite3.Connection):
+        def execute(self, sql, *argomenti):
+            if sql.startswith("DELETE"):
+                with closing(connetti(archivio.percorso)) as altra, altra:  # l'altro processo arriva prima
+                    altra.execute("DELETE FROM note WHERE id = 1")
+            return super().execute(sql, *argomenti)
+
+    monkeypatch.setattr(logica.note.sqlite3, "connect", lambda percorso: connetti(percorso, factory=ConnessioneConcorrente))
+    with pytest.raises(ErroreStrumento, match="Nessuna nota con ID 1"):
+        archivio.elimina(1)

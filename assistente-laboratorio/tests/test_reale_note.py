@@ -76,3 +76,16 @@ def test_errore_controllato_note(archivio):
         errore = json.loads(next(s for s in strumenti if s.name == "delete_note").invoke({"note_id": 12345}))
     print(f"\n  errore controllato: {errore}")
     assert errore["tipo"] == "strumento" and "niente è stato eliminato" in errore["errore"]
+
+
+def test_eliminazione_ambigua_solo_osservata(tmp_path):
+    """Due note sul report e una richiesta senza ID: si riporta se il modello chiede quale eliminare."""
+    archivio_ambiguo = tmp_path / "note.sqlite3"
+    note = ArchivioNote(archivio_ambiguo)
+    note.aggiungi("Consegnare il report venerdì")
+    note.aggiungi("Rileggere il report con Marco")
+    with ambiente_reale(archivio_note=archivio_ambiguo) as ambiente:
+        chiamate, _, risposta = turno(ambiente, "Elimina la nota sul report")
+    rimaste = ArchivioNote(archivio_ambiguo).elenca()["totale_archivio"]
+    nomi = [c["name"] for c in chiamate]
+    print(f"  osservazione (ambigua): chiamate={nomi}; note rimaste={rimaste} su 2")

@@ -18,7 +18,7 @@ l'assistente avvia da solo, interroga con la discovery (`tools/list`) e spegne a
 | `get_item(code)` | tutti i dettagli (titolo, sede, durata in ore) di un corso dato il codice esatto, per esempio `DLL-01` |
 | `add_note(text)` | salva una nota persistente (al massimo 500 caratteri) nell'archivio SQLite `archivio/note.sqlite3`; restituisce ID e data di creazione (UTC) |
 | `list_notes(limit)` | elenca le note dalla più recente (10 se non indicato, 1–50); non modifica nulla |
-| `delete_note(note_id)` | elimina la nota con l'ID esatto; con un ID inesistente non elimina nulla. Gli ID non vengono mai riusati |
+| `delete_note(note_id)` | elimina la nota con l'ID esatto; con un ID inesistente non elimina nulla. Finché il file dell'archivio esiste, gli ID non vengono mai riusati |
 | `calcola_scadenza(data_inizio, giorni, lavorativi)` | data di scadenza aggiungendo giorni di calendario o lavorativi (festività nazionali italiane 2026–2028 da `risorse/festivita_italia.json`); risultato indicativo, senza valore legale |
 
 Nome, descrizione e schema degli strumenti arrivano dal server, non sono riscritti nell'assistente.
@@ -150,6 +150,10 @@ client MCP; ascolta solo su `127.0.0.1`, all'indirizzo `http://127.0.0.1:8765/mc
 python -m server_mcp --porta 8765
 ```
 
+Così avviato, il server usa l'archivio delle note reale (`archivio/note.sqlite3`); per provarlo
+senza toccarlo si indica un altro file con `--note`, per esempio
+`python -m server_mcp --porta 8765 --note prova.sqlite3`.
+
 ### Il servizio FastAPI da solo
 
 Anche il servizio delle scadenze si può avviare da solo; FastAPI genera la descrizione OpenAPI
@@ -195,7 +199,8 @@ docker compose build
 
 Il server MCP (e, con `VARIANTE_SCADENZE=fastapi`, il servizio FastAPI) gira nello stesso container
 dell'assistente: le porte non vengono pubblicate. `compose.yaml` richiede `MCP_PORTA`,
-`VARIANTE_CALCOLATRICE` e `VARIANTE_SCADENZE` nel file `.env` e monta `./logs` e `./archivio`, così log e note restano sull'host anche dopo `--rm`.
+`VARIANTE_CALCOLATRICE` e `VARIANTE_SCADENZE` nel file `.env` e monta `./logs` e `./archivio`, così log e note restano sull'host anche dopo `--rm` (per le note
+la prova con Docker è prevista nel passo 7).
 
 Perché lo script: dentro il container il fuso del sistema è UTC, non quello dell'utente.
 `avvia.ps1` legge il fuso di Windows (`(Get-TimeZone).Id`, per esempio `W. Europe Standard Time`)
@@ -319,7 +324,9 @@ Il fuso dell'utente è rilevato una volta sola all'avvio, in quest'ordine:
   spento. Il modello elimina solo per ID: se l'ID non è indicato, il messaggio di sistema gli chiede
   di elencare le note e chiedere quale eliminare (con una sola nota corrispondente un modello
   piccolo può eliminarla direttamente). `Archivio delle note non accessibile`: il file è bloccato da
-  un altro programma, è danneggiato o la cartella non è scrivibile.
+  un altro programma, è danneggiato o la cartella non è scrivibile. Non usare nello stesso momento
+  l'assistente avviato direttamente e quello in Docker: condividono il file e su Windows i blocchi
+  di SQLite tra host e container non sono affidabili.
 - **Il catalogo**: il file `risorse/catalogo_corsi.json` (lista di corsi con `codice`, `titolo`,
   `sede`, `durata_ore`) si può modificare; il server lo legge solo all'avvio, quindi dopo una
   modifica va riavviato l'assistente. Con Docker il file è copiato nell'immagine: prima di

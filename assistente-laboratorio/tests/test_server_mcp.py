@@ -5,6 +5,7 @@ import tempfile
 from pathlib import Path
 from datetime import datetime, timezone
 
+import pytest
 from fastmcp import Client
 
 from logica.conversioni import UNITA_AMMESSE
@@ -209,3 +210,29 @@ def test_server_usa_il_percorso_indicato(tmp_path):
     archivio = tmp_path / "note.sqlite3"
     con_client(lambda c: c.call_tool("add_note", {"text": "x"}), percorso_note=archivio)
     assert archivio.exists() and PERCORSO_NOTE.exists() == esisteva
+
+
+def test_errore_imprevisto_registrato_e_in_italiano(caplog):
+    """Rete di sicurezza: un'eccezione inattesa diventa un errore MCP in italiano e una riga di log."""
+    from fastmcp.exceptions import ToolError
+
+    from server_mcp.server import esegui_registrato
+
+    caplog.set_level(logging.INFO, logger="server_mcp")
+
+    def guasto():
+        raise OverflowError("numero troppo grande")
+
+    with pytest.raises(ToolError, match="Errore interno dello strumento prova: OverflowError"):
+        esegui_registrato("prova", {"x": 1}, guasto)
+    assert "tool=prova" in caplog.text and "esito=errore" in caplog.text
+
+
+def test_id_enorme_via_mcp():
+    r = con_client(lambda c: c.call_tool("delete_note", {"note_id": "99999999999999999999"}, raise_on_error=False))
+    assert r.is_error and "niente è stato eliminato" in r.content[0].text
+
+
+def test_regola_di_conferma_prima_di_eliminare():
+    elimina = strumento_mcp("delete_note")
+    assert "chiedi conferma" in elimina.description
