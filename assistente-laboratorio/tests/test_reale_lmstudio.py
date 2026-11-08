@@ -4,20 +4,17 @@ Si attiva solo con: python -m pytest --lmstudio -m lmstudio -v -s
 """
 
 import json
-import os
 from datetime import datetime, timedelta
 
 import pytest
-from dotenv import load_dotenv
 from langchain_core.messages import AIMessage, ToolMessage
 
-from assistente.configurazione import carica_configurazione
-from assistente.fuso import rileva_fuso
-from assistente.grafo import crea_grafo, esegui_turno
-from assistente.modello import crea_modello, verifica_server
-from assistente.strumenti import NOME_OROLOGIO, crea_strumento_orologio
+from assistente.grafo import esegui_turno
+from tests.reale import ambiente_reale, posizione_log, righe_del_log
 
 pytestmark = pytest.mark.lmstudio
+
+NOME_OROLOGIO = "ora_corrente"  # pubblicato dal server MCP
 
 # (domanda, fuso atteso nella chiamata — None vuol dire "il fuso dell'utente", la domanda chiede l'ora?)
 CASI = [
@@ -31,14 +28,8 @@ CASI = [
 
 @pytest.fixture(scope="module")
 def ambiente():
-    load_dotenv(override=False)
-    config = carica_configurazione(os.environ)
-    verifica_server(config.base_url, config.modello)
-    fuso_utente = rileva_fuso(os.environ).fuso
-    strumenti = [crea_strumento_orologio()]
-    grafo = crea_grafo(crea_modello(config, strumenti), strumenti)
-    print(f"\nmodello: {config.modello} · fuso utente: {fuso_utente}")
-    return grafo, fuso_utente
+    with ambiente_reale() as (grafo, fuso_utente, strumenti):
+        yield grafo, fuso_utente, strumenti
 
 
 def forme_dell_ora(istante: datetime) -> set[str]:
@@ -53,8 +44,9 @@ def forme_dell_ora(istante: datetime) -> set[str]:
 
 @pytest.mark.parametrize("domanda, fuso_atteso, chiede_ora", CASI, ids=[c[0] for c in CASI])
 def test_il_modello_usa_l_orologio(ambiente, domanda, fuso_atteso, chiede_ora):
-    grafo, fuso_utente = ambiente
+    grafo, fuso_utente, _ = ambiente
     atteso = fuso_atteso or fuso_utente
+    inizio_log = posizione_log()
 
     cronologia = esegui_turno(grafo, [], fuso_utente, domanda)  # sessione nuova a ogni caso
 
@@ -81,3 +73,13 @@ def test_il_modello_usa_l_orologio(ambiente, domanda, fuso_atteso, chiede_ora):
         assert any(forma in risposta.text for forma in forme_dell_ora(istante)), (
             f"l'ora della risposta non corrisponde a {istante:%H:%M}"
         )
+    assert f"origine=mcp tool={NOME_OROLOGIO}" in righe_del_log(inizio_log)
+
+
+def test_errore_controllato_orologio(ambiente):
+    """Slide 23: invocazione diretta, senza modello, con un fuso che non esiste."""
+    _, _, strumenti = ambiente
+    orologio = next(s for s in strumenti if s.name == NOME_OROLOGIO)
+    errore = json.loads(orologio.invoke({"fuso": "Mars/Olympus"}))
+    print(f"\n  errore controllato: {errore}")
+    assert errore["tipo"] == "strumento" and "Fuso orario sconosciuto" in errore["errore"] and "data_ora" not in errore

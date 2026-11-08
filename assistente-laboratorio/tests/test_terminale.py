@@ -4,18 +4,20 @@ from langchain_core.messages import AIMessage
 
 from assistente.fuso import RisultatoFuso
 from assistente.grafo import crea_grafo
-from assistente.strumenti import crea_strumento_orologio
 from assistente.terminale import esegui_sessione
-from tests.finti import ModelloFinto, chiamata_orologio
+from tests.finti import ModelloFinto, chiamata, chiamata_orologio, orologio_finto, strumento_finto
 
 ISTANTE = datetime(2026, 11, 2, 14, 4, 5, tzinfo=timezone.utc)
 FUSO = RisultatoFuso("Europe/Rome", "computer locale", None)
 
 
-def sessione(righe, risposte=(), fuso=FUSO):
+ORIGINI = {"ora_corrente": "mcp"}
+
+
+def sessione(righe, risposte=(), fuso=FUSO, strumenti=None, origini=ORIGINI):
     """Esegue una sessione con ingresso e uscita simulati; restituisce (righe stampate, modello)."""
     modello = ModelloFinto(list(risposte))
-    grafo = crea_grafo(modello, [crea_strumento_orologio(lambda: ISTANTE)])
+    grafo = crea_grafo(modello, strumenti if strumenti is not None else [orologio_finto(ISTANTE)])
     da_leggere = list(righe)
     stampate = []
 
@@ -28,7 +30,7 @@ def sessione(righe, risposte=(), fuso=FUSO):
             raise riga
         return riga
 
-    esegui_sessione(grafo, fuso, leggi=leggi, scrivi=stampate.append)
+    esegui_sessione(grafo, fuso, leggi=leggi, scrivi=stampate.append, origini=origini)
     return stampate, modello
 
 
@@ -84,7 +86,7 @@ def test_conversazione_con_orologio():
         ["che ore sono a Tokyo?", "esci"],
         [chiamata_orologio("Asia/Tokyo"), AIMessage("Sono le 23:04.")],
     )
-    orologio = stampate.index("[orologio: Asia/Tokyo]")
+    orologio = stampate.index("[ora_corrente · mcp: Asia/Tokyo]")
     risposta = stampate.index("Assistente: Sono le 23:04.")
     assert orologio < risposta
 
@@ -92,7 +94,7 @@ def test_conversazione_con_orologio():
 def test_limite_mostra_solo_le_chiamate_eseguite():
     chiamate = [chiamata_orologio("Europe/Rome", f"c{i}") for i in range(1, 5)]
     stampate, _ = sessione(["che ore sono?", "esci"], chiamate)
-    assert stampate.count("[orologio: Europe/Rome]") == 3
+    assert stampate.count("[ora_corrente · mcp: Europe/Rome]") == 3
 
 
 def test_risposta_vuota():
@@ -113,3 +115,33 @@ def test_cronologia_tra_turni():
     _, modello = sessione(["uno", "due", "esci"], [AIMessage("primo"), AIMessage("secondo")])
     contenuti = [m.content for m in modello.chiamate[1][1:]]
     assert contenuti == ["uno", "primo", "due"]
+
+
+def test_riga_con_variante():
+    stampate, _ = sessione(
+        ["2,5 km in metri?", "esci"],
+        [chiamata("converti_unita", {"valore": 2.5, "da": "km", "a": "m"}), AIMessage("2500 m")],
+        strumenti=[strumento_finto('{"risultato": 2500}')],
+        origini={"converti_unita": "mcp"},
+    )
+    assert stampate.index("[converti_unita · mcp: 2.5, km, m]") < stampate.index("Assistente: 2500 m")
+
+
+def test_strumento_fallito_non_stampa():
+    stampate, _ = sessione(
+        ["ora su Marte?", "esci"],
+        [chiamata_orologio("Mars/Olympus"), AIMessage("Fuso sconosciuto.")],
+    )
+    assert not any(riga.startswith("[") for riga in stampate)
+
+
+def test_benvenuto_con_strumenti():
+    stampate, _ = sessione(["esci"], origini={"ora_corrente": "mcp", "calcola": "locale"})
+    assert "Strumenti: ora_corrente (mcp), calcola (locale)" in stampate
+    indice_fuso = next(i for i, r in enumerate(stampate) if r.startswith("Fuso orario:"))
+    assert stampate[indice_fuso + 1].startswith("Strumenti: ")
+
+
+def test_benvenuto_senza_strumenti():
+    stampate, _ = sessione(["esci"], origini={})
+    assert not any(r.startswith("Strumenti:") for r in stampate)
