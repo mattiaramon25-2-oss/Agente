@@ -1,6 +1,6 @@
 import math
 import pytest
-from server_mcp.conversioni import UNITA_AMMESSE, ErroreConversione, converti
+from logica.conversioni import UNITA_AMMESSE, ErroreConversione, converti
 
 def test_risultato_completo():
     assert converti(2.5, "km", "m") == {"valore": 2.5, "da": "km", "a": "m", "risultato": 2500, "grandezza": "lunghezza"}

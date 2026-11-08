@@ -3,6 +3,8 @@
 import math
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
+from logica.errori import ErroreStrumento
+
 # Esponente di 10 rispetto all'unità base di ogni grandezza.
 _METRICHE = {
     "lunghezza": {"km": 3, "hm": 2, "dam": 1, "m": 0, "dm": -1, "cm": -2, "mm": -3},
@@ -18,7 +20,7 @@ _GRANDEZZA = {u: g for g, unita in _METRICHE.items() for u in unita}
 _GRANDEZZA.update({u: "temperatura" for u in _TEMPERATURE})
 
 
-class ErroreConversione(ValueError):
+class ErroreConversione(ErroreStrumento):
     """Richiesta di conversione non valida, con messaggio per il modello."""
 
 

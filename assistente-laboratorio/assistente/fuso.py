@@ -6,7 +6,7 @@ from typing import Callable, Mapping
 from tzlocal import get_localzone_name
 from tzlocal.windows_tz import win_tz
 
-from assistente.strumenti import è_fuso_valido
+from logica.orologio import è_fuso_valido
 
 AVVISO_RIPIEGO = (
     "ATTENZIONE: fuso orario non rilevato, uso UTC. "
