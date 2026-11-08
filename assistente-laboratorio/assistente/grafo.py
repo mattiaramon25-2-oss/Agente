@@ -41,7 +41,9 @@ def messaggio_sistema(fuso_utente: str) -> SystemMessage:
         "Se l'utente indica un luogo, passa allo strumento il nome IANA del fuso corrispondente "
         "(per esempio Asia/Tokyo per Tokyo).\n"
         "Per conversioni di unità e altri calcoli usa sempre lo strumento adatto tra quelli disponibili: "
-        "non farli a mente."
+        "non farli a mente.\n"
+        "Per domande sui corsi dell'ITS usa gli strumenti del catalogo e non inventare corsi che non "
+        "compaiono nei risultati."
     )
 
 

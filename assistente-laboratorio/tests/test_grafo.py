@@ -232,3 +232,7 @@ def test_argomento_mancante_strumento_locale_con_firma():
     risultato = esegui_turno(grafo, [], FUSO, "calcola")[2]
     assert risultato.status == "error"
     assert json.loads(risultato.content)["errore"].startswith("Argomenti mancanti per calcola: espressione.")
+
+
+def test_messaggio_sistema_catalogo():
+    assert "catalogo" in messaggio_sistema(FUSO).content

@@ -11,7 +11,9 @@ from server_mcp.server import (
     DESCRIZIONE_SCADENZE,
     NOME_CALCOLATRICE,
     NOME_CONVERTITORE,
+    NOME_DETTAGLIO,
     NOME_OROLOGIO,
+    NOME_RICERCA,
     NOME_SCADENZE,
     NOME_SERVER,
     crea_server,
@@ -34,7 +36,9 @@ def test_nome_del_server():
 
 def test_catalogo():
     strumenti = con_client(lambda c: c.list_tools())
-    assert {s.name for s in strumenti} == {NOME_CONVERTITORE, NOME_OROLOGIO, NOME_CALCOLATRICE, NOME_SCADENZE}
+    assert {s.name for s in strumenti} == {
+        NOME_CONVERTITORE, NOME_OROLOGIO, NOME_CALCOLATRICE, NOME_SCADENZE, NOME_RICERCA, NOME_DETTAGLIO
+    }
     (convertitore,) = [s for s in strumenti if s.name == NOME_CONVERTITORE]
     schema = convertitore.inputSchema
     assert schema["required"] == ["valore", "da", "a"]
@@ -124,3 +128,33 @@ def test_scadenza_errore_via_mcp():
     r = con_client(lambda c: c.call_tool(
         "calcola_scadenza", {"data_inizio": "2026-02-30", "giorni": 1, "lavorativi": True}, raise_on_error=False))
     assert r.is_error and "Data non valida" in r.content[0].text
+
+
+def strumento_mcp(nome):
+    return next(s for s in con_client(lambda c: c.list_tools()) if s.name == nome)
+
+
+def test_catalogo_nel_catalogo_mcp():
+    assert (NOME_RICERCA, NOME_DETTAGLIO) == ("search_catalog", "get_item")
+    ricerca, dettaglio = strumento_mcp("search_catalog"), strumento_mcp("get_item")
+    assert ricerca.inputSchema["required"] == ["query"]
+    assert ricerca.inputSchema["properties"]["max_results"]["type"] == "integer"
+    assert ricerca.inputSchema["properties"]["max_results"]["default"] == 5
+    assert dettaglio.inputSchema["required"] == ["code"]
+    assert ricerca.description != dettaglio.description
+    assert "Cerca" in ricerca.description and "dettagli" in dettaglio.description
+
+
+def test_ricerca_via_mcp():
+    r = con_client(lambda c: c.call_tool("search_catalog", {"query": "python"}))
+    assert r.structured_content["totale"] >= 2
+
+
+def test_ricerca_con_max_results_via_mcp():
+    r = con_client(lambda c: c.call_tool("search_catalog", {"query": "o", "max_results": 2}))
+    assert len(r.structured_content["risultati"]) == 2
+
+
+def test_dettaglio_inesistente_via_mcp():
+    r = con_client(lambda c: c.call_tool("get_item", {"code": "XX-99"}, raise_on_error=False))
+    assert r.is_error and "Usa prima search_catalog" in r.content[0].text
