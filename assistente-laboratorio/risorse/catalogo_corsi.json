@@ -1,0 +1,14 @@
+[
+  {"codice": "DLL-01", "titolo": "Deep Learning e LLM: costruire chatbot e agenti", "sede": "Pordenone", "durata_ore": 120},
+  {"codice": "PY-01", "titolo": "Programmazione in Python di base", "sede": "Pordenone", "durata_ore": 40},
+  {"codice": "PY-02", "titolo": "Python per l'analisi dei dati", "sede": "Udine", "durata_ore": 60},
+  {"codice": "ML-01", "titolo": "Machine learning con scikit-learn", "sede": "Udine", "durata_ore": 80},
+  {"codice": "DB-01", "titolo": "Basi di dati relazionali e SQL", "sede": "Trieste", "durata_ore": 48},
+  {"codice": "WEB-01", "titolo": "Sviluppo web con HTML, CSS e JavaScript", "sede": "Pordenone", "durata_ore": 64},
+  {"codice": "CLD-01", "titolo": "Cloud computing e container", "sede": "Gorizia", "durata_ore": 56},
+  {"codice": "SEC-01", "titolo": "Fondamenti di cybersecurity", "sede": "Trieste", "durata_ore": 40},
+  {"codice": "NET-01", "titolo": "Reti di calcolatori", "sede": "Gorizia", "durata_ore": 32},
+  {"codice": "IOT-01", "titolo": "Internet delle cose e sensori", "sede": "Udine", "durata_ore": 72},
+  {"codice": "PM-01", "titolo": "Gestione di progetti agili", "sede": "Pordenone", "durata_ore": 24},
+  {"codice": "UX-01", "titolo": "Progettazione dell'esperienza utente", "sede": "Trieste", "durata_ore": 36}
+]
