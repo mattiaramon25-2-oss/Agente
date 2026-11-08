@@ -6,6 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Any, Callable
 
+import httpx
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 from pydantic import WithJsonSchema
@@ -22,6 +23,7 @@ from logica.catalogo import (
 )
 from logica.conversioni import UNITA_AMMESSE, converti
 from logica.errori import ErroreStrumento
+from logica.meteo import SCHEMA_CITY, meteo_attuale
 from logica.note import LIMITE_PREDEFINITO, PERCORSO_NOTE, SCHEMA_LIMIT, SCHEMA_NOTE_ID, SCHEMA_TEXT, ArchivioNote
 from logica.orologio import ora_corrente, ora_utc
 from logica.scadenze import SCHEMA_DATA_INIZIO, SCHEMA_GIORNI, SCHEMA_LAVORATIVI, calcola_scadenza
@@ -36,6 +38,7 @@ NOME_DETTAGLIO = "get_item"
 NOME_AGGIUNGI_NOTA = "add_note"
 NOME_ELENCA_NOTE = "list_notes"
 NOME_ELIMINA_NOTA = "delete_note"
+NOME_METEO = "get_weather"
 
 DESCRIZIONE_CONVERTITORE = (
     "Converte un valore tra unità metriche della stessa grandezza (lunghezza, massa, volume) "
@@ -80,6 +83,11 @@ DESCRIZIONE_ELIMINA_NOTA = (
     "testo della nota e chiedi conferma; se l'utente non indica l'ID, prima elenca le note e chiedigli quale eliminare."
 )
 
+DESCRIZIONE_METEO = (
+    "Restituisce il meteo attuale (temperatura in °C, vento in km/h, condizioni) per una città, usando il "
+    "servizio pubblico Open-Meteo. Se il nome è ambiguo sceglie la prima corrispondenza e lo dichiara nel risultato."
+)
+
 registro = logging.getLogger("server_mcp")
 
 
@@ -106,10 +114,14 @@ def _unita(descrizione: str) -> Any:
 
 
 def crea_server(
-    *, adesso: Callable[[], datetime] = ora_utc, percorso_note: Path = PERCORSO_NOTE
+    *,
+    adesso: Callable[[], datetime] = ora_utc,
+    percorso_note: Path = PERCORSO_NOTE,
+    http: httpx.Client | None = None,
 ) -> FastMCP:
-    """Crea il server MCP con tutti gli strumenti; `adesso` e `percorso_note` sono iniettabili nei test."""
+    """Crea il server MCP con tutti gli strumenti; `adesso`, `percorso_note` e `http` sono iniettabili nei test."""
     server = FastMCP(NOME_SERVER)
+    client_http = http or httpx.Client()  # per Open-Meteo, per tutta la vita del processo
     archivio = ArchivioNote(percorso_note)
     catalogo = carica_catalogo()
 
@@ -175,5 +187,9 @@ def crea_server(
         risultato = esegui_registrato(NOME_ELIMINA_NOTA, {"note_id": note_id}, lambda: archivio.elimina(note_id))
         registro.info("modifica note operazione=eliminazione id=%s", risultato["id"])
         return risultato
+
+    @server.tool(name=NOME_METEO, description=DESCRIZIONE_METEO)
+    def get_weather(city: Annotated[Any, WithJsonSchema(SCHEMA_CITY)]) -> dict:
+        return esegui_registrato(NOME_METEO, {"city": city}, lambda: meteo_attuale(city, client_http))
 
     return server
