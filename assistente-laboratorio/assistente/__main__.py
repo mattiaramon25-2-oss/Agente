@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 
 from assistente.avvio import prepara_strumenti
 from assistente.configurazione import ErroreConfigurazione, carica_configurazione
+from assistente.console import configura_flussi
 from assistente.errori import ErroreAvvio
 from assistente.fuso import rileva_fuso
 from assistente.grafo import crea_grafo
@@ -17,6 +18,7 @@ from assistente.varianti import origini, parametri
 
 
 def main() -> int:
+    configura_flussi()  # pipe e file in UTF-8 (su Windows sarebbero cp1252)
     try:
         load_dotenv(override=False)  # le variabili già impostate hanno la precedenza
         config = carica_configurazione(os.environ)
