@@ -31,6 +31,8 @@ def _potenza(base: Decimal, esponente: Decimal) -> Decimal:
         raise ErroreStrumento(
             f"Esponente non ammesso: deve essere un intero tra -{ESPONENTE_MASSIMO} e {ESPONENTE_MASSIMO}."
         )
+    if base == 0 and esponente < 0:  # Decimal darebbe Infinity, non un errore
+        raise ErroreStrumento("Divisione per zero.")
     return base ** esponente
 
 

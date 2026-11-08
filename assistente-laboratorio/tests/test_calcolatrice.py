@@ -22,7 +22,7 @@ def test_calcoli(espressione, atteso):
     ("__import__('os')", "non consentit"), ("().__class__", "non consentit"), ("abs(-1)", "non consentit"),
     ("1_000 + 1", "non consentit"), ("1e3", "non consentit"), ("0x10", "non consentit"), ("7 // 2", "non consentit"),
     ("2,5 + 1", "punto"), ("", "vuota"), ("   ", "vuota"), ("1+" * 101 + "1", "200 caratteri"),
-    ("(1 + 2", "sintassi"), ("1 / 0", "zero"), ("5 % 0", "zero"),
+    ("(1 + 2", "sintassi"), ("1 / 0", "zero"), ("5 % 0", "zero"), ("0 ** -1", "Divisione per zero"),
     ("2 ** 0.5", "Esponente"), ("2 ** 10000", "Esponente"), ("9 ** 9 ** 9", "Esponente"),
     ("10 ** 999 * 10 ** 999", "troppo grande"),
 ])
