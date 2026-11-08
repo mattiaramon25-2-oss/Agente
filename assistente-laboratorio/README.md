@@ -19,6 +19,7 @@ l'assistente avvia da solo, interroga con la discovery (`tools/list`) e spegne a
 | `add_note(text)` | salva una nota persistente (al massimo 500 caratteri) nell'archivio SQLite `archivio/note.sqlite3`; restituisce ID e data di creazione (UTC) |
 | `list_notes(limit)` | elenca le note dalla più recente (10 se non indicato, 1–50); non modifica nulla |
 | `delete_note(note_id)` | elimina la nota con l'ID esatto; con un ID inesistente non elimina nulla. Finché il file dell'archivio esiste, gli ID non vengono mai riusati |
+| `get_weather(city)` | meteo attuale (temperatura in °C, vento in km/h, condizioni) dal servizio pubblico Open-Meteo, senza chiavi e per uso non commerciale; se il nome è ambiguo sceglie la prima corrispondenza, la dichiara ed elenca gli omonimi; se la località scelta ha un nome diverso da quello chiesto (per esempio `Pordenon` → Pordenone, `Paris` → Parigi) lo dice in una `nota`. Richiede la rete |
 | `calcola_scadenza(data_inizio, giorni, lavorativi)` | data di scadenza aggiungendo giorni di calendario o lavorativi (festività nazionali italiane 2026–2028 da `risorse/festivita_italia.json`); risultato indicativo, senza valore legale |
 
 Nome, descrizione e schema degli strumenti arrivano dal server, non sono riscritti nell'assistente.
@@ -250,7 +251,9 @@ Prova reale con LM Studio acceso, ogni domanda in una sessione nuova:
   `DLL-01` nello stesso turno, risposta 120); più un errore controllato (`get_item` con `XX-99`);
 - note, su un archivio temporaneo (mai quello reale): «Ricordami di consegnare il report venerdì»
   (una sola `add_note`), «Elimina la nota 99» (errore, nessuna eliminazione), riavvio e «Quali note
-  ho salvato?» (la nota c'è ancora); «Elimina la nota sul report» è solo osservato e riportato.
+  ho salvato?» (la nota c'è ancora); «Elimina la nota sul report» è solo osservato e riportato;
+- meteo (serve la rete): «Che tempo fa a Udine?» (una `get_weather` riuscita e la temperatura
+  restituita nella risposta); più un errore controllato (città `Xqzvbnmlkj`, «Città non trovata»).
 
 Le prove reali leggono le variabili dal `.env`; calcolatrice e scadenze vengono forzate a
 ciascuna variante dal test stesso.
@@ -319,6 +322,13 @@ Il fuso dell'utente è rilevato una volta sola all'avvio, in quest'ordine:
 
   L'assistente considera pronto il servizio solo quando `/openapi.json` descrive `/scadenza`,
   non al primo HTTP 200.
+- **Il meteo**: richiede l'accesso a Internet dal computer o dal container in cui gira il server.
+  `Servizio meteo non disponibile` o `nessuna risposta entro 4 secondi` (per una fase della richiesta)
+  o `entro 8 secondi` (per l'intero strumento, risoluzione del nome compresa) indicano un problema di
+  rete o di Open-Meteo; il limite di 8 secondi resta sotto i 10 del collegamento MCP, così l'errore
+  arriva dal meteo e non come `Server MCP: nessuna risposta`; `Città non trovata` indica invece che la rete funziona ma il nome non corrisponde
+  a nessuna località. `Risposta non valida dal servizio meteo` indica una risposta inattesa di Open-Meteo.
+  I test automatici non usano la rete: le risposte di Open-Meteo sono simulate.
 - **Le note**: l'archivio è il file `archivio/note.sqlite3`, fuori da Git e dall'immagine Docker
   (con Docker la cartella è montata dall'host). Per svuotarlo si cancella il file con l'assistente
   spento. Il modello elimina solo per ID: se l'ID non è indicato, il messaggio di sistema gli chiede

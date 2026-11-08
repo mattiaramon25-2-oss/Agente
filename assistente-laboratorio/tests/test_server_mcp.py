@@ -5,6 +5,7 @@ import tempfile
 from pathlib import Path
 from datetime import datetime, timezone
 
+import httpx
 import pytest
 from fastmcp import Client
 
@@ -18,12 +19,22 @@ from server_mcp.server import (
     NOME_DETTAGLIO,
     NOME_ELENCA_NOTE,
     NOME_ELIMINA_NOTA,
+    NOME_METEO,
     NOME_OROLOGIO,
     NOME_RICERCA,
     NOME_SCADENZE,
     NOME_SERVER,
     crea_server,
 )
+
+
+def http_senza_rete() -> httpx.Client:
+    """Client HTTP per i test: qualsiasi richiesta fallisce, quindi nessun test usa la rete."""
+
+    def vietato(richiesta):
+        raise AssertionError(f"richiesta di rete nei test: {richiesta.url}")
+
+    return httpx.Client(transport=httpx.MockTransport(vietato))
 
 
 def con_client(funzione, **opzioni):
@@ -33,6 +44,7 @@ def con_client(funzione, **opzioni):
     nessun test scrive nell'archivio reale.
     """
     opzioni.setdefault("percorso_note", Path(tempfile.mkdtemp()) / "note.sqlite3")
+    opzioni.setdefault("http", http_senza_rete())
 
     async def corpo():
         async with Client(crea_server(**opzioni)) as client:
@@ -49,7 +61,7 @@ def test_catalogo():
     strumenti = con_client(lambda c: c.list_tools())
     assert {s.name for s in strumenti} == {
         NOME_CONVERTITORE, NOME_OROLOGIO, NOME_CALCOLATRICE, NOME_SCADENZE, NOME_RICERCA, NOME_DETTAGLIO,
-        NOME_AGGIUNGI_NOTA, NOME_ELENCA_NOTE, NOME_ELIMINA_NOTA,
+        NOME_AGGIUNGI_NOTA, NOME_ELENCA_NOTE, NOME_ELIMINA_NOTA, NOME_METEO,
     }
     (convertitore,) = [s for s in strumenti if s.name == NOME_CONVERTITORE]
     schema = convertitore.inputSchema
@@ -236,3 +248,44 @@ def test_id_enorme_via_mcp():
 def test_regola_di_conferma_prima_di_eliminare():
     elimina = strumento_mcp("delete_note")
     assert "chiedi conferma" in elimina.description
+
+
+def http_meteo(geo, forecast):
+    """HTTP simulato per Open-Meteo: dict → JSON 200, eccezione → sollevata."""
+
+    def gestore(richiesta):
+        valore = geo if richiesta.url.host == "geocoding-api.open-meteo.com" else forecast
+        if isinstance(valore, Exception):
+            raise valore
+        return httpx.Response(200, json=valore)
+
+    return httpx.Client(transport=httpx.MockTransport(gestore))
+
+
+UDINE = {"name": "Udine", "admin1": "Friuli Venezia Giulia", "country": "Italia", "latitude": 46.06, "longitude": 13.24}
+CORRENTE = {"utc_offset_seconds": 3600, "current": {"time": "2026-11-08T10:15", "temperature_2m": 8.4,
+                                                    "weather_code": 2, "wind_speed_10m": 12.0}}
+
+
+def test_meteo_nel_catalogo():
+    assert NOME_METEO == "get_weather"
+    meteo = strumento_mcp("get_weather")
+    assert meteo.inputSchema["required"] == ["city"] and "Open-Meteo" in meteo.description
+
+
+def test_meteo_via_mcp():
+    r = con_client(lambda c: c.call_tool("get_weather", {"city": "Udine"}),
+                   http=http_meteo({"results": [UDINE]}, CORRENTE))
+    assert r.structured_content["citta"]["nome"] == "Udine" and r.structured_content["temperatura"]["valore"] == 8.4
+
+
+@pytest.mark.parametrize("geo, frammento", [
+    ({"generationtime_ms": 0.1}, "Città non trovata"),
+    (httpx.ConnectError("no rete"), "non disponibile"),
+])
+def test_meteo_errori_via_mcp(caplog, geo, frammento):
+    caplog.set_level(logging.INFO, logger="server_mcp")
+    r = con_client(lambda c: c.call_tool("get_weather", {"city": "Udine"}, raise_on_error=False),
+                   http=http_meteo(geo, CORRENTE))
+    assert r.is_error and frammento in r.content[0].text
+    assert "tool=get_weather" in caplog.text and "esito=errore" in caplog.text

@@ -245,3 +245,8 @@ def test_messaggio_sistema_note():
 
 def test_messaggio_sistema_conferma_eliminazione():
     assert "anche se una sola nota corrisponde" in messaggio_sistema(FUSO).content
+
+
+def test_messaggio_sistema_meteo():
+    assert "nota" in messaggio_sistema(FUSO).content
+    assert "città" in messaggio_sistema(FUSO).content

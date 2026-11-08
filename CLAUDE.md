@@ -6,7 +6,7 @@ Progetto del corso «Deep Learning e LLM: costruire chatbot e agenti». Questo f
 
 Dentro `assistente-laboratorio/`:
 
-- `logica/`: logica pura degli strumenti (`orologio.py`, `conversioni.py`, `calcolatrice.py`, `scadenze.py`, `catalogo.py`, `note.py`, `errori.py`), senza dipendenze da MCP, FastAPI o LangChain.
+- `logica/`: logica pura degli strumenti (`orologio.py`, `conversioni.py`, `calcolatrice.py`, `scadenze.py`, `catalogo.py`, `note.py`, `meteo.py`, `errori.py`), senza dipendenze da MCP, FastAPI o LangChain.
 - `server_mcp/`: registrazione MCP degli strumenti (`server.py`) e avvio (`python -m server_mcp --porta 8765`).
 - `servizio_api/`: servizio FastAPI delle scadenze (`app.py`) e avvio (`python -m servizio_api --porta 8766`).
 - `risorse/`: dati versionati letti dagli strumenti (`festivita_italia.json`, `catalogo_corsi.json`).
