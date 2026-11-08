@@ -2,18 +2,20 @@
 
 L'espressione viene analizzata con `ast` e valutata visitando una lista chiusa di nodi;
 qualsiasi altro costrutto (nomi, chiamate, attributi, //) è rifiutato con un messaggio.
-L'aritmetica è decimale esatta, come nel convertitore: 0.1 + 0.2 dà 0.3.
+L'aritmetica è decimale esatta, come nel convertitore: 0.1 + 0.2 dà 0.3. Solo i risultati che
+non hanno un numero finito di cifre (divisioni periodiche) vengono arrotondati a 15 cifre, e
+allora non sono mai restituiti come interi (vedi logica/numeri.py).
 """
 
 import ast
-from decimal import Decimal, DivisionByZero, InvalidOperation, Overflow, localcontext
+from decimal import Decimal, DivisionByZero, Inexact, InvalidOperation, Overflow, localcontext
 
 from logica.errori import ErroreStrumento
+from logica.numeri import numero_json
 
 LUNGHEZZA_MASSIMA = 200
 ESPONENTE_MASSIMO = 1000
 LIMITE_RISULTATO = Decimal("1e300")
-CIFRE_SIGNIFICATIVE = 15
 # Ogni valore ammesso (sotto 1e300) ha al massimo 300 cifre intere: con 400 cifre gli interi restano esatti.
 PRECISIONE = 400
 # Schema JSON dell'argomento `espressione`, unico per tutte le varianti (MCP e locale).
@@ -37,6 +39,8 @@ def _potenza(base: Decimal, esponente: Decimal) -> Decimal:
         )
     if base == 0 and esponente < 0:  # Decimal darebbe Infinity, non un errore
         raise ErroreStrumento("Divisione per zero.")
+    if esponente == 0:  # anche 0 ** 0 vale 1, come in Python (Decimal lo rifiuterebbe)
+        return Decimal(1)
     return base ** esponente
 
 
@@ -67,16 +71,6 @@ def _valuta(nodo: ast.AST, testo: str) -> Decimal:
     raise ErroreStrumento("Operazione non consentita.")
 
 
-def _numero(valore: Decimal) -> int | float:
-    """Intero esatto senza .0; altrimenti arrotondato a 15 cifre significative."""
-    if valore == valore.to_integral_value():
-        return int(valore)
-    arrotondato = Decimal(format(valore, f".{CIFRE_SIGNIFICATIVE}g"))
-    if arrotondato == arrotondato.to_integral_value():
-        return int(arrotondato)
-    return float(arrotondato)
-
-
 def calcola(espressione: object) -> dict:
     """Calcola `espressione`; solleva ErroreStrumento se non è un'espressione ammessa."""
     if not isinstance(espressione, str):
@@ -100,10 +94,12 @@ def calcola(espressione: object) -> dict:
 
     with localcontext() as contesto:
         contesto.prec = PRECISIONE
+        contesto.clear_flags()
         try:
             risultato = _valuta(albero, testo)
         except DivisionByZero:  # per esempio 0 ** -1
             raise ErroreStrumento("Divisione per zero.") from None
         except (Overflow, InvalidOperation):
             raise ErroreStrumento("Risultato troppo grande.") from None
-    return {"espressione": espressione, "risultato": _numero(risultato)}
+        inesatto = bool(contesto.flags[Inexact])  # vero solo se un passaggio ha dovuto arrotondare
+    return {"espressione": espressione, "risultato": numero_json(risultato, inesatto)}

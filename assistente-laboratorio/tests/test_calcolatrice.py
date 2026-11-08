@@ -43,3 +43,23 @@ def test_non_testo(valore):
 ])
 def test_interi_grandi_esatti(espressione, atteso):
     assert calcola(espressione)["risultato"] == atteso
+
+
+@pytest.mark.parametrize("espressione, atteso", [
+    ("123456789012345678 + 0.1", "123456789012345678.1"),        # esatto: troppe cifre per un numero JSON
+    ("10000000000000000.5", "10000000000000000.5"),
+    ("1234567.891 * 1000000000.5", "1234567891617283.9455"),
+    ("10 ** -400", "1E-400"),                                      # prima diventava 0.0
+])
+def test_esatti_mai_arrotondati_in_silenzio(espressione, atteso):
+    assert calcola(espressione)["risultato"] == atteso
+
+
+def test_divisione_periodica_arrotondata_mai_intera():
+    r = calcola("1 / 7 * 10 ** 20")["risultato"]
+    assert type(r) is float and r == 1.42857142857143e19
+
+
+@pytest.mark.parametrize("espressione", ["0 ** 0", "0.0 ** 0"])
+def test_zero_alla_zero_vale_uno(espressione):
+    assert calcola(espressione)["risultato"] == 1
