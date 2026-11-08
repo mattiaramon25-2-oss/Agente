@@ -140,3 +140,9 @@ def test_eliminazione_gia_avvenuta_altrove_non_e_un_successo(archivio, monkeypat
     monkeypatch.setattr(logica.note.sqlite3, "connect", lambda percorso: connetti(percorso, factory=ConnessioneConcorrente))
     with pytest.raises(ErroreStrumento, match="Nessuna nota con ID 1"):
         archivio.elimina(1)
+
+
+def test_testo_con_caratteri_non_validi(archivio):
+    with pytest.raises(ErroreStrumento, match="caratteri non validi"):
+        archivio.aggiungi("nota \ud800 rotta")
+    assert archivio.elenca()["totale_archivio"] == 0

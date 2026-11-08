@@ -51,3 +51,15 @@ def test_errore_di_tipo_nomina_il_parametro(client):
 def test_openapi_descrive_scadenza(client):
     schema = client.get("/openapi.json").json()
     assert schema["info"]["title"] == "Servizio scadenze" and "/scadenza" in schema["paths"]
+
+
+def test_errore_imprevisto_in_italiano(monkeypatch):
+    import servizio_api.app as modulo
+
+    def guasto(*argomenti):
+        raise RuntimeError("guasto interno")
+
+    monkeypatch.setattr(modulo, "calcola_scadenza", guasto)
+    client = TestClient(crea_app(), raise_server_exceptions=False)
+    r = client.get("/scadenza", params={"data_inizio": "2026-12-23", "giorni": 3, "lavorativi": "true"})
+    assert r.status_code == 500 and r.json() == {"errore": "Errore interno dello strumento calcola_scadenza: RuntimeError."}

@@ -171,3 +171,11 @@ def test_omonimi_della_citta_scelta_contano_anche_se_tradotta():
     r = meteo_attuale("Paris", client(geo={"results": [parigi, texas]}, forecast=CORRENTE))
     assert r["altre_corrispondenze"] == ["Paris (Texas, Stati Uniti)"]
     assert r["nota"] == "Nessuna località chiamata esattamente 'Paris': scelta 'Parigi'."
+
+
+@pytest.mark.parametrize("city", ["x" * 201, "Udi\ud800ne"])
+def test_nome_della_citta_non_inviabile(city):
+    richieste = []
+    with pytest.raises(ErroreStrumento, match="Nome della città non valido"):
+        meteo_attuale(city, client(geo={"results": [UDINE]}, forecast=CORRENTE, richieste=richieste))
+    assert richieste == []
