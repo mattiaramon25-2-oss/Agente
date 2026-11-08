@@ -147,7 +147,13 @@ def meteo_attuale(city: object, http: httpx.Client, timeout: float = TIMEOUT_MET
     if isinstance(codice, bool) or not isinstance(codice, int):
         raise _non_valida("campo 'weather_code' mancante")
 
-    altre = [a for a in (_alternativa(r) for r in risultati[1:]) if a][:ALTERNATIVE_MASSIME]
+    # Voci con la stessa etichetta della città scelta (stesso nome, regione e paese) non sono un'ambiguità.
+    etichetta_scelta = _alternativa(scelta)
+    altre = []
+    for etichetta in (_alternativa(r) for r in risultati[1:]):
+        if etichetta and etichetta != etichetta_scelta and etichetta not in altre:
+            altre.append(etichetta)
+    altre = altre[:ALTERNATIVE_MASSIME]
     return {
         "citta": {
             "nome": nome,

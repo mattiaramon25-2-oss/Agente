@@ -119,3 +119,11 @@ def test_codice_sconosciuto():
 def test_tabella_wmo_completa():
     codici = {0, 1, 2, 3, 45, 48, 51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 71, 73, 75, 77, 80, 81, 82, 85, 86, 95, 96, 99}
     assert set(DESCRIZIONI_WMO) == codici and all(isinstance(v, str) and v for v in DESCRIZIONI_WMO.values())
+
+
+def test_alternative_identiche_alla_scelta_escluse():
+    """Open-Meteo può restituire più voci con lo stesso nome, regione e paese: non sono un'ambiguità."""
+    doppione = {**UDINE, "latitude": 46.1, "longitude": 13.2}
+    altra = {"name": "Udine", "admin1": "Karnali Province", "country": "Nepal", "latitude": 28.9, "longitude": 81.8}
+    r = meteo_attuale("Udine", client(geo={"results": [UDINE, doppione, altra]}, forecast=CORRENTE))
+    assert r["altre_corrispondenze"] == ["Udine (Karnali Province, Nepal)"]
