@@ -10,6 +10,15 @@ from fastmcp.exceptions import ToolError
 from pydantic import WithJsonSchema
 
 from logica.calcolatrice import SCHEMA_ESPRESSIONE, calcola
+from logica.catalogo import (
+    RISULTATI_PREDEFINITI,
+    SCHEMA_CODE,
+    SCHEMA_MAX_RESULTS,
+    SCHEMA_QUERY,
+    carica_catalogo,
+    cerca,
+    dettaglio,
+)
 from logica.conversioni import UNITA_AMMESSE, converti
 from logica.errori import ErroreStrumento
 from logica.orologio import ora_corrente, ora_utc
@@ -20,6 +29,8 @@ NOME_CONVERTITORE = "converti_unita"
 NOME_OROLOGIO = "ora_corrente"
 NOME_CALCOLATRICE = "calcola"
 NOME_SCADENZE = "calcola_scadenza"
+NOME_RICERCA = "search_catalog"
+NOME_DETTAGLIO = "get_item"
 
 DESCRIZIONE_CONVERTITORE = (
     "Converte un valore tra unità metriche della stessa grandezza (lunghezza, massa, volume) "
@@ -39,6 +50,16 @@ DESCRIZIONE_SCADENZE = (
     "Calcola la data di scadenza aggiungendo un numero di giorni a una data ISO (AAAA-MM-GG). "
     "Con lavorativi=true conta solo i giorni dal lunedì al venerdì esclusi i festivi nazionali italiani. "
     "Risultato indicativo, senza valore legale."
+)
+
+# Due strumenti sugli stessi dati: le descrizioni devono distinguersi (slide 28).
+DESCRIZIONE_RICERCA = (
+    "Cerca corsi nel catalogo dell'ITS per parola (titolo, sede o codice). Restituisce un elenco breve "
+    "senza dettagli; per durata e dettagli usa get_item con il codice."
+)
+DESCRIZIONE_DETTAGLIO = (
+    "Restituisce tutti i dettagli (titolo, sede, durata in ore) di un corso del catalogo dato il suo "
+    "codice esatto, per esempio DLL-01."
 )
 
 registro = logging.getLogger("server_mcp")
@@ -66,6 +87,7 @@ def _unita(descrizione: str) -> Any:
 def crea_server(*, adesso: Callable[[], datetime] = ora_utc) -> FastMCP:
     """Crea il server MCP con tutti gli strumenti; `adesso` è iniettabile nei test."""
     server = FastMCP(NOME_SERVER)
+    catalogo = carica_catalogo()
 
     @server.tool(name=NOME_CONVERTITORE, description=DESCRIZIONE_CONVERTITORE)
     def converti_unita(
@@ -101,5 +123,17 @@ def crea_server(*, adesso: Callable[[], datetime] = ora_utc) -> FastMCP:
     ) -> dict:
         argomenti = {"data_inizio": data_inizio, "giorni": giorni, "lavorativi": lavorativi}
         return esegui_registrato(NOME_SCADENZE, argomenti, lambda: calcola_scadenza(data_inizio, giorni, lavorativi))
+
+    @server.tool(name=NOME_RICERCA, description=DESCRIZIONE_RICERCA)
+    def search_catalog(
+        query: Annotated[Any, WithJsonSchema(SCHEMA_QUERY)],
+        max_results: Annotated[Any, WithJsonSchema(SCHEMA_MAX_RESULTS)] = RISULTATI_PREDEFINITI,
+    ) -> dict:
+        argomenti = {"query": query, "max_results": max_results}
+        return esegui_registrato(NOME_RICERCA, argomenti, lambda: cerca(catalogo, query, max_results))
+
+    @server.tool(name=NOME_DETTAGLIO, description=DESCRIZIONE_DETTAGLIO)
+    def get_item(code: Annotated[Any, WithJsonSchema(SCHEMA_CODE)]) -> dict:
+        return esegui_registrato(NOME_DETTAGLIO, {"code": code}, lambda: dettaglio(catalogo, code))
 
     return server
