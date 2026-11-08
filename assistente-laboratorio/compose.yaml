@@ -5,6 +5,11 @@ services:
     environment:
       # Dentro il container LM Studio si raggiunge con un indirizzo diverso: lo si prende dal .env.
       LMSTUDIO_BASE_URL: ${LMSTUDIO_BASE_URL_DOCKER:?Imposta LMSTUDIO_BASE_URL_DOCKER nel file .env}
+      # Il server MCP gira nello stesso container: la porta non va pubblicata.
+      MCP_PORTA: ${MCP_PORTA:?Imposta MCP_PORTA nel file .env, per esempio MCP_PORTA=8765}
+    volumes:
+      # I log restano leggibili sull'host anche dopo --rm.
+      - ./logs:/app/logs
     extra_hosts:
       - "host.docker.internal:host-gateway"
     stdin_open: true

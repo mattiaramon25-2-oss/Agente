@@ -17,11 +17,11 @@ INGRESSO = "Che ore sono?\nesci\n"
 TIMEOUT = 300
 
 
-def esegui(comando: list[str]) -> subprocess.CompletedProcess:
+def esegui(comando: list[str], ingresso: str = INGRESSO) -> subprocess.CompletedProcess:
     risultato = subprocess.run(
         comando,
         cwd=CARTELLA,
-        input=INGRESSO,
+        input=ingresso,
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -50,7 +50,7 @@ def test_avvio_con_lo_script():
     r = esegui(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "avvia.ps1", "-SenzaTty"])
     assert r.returncode == 0
     assert f"Fuso orario: {atteso} (host Windows)" in r.stdout
-    assert "[orologio:" in r.stdout
+    assert "[ora_corrente · mcp:" in r.stdout
     assert "Arrivederci." in r.stdout
     assert "ripiego" not in r.stdout
 
@@ -60,3 +60,19 @@ def test_avvio_senza_lo_script_usa_fuso_orario():
     assert r.returncode == 0
     assert "(FUSO_ORARIO)" in r.stdout
     assert "Arrivederci." in r.stdout
+
+
+def test_convertitore_in_docker():
+    log_assistente = CARTELLA / "logs" / "assistente.log"
+    log_server = CARTELLA / "logs" / "server_mcp.log"
+    prima = {p: (p.stat().st_size if p.exists() else 0) for p in (log_assistente, log_server)}
+    r = esegui(
+        ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "avvia.ps1", "-SenzaTty"],
+        ingresso="Quanti metri sono 2,5 km?\nesci\n",
+    )
+    assert r.returncode == 0
+    assert "converti_unita (mcp)" in r.stdout and "[converti_unita · mcp:" in r.stdout
+    for percorso, inizio in prima.items():
+        with open(percorso, "rb") as file:
+            file.seek(inizio)
+            assert "tool=converti_unita" in file.read().decode("utf-8", errors="replace"), percorso
