@@ -6,6 +6,7 @@
 """
 
 import json
+import logging
 from typing import Annotated, Literal, TypedDict
 
 from langchain_core.messages import AIMessage, AnyMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
@@ -13,12 +14,16 @@ from langchain_core.tools import BaseTool
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 
-from assistente.strumenti import NOME_OROLOGIO
+from assistente.registro import formatta
 
+NOME_OROLOGIO = "ora_corrente"  # nome pubblicato dal server MCP
 MAX_GIRI_STRUMENTO = 3
 TESTO_LIMITE = (
-    "Non sono riuscito a completare la richiesta: troppe chiamate all'orologio. Prova a riformularla."
+    "Non sono riuscito a completare la richiesta: troppe chiamate agli strumenti. Prova a riformularla."
 )
+TESTO_NON_JSON = "Argomenti non validi: devono essere un oggetto JSON con gli argomenti dello strumento."
+
+registro = logging.getLogger("assistente.strumenti")
 
 
 class StatoConversazione(TypedDict):
@@ -34,7 +39,9 @@ def messaggio_sistema(fuso_utente: str) -> SystemMessage:
         "non inventarle e non dedurle dai messaggi precedenti.\n"
         f"Il fuso orario dell'utente è {fuso_utente}: usalo quando l'utente non indica un altro luogo o fuso.\n"
         "Se l'utente indica un luogo, passa allo strumento il nome IANA del fuso corrispondente "
-        "(per esempio Asia/Tokyo per Tokyo)."
+        "(per esempio Asia/Tokyo per Tokyo).\n"
+        "Per conversioni di unità e altri calcoli usa sempre lo strumento adatto tra quelli disponibili: "
+        "non farli a mente."
     )
 
 
@@ -47,11 +54,41 @@ def _malformate(messaggio) -> list[dict]:
     return list(getattr(messaggio, "invalid_tool_calls", None) or [])
 
 
-def _malformate_chiuse(messaggio, testo: str) -> list[ToolMessage]:
-    return [
-        ToolMessage(_errore(testo), tool_call_id=c.get("id") or "", name=c.get("name") or "", status="error")
-        for c in _malformate(messaggio)
-    ]
+def _esito(contenuto: object) -> str:
+    """ok, errore_tool o errore_collegamento, letto dal contenuto JSON restituito dallo strumento."""
+    try:
+        dati = json.loads(contenuto) if isinstance(contenuto, str) else None
+    except ValueError:
+        dati = None
+    if isinstance(dati, dict) and "errore" in dati:
+        return "errore_collegamento" if dati.get("tipo") == "collegamento" else "errore_tool"
+    return "ok"
+
+
+def _registra(origine: str, chiamata: dict, esito: str, contenuto: object, messaggio: ToolMessage) -> None:
+    registro.info(
+        formatta(
+            {
+                "origine": origine,
+                "tool": chiamata.get("name") or "",
+                "call_id": chiamata.get("id") or "",
+                "argomenti": chiamata.get("args"),
+                "esito": esito,
+                "risultato": contenuto if isinstance(contenuto, str) else str(contenuto),
+                "tool_message.call_id": messaggio.tool_call_id,
+            }
+        )
+    )
+
+
+def _malformate_chiuse(messaggio, testo: str, esito: str) -> list[ToolMessage]:
+    chiusi = []
+    for c in _malformate(messaggio):
+        contenuto = _errore(testo)
+        tool_message = ToolMessage(contenuto, tool_call_id=c.get("id") or "", name=c.get("name") or "", status="error")
+        _registra("sconosciuta", c, esito, contenuto, tool_message)
+        chiusi.append(tool_message)
+    return chiusi
 
 
 def instrada_dopo_modello(stato: StatoConversazione) -> Literal["strumenti", "limite", "__end__"]:
@@ -76,27 +113,37 @@ def crea_grafo(modello, strumenti: list[BaseTool]):
         for chiamata in stato["messages"][-1].tool_calls:
             strumento = per_nome.get(chiamata["name"])
             if strumento is None:
+                origine, esito = "sconosciuta", "strumento_sconosciuto"
                 contenuto = _errore(f"Strumento sconosciuto: '{chiamata['name']}'.")
             else:
+                origine = (strumento.metadata or {}).get("origine", "locale")
                 try:
                     contenuto = strumento.invoke(chiamata["args"])
+                    esito = _esito(contenuto)
                 except Exception as eccezione:  # anche argomenti non validi
                     contenuto = _errore(f"Argomenti non validi per {chiamata['name']}: {eccezione}")
-            risultati.append(ToolMessage(contenuto, tool_call_id=chiamata["id"], name=chiamata["name"]))
-        risultati += _malformate_chiuse(
-            stato["messages"][-1], "Argomenti non validi: devono essere JSON, per esempio {\"fuso\": \"Europe/Rome\"}."
-        )
+                    esito = "errore_tool"
+            messaggio = ToolMessage(
+                contenuto,
+                tool_call_id=chiamata["id"],
+                name=chiamata["name"],
+                status="success" if esito == "ok" else "error",
+            )
+            _registra(origine, chiamata, esito, contenuto, messaggio)
+            risultati.append(messaggio)
+        risultati += _malformate_chiuse(stato["messages"][-1], TESTO_NON_JSON, "errore_tool")
         return {"messages": risultati, "giri_strumento": stato["giri_strumento"] + 1}
 
     def nodo_limite(stato: StatoConversazione) -> dict:
-        in_sospeso = [
+        in_sospeso = []
+        for c in stato["messages"][-1].tool_calls:
             # status="error": la chiamata non è stata eseguita.
-            ToolMessage(
-                _errore("limite di chiamate raggiunto"), tool_call_id=c["id"], name=c["name"], status="error"
-            )
-            for c in stato["messages"][-1].tool_calls
-        ]
-        in_sospeso += _malformate_chiuse(stato["messages"][-1], "limite di chiamate raggiunto")
+            contenuto = _errore("limite di chiamate raggiunto")
+            messaggio = ToolMessage(contenuto, tool_call_id=c["id"], name=c["name"], status="error")
+            origine = (getattr(per_nome.get(c["name"]), "metadata", None) or {}).get("origine", "sconosciuta")
+            _registra(origine, c, "limite", contenuto, messaggio)
+            in_sospeso.append(messaggio)
+        in_sospeso += _malformate_chiuse(stato["messages"][-1], "limite di chiamate raggiunto", "limite")
         return {"messages": [*in_sospeso, AIMessage(TESTO_LIMITE)]}
 
     costruttore = StateGraph(StatoConversazione)
