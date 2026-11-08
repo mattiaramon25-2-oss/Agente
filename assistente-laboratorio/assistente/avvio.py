@@ -13,7 +13,7 @@ from langchain_core.tools import BaseTool
 from assistente.avvio_server import avvia_server_mcp
 from assistente.configurazione import Configurazione
 from assistente.registro import LOG_SERVER
-from assistente.varianti import seleziona_strumenti
+from assistente.varianti import crea_sostituti, seleziona_strumenti
 
 registro = logging.getLogger("assistente.avvio")
 
@@ -23,6 +23,7 @@ def prepara_strumenti(config: Configurazione, log_server: Path | None = None) ->
     """Avvia i processi necessari, seleziona gli strumenti e spegne tutto all'uscita."""
     with ExitStack() as pila:
         server = pila.enter_context(avvia_server_mcp(config.porta_mcp, log_server or LOG_SERVER))
-        strumenti = seleziona_strumenti(server.strumenti)
+        registro.info("varianti calcolatrice=%s", config.variante_calcolatrice)
+        strumenti = seleziona_strumenti(server.strumenti, crea_sostituti(config))
         registro.info("strumenti al modello=%s", [s.name for s in strumenti])
         yield strumenti
