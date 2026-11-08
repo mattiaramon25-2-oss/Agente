@@ -254,3 +254,29 @@ def test_messaggio_sistema_meteo():
 
 def test_messaggio_sistema_vieta_azioni_non_eseguite():
     assert "se non hai chiamato lo strumento, non l'hai fatto" in messaggio_sistema(FUSO).content
+
+
+def test_argomento_in_piu_rifiutato_in_italiano(caplog):
+    """Un argomento inventato dal modello: stesso messaggio italiano per ogni variante, nessuna esecuzione."""
+    from langchain_core.tools import StructuredTool
+
+    caplog.set_level(logging.INFO, logger="assistente.strumenti")
+    eseguito = []
+    schema = {"type": "object", "properties": {"fuso": {"type": "string"}}, "required": ["fuso"]}
+    strumento = StructuredTool(name="ora_corrente", description="d", args_schema=schema,
+                               func=lambda **a: eseguito.append(a) or "{}", metadata={"origine": "mcp"})
+    modello = ModelloFinto([chiamata("ora_corrente", {"fuso": "Europe/Rome", "formato": "24h"}, "x1"), AIMessage("ok")])
+    risultato = esegui_turno(crea_grafo(modello, [strumento]), [], FUSO, "che ore sono?")[2]
+    assert risultato.status == "error" and eseguito == []
+    assert json.loads(risultato.content) == {
+        "errore": "Argomenti non previsti per ora_corrente: formato. Usa solo: fuso.", "tipo": "strumento"}
+    assert "esito=errore_tool" in caplog.text
+
+
+def test_argomento_in_piu_anche_per_la_variante_locale():
+    from assistente.calcolatrice_locale import crea_calcolatrice_locale
+
+    modello = ModelloFinto([chiamata("calcola", {"espressione": "1+1", "precisione": 2}, "y1"), AIMessage("ok")])
+    risultato = esegui_turno(crea_grafo(modello, [crea_calcolatrice_locale()]), [], FUSO, "calcola")[2]
+    assert risultato.status == "error"
+    assert json.loads(risultato.content)["errore"] == "Argomenti non previsti per calcola: precisione. Usa solo: espressione."

@@ -54,9 +54,7 @@ passare al modello, una sola per nome, secondo il file `.env`:
 | `calcola_scadenza` | `VARIANTE_SCADENZE` | `mcp`, `fastapi` | `mcp`: nel server, via MCP; `fastapi`: servizio HTTP (`servizio_api/`, avviato dall'assistente sulla porta `API_PORTA`) chiamato da un wrapper scritto a mano e registrato con `@tool` (`assistente/wrapper_scadenze.py`) |
 
 Le due versioni hanno lo stesso nome, la stessa descrizione, lo stesso schema degli argomenti e la
-stessa logica (`logica/calcolatrice.py`): cambia solo il percorso. Unica differenza dovuta ai
-framework: FastMCP rifiuta un argomento in più che il modello dovesse inventare, mentre `@tool` lo
-ignora. Per confrontarle si fa la stessa domanda
+stessa logica (`logica/calcolatrice.py`): cambia solo il percorso. Per confrontarle si fa la stessa domanda
 (per esempio «Quanto fa (3+4)*2?») dopo aver cambiato la variabile nel `.env` e riavviato.
 La differenza si vede:
 
@@ -75,12 +73,11 @@ danno lo stesso risultato e gli stessi errori. Differenze note, dovute ai framew
 - nella richiesta HTTP i valori viaggiano come testo e FastAPI è più tollerante della variante MCP:
   accetta per esempio `lavorativi` scritto `"true"`, `1` o `"yes"`, e `giorni` scritto `"3.0"`,
   che la variante MCP rifiuta;
-- come per la calcolatrice, un argomento in più inventato dal modello è rifiutato da MCP e ignorato
-  dal wrapper.
 
-Un argomento obbligatorio mancante, invece, è rifiutato dall'assistente prima di eseguire, con lo
-stesso messaggio per tutte le varianti (`Argomenti mancanti per …`): in quel caso la chiamata non
-arriva né al server né al servizio.
+Un argomento obbligatorio mancante o un argomento inventato dal modello, invece, sono rifiutati
+dall'assistente prima di eseguire, con lo stesso messaggio italiano per tutte le varianti
+(`Argomenti mancanti per …` oppure `Argomenti non previsti per …: … Usa solo: …`): in quel caso la
+chiamata non arriva né al server né al servizio, e compare solo in `logs/assistente.log`.
 
 ## Requisiti
 
