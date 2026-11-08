@@ -9,6 +9,7 @@ Regole, per non perdere né nascondere dati:
 """
 
 import shutil
+import sys
 import uuid
 from contextlib import contextmanager
 from pathlib import Path
@@ -26,6 +27,8 @@ def _elimina_creata(cartella: Path) -> None:
     except OSError:
         da_eliminare = cartella  # non si può rinominare: si prova comunque a eliminarla
     shutil.rmtree(da_eliminare, ignore_errors=True)
+    if da_eliminare.exists():  # file bloccato o in sola lettura: lo si dice, non si lascia in silenzio
+        print(f"Attenzione: cartella della prova non eliminata, cancellala a mano: {da_eliminare}", file=sys.stderr)
 
 
 @contextmanager

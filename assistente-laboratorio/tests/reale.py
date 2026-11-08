@@ -2,6 +2,7 @@
 
 import os
 import sys
+import shutil
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
@@ -22,6 +23,12 @@ def archivio_per_prove(archivio_note: Path | None) -> Path:
     return archivio_note or Path(tempfile.mkdtemp(prefix="note_prova_")) / "note.sqlite3"
 
 
+def rimuovi_archivio_temporaneo(percorso: Path) -> None:
+    """Elimina la cartella temporanea creata da archivio_per_prove (solo quella, mai altro)."""
+    if percorso.parent.name.startswith("note_prova_"):
+        shutil.rmtree(percorso.parent, ignore_errors=True)
+
+
 @contextmanager
 def ambiente_reale(
     variabili: Mapping[str, str] | None = None, archivio_note: Path | None = None
@@ -40,12 +47,15 @@ def ambiente_reale(
         verifica_server(config.base_url, config.modello)
         fuso_utente = rileva_fuso(os.environ).fuso
         archivio = archivio_per_prove(archivio_note)
+        temporaneo = archivio_note is None
         comando = [sys.executable, "-m", "server_mcp", "--porta", str(config.porta_mcp), "--note", str(archivio)]
         with prepara_strumenti(config, comando_server=comando) as strumenti:
             grafo = crea_grafo(crea_modello(config, strumenti), strumenti)
             print(f"\nmodello: {config.modello} · fuso utente: {fuso_utente} · strumenti: {[s.name for s in strumenti]}")
             yield grafo, fuso_utente, strumenti
     finally:
+        if "temporaneo" in locals() and temporaneo:
+            rimuovi_archivio_temporaneo(archivio)
         for nome, valore in precedenti.items():
             if valore is None:
                 os.environ.pop(nome, None)

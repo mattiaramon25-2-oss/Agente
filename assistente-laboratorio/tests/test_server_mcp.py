@@ -43,14 +43,17 @@ def con_client(funzione, **opzioni):
     Se non viene indicato, l'archivio delle note è una cartella temporanea nuova:
     nessun test scrive nell'archivio reale.
     """
-    opzioni.setdefault("percorso_note", Path(tempfile.mkdtemp()) / "note.sqlite3")
     opzioni.setdefault("http", http_senza_rete())
 
     async def corpo():
         async with Client(crea_server(**opzioni)) as client:
             return await funzione(client)
 
-    return asyncio.run(corpo())
+    if "percorso_note" in opzioni:
+        return asyncio.run(corpo())
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as cartella:  # niente cartelle lasciate in %TEMP%
+        opzioni["percorso_note"] = Path(cartella) / "note.sqlite3"
+        return asyncio.run(corpo())
 
 
 def test_nome_del_server():
