@@ -1,7 +1,7 @@
 """Logica pura del convertitore di unità: nessuna dipendenza da MCP."""
 
 import math
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 # Esponente di 10 rispetto all'unità base di ogni grandezza.
 _METRICHE = {
@@ -69,7 +69,10 @@ def converti(valore: object, da: object, a: object) -> dict:
     elif x < 0:
         raise ErroreConversione(f"Valore negativo non ammesso per {grandezza}.")
 
-    risultato = _calcola(x, da, a, grandezza)
+    try:
+        risultato = _calcola(x, da, a, grandezza)
+    except InvalidOperation:  # arrotondamento oltre la precisione del contesto
+        raise ErroreConversione("Risultato troppo grande per essere rappresentato.") from None
     try:
         decimale = float(risultato)
     except OverflowError:

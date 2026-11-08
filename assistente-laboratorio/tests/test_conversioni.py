@@ -28,6 +28,7 @@ def test_elenco_unita():
     (-1, "km", "m", "negativo"), (-300, "°C", "°F", "zero assoluto"), (-460, "°F", "°C", "zero assoluto"),
     (1, "Km", "m", "Unità sconosciuta"), (1, " km", "m", "Unità sconosciuta"), (1, "m", "C", "Unità sconosciuta"),
     (1, "kg", "m", "grandezze"), (1, "°C", "l", "grandezze"), (1e308, "km", "mm", "troppo grande"),
+    (1e30, "°C", "°F", "troppo grande"), (1e30, "°F", "°C", "troppo grande"),
 ])
 def test_errori(valore, da, a, frammento):
     with pytest.raises(ErroreConversione) as errore:
