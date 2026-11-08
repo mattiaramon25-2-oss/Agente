@@ -65,6 +65,15 @@ def _esito(contenuto: object) -> str:
     return "ok"
 
 
+def _argomenti_mancanti(strumento: BaseTool, argomenti: object) -> list[str]:
+    """Argomenti obbligatori dello schema che la richiesta del modello non contiene."""
+    schema = strumento.tool_call_schema
+    if not isinstance(schema, dict):
+        schema = schema.model_json_schema()
+    presenti = argomenti if isinstance(argomenti, dict) else {}
+    return [nome for nome in schema.get("required", []) if nome not in presenti]
+
+
 def _registra(origine: str, chiamata: dict, esito: str, contenuto: object, messaggio: ToolMessage) -> None:
     registro.info(
         formatta(
@@ -117,12 +126,25 @@ def crea_grafo(modello, strumenti: list[BaseTool]):
                 contenuto = _errore(f"Strumento sconosciuto: '{chiamata['name']}'.")
             else:
                 origine = (strumento.metadata or {}).get("origine", "locale")
-                try:
-                    contenuto = strumento.invoke(chiamata["args"])
-                    esito = _esito(contenuto)
-                except Exception as eccezione:  # anche argomenti non validi
-                    contenuto = _errore(f"Argomenti non validi per {chiamata['name']}: {eccezione}")
+                # Controllo dell'host prima dell'esecuzione (slide 5), uguale per ogni variante.
+                mancanti = _argomenti_mancanti(strumento, chiamata["args"])
+                if mancanti:
+                    contenuto = json.dumps(
+                        {
+                            "errore": f"Argomenti mancanti per {chiamata['name']}: {', '.join(mancanti)}. "
+                            "Riprova indicando tutti gli argomenti richiesti.",
+                            "tipo": "strumento",
+                        },
+                        ensure_ascii=False,
+                    )
                     esito = "errore_tool"
+                else:
+                    try:
+                        contenuto = strumento.invoke(chiamata["args"])
+                        esito = _esito(contenuto)
+                    except Exception as eccezione:  # anche argomenti non validi
+                        contenuto = _errore(f"Argomenti non validi per {chiamata['name']}: {eccezione}")
+                        esito = "errore_tool"
             messaggio = ToolMessage(
                 contenuto,
                 tool_call_id=chiamata["id"],

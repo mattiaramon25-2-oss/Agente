@@ -40,3 +40,16 @@ def test_sostituti_della_calcolatrice():
     assert crea_sostituti(Configurazione("u", "m", 8765, variante_calcolatrice="mcp")) == []
     (locale,) = crea_sostituti(Configurazione("u", "m", 8765, variante_calcolatrice="locale"))
     assert origini([locale]) == {"calcola": "locale"}
+
+
+def test_sostituti_delle_scadenze():
+    assert crea_sostituti(Configurazione("u", "m", 8765, variante_scadenze="mcp"), url_api=None) == []
+    config = Configurazione("u", "m", 8765, variante_scadenze="fastapi", porta_api=8766)
+    (wrapper,) = crea_sostituti(config, url_api="http://127.0.0.1:8766")
+    assert origini([wrapper]) == {"calcola_scadenza": "fastapi"}
+
+
+def test_sostituti_di_entrambe_le_varianti():
+    config = Configurazione("u", "m", 8765, variante_calcolatrice="locale", variante_scadenze="fastapi", porta_api=8766)
+    assert origini(crea_sostituti(config, url_api="http://127.0.0.1:8766")) == {
+        "calcola": "locale", "calcola_scadenza": "fastapi"}

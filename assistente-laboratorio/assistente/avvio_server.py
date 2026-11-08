@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterator, TypeVar
 
+import httpx
 from langchain_core.tools import BaseTool
 
 from assistente.client_mcp import scopri_strumenti
@@ -157,3 +158,38 @@ def avvia_server_mcp(
             raise ErroreAvvio("Il server MCP non espone nessuno strumento.")
         registro.info("catalogo strumenti=%s", [s.name for s in strumenti])
         yield ServerAvviato(processo, url, strumenti)
+
+
+def url_servizio(porta: int) -> str:
+    return f"http://127.0.0.1:{porta}"
+
+
+@dataclass(frozen=True)
+class ServizioAvviato:
+    processo: subprocess.Popen
+    url: str
+
+
+@contextmanager
+def avvia_servizio_api(
+    porta: int, percorso_log: Path, attesa: float = ATTESA_AVVIO, comando: list[str] | None = None
+) -> Iterator[ServizioAvviato]:
+    """Avvia il servizio FastAPI delle scadenze; è pronto quando /openapi.json descrive /scadenza."""
+    url = url_servizio(porta)
+    comando = comando or [sys.executable, "-m", "servizio_api", "--porta", str(porta)]
+
+    def contratto_presente(tempo_massimo: float) -> None:
+        risposta = httpx.get(f"{url}/openapi.json", timeout=tempo_massimo)
+        if "/scadenza" not in risposta.json().get("paths", {}):
+            raise ValueError("il servizio non descrive /scadenza")
+
+    with processo_in_attesa(
+        comando,
+        porta,
+        percorso_log,
+        contratto_presente,
+        descrizione="servizio FastAPI",
+        variabile_porta="API_PORTA",
+        attesa=attesa,
+    ) as (processo, _):
+        yield ServizioAvviato(processo, url)

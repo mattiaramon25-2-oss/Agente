@@ -13,11 +13,13 @@ from logica.calcolatrice import SCHEMA_ESPRESSIONE, calcola
 from logica.conversioni import UNITA_AMMESSE, converti
 from logica.errori import ErroreStrumento
 from logica.orologio import ora_corrente, ora_utc
+from logica.scadenze import SCHEMA_DATA_INIZIO, SCHEMA_GIORNI, SCHEMA_LAVORATIVI, calcola_scadenza
 
 NOME_SERVER = "Strumenti laboratorio"
 NOME_CONVERTITORE = "converti_unita"
 NOME_OROLOGIO = "ora_corrente"
 NOME_CALCOLATRICE = "calcola"
+NOME_SCADENZE = "calcola_scadenza"
 
 DESCRIZIONE_CONVERTITORE = (
     "Converte un valore tra unità metriche della stessa grandezza (lunghezza, massa, volume) "
@@ -31,6 +33,12 @@ DESCRIZIONE_OROLOGIO = (
 DESCRIZIONE_CALCOLATRICE = (
     "Calcola un'espressione aritmetica con numeri decimali (punto come separatore), + - * / % ** "
     'e parentesi. Esempio: espressione="(3 + 4) * 2".'
+)
+# Identica alla docstring del wrapper FastAPI (assistente/wrapper_scadenze.py): lo verifica un test.
+DESCRIZIONE_SCADENZE = (
+    "Calcola la data di scadenza aggiungendo un numero di giorni a una data ISO (AAAA-MM-GG). "
+    "Con lavorativi=true conta solo i giorni dal lunedì al venerdì esclusi i festivi nazionali italiani. "
+    "Risultato indicativo, senza valore legale."
 )
 
 registro = logging.getLogger("server_mcp")
@@ -84,5 +92,14 @@ def crea_server(*, adesso: Callable[[], datetime] = ora_utc) -> FastMCP:
         espressione: Annotated[Any, WithJsonSchema(SCHEMA_ESPRESSIONE)],
     ) -> dict:
         return esegui_registrato(NOME_CALCOLATRICE, {"espressione": espressione}, lambda: calcola(espressione))
+
+    @server.tool(name=NOME_SCADENZE, description=DESCRIZIONE_SCADENZE)
+    def calcola_scadenza_mcp(
+        data_inizio: Annotated[Any, WithJsonSchema(SCHEMA_DATA_INIZIO)],
+        giorni: Annotated[Any, WithJsonSchema(SCHEMA_GIORNI)],
+        lavorativi: Annotated[Any, WithJsonSchema(SCHEMA_LAVORATIVI)],
+    ) -> dict:
+        argomenti = {"data_inizio": data_inizio, "giorni": giorni, "lavorativi": lavorativi}
+        return esegui_registrato(NOME_SCADENZE, argomenti, lambda: calcola_scadenza(data_inizio, giorni, lavorativi))
 
     return server

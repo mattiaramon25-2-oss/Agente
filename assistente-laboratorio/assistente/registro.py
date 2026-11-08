@@ -8,6 +8,7 @@ from typing import Mapping
 CARTELLA_LOG = Path(__file__).resolve().parent.parent / "logs"
 LOG_ASSISTENTE = CARTELLA_LOG / "assistente.log"
 LOG_SERVER = CARTELLA_LOG / "server_mcp.log"
+LOG_API = CARTELLA_LOG / "servizio_api.log"
 
 
 def formatta(campi: Mapping[str, object]) -> str:
