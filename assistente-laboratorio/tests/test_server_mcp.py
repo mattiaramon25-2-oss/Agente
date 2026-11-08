@@ -8,9 +8,11 @@ from fastmcp import Client
 from logica.conversioni import UNITA_AMMESSE
 from server_mcp.server import (
     DESCRIZIONE_CALCOLATRICE,
+    DESCRIZIONE_SCADENZE,
     NOME_CALCOLATRICE,
     NOME_CONVERTITORE,
     NOME_OROLOGIO,
+    NOME_SCADENZE,
     NOME_SERVER,
     crea_server,
 )
@@ -32,7 +34,7 @@ def test_nome_del_server():
 
 def test_catalogo():
     strumenti = con_client(lambda c: c.list_tools())
-    assert {s.name for s in strumenti} == {NOME_CONVERTITORE, NOME_OROLOGIO, NOME_CALCOLATRICE}
+    assert {s.name for s in strumenti} == {NOME_CONVERTITORE, NOME_OROLOGIO, NOME_CALCOLATRICE, NOME_SCADENZE}
     (convertitore,) = [s for s in strumenti if s.name == NOME_CONVERTITORE]
     schema = convertitore.inputSchema
     assert schema["required"] == ["valore", "da", "a"]
@@ -98,3 +100,27 @@ def test_calcola_via_mcp():
 def test_calcola_rifiuto_via_mcp():
     r = con_client(lambda c: c.call_tool("calcola", {"espressione": "__import__('os')"}, raise_on_error=False))
     assert r.is_error and "non consentit" in r.content[0].text
+
+
+def test_scadenze_nel_catalogo():
+    (scadenze,) = [s for s in con_client(lambda c: c.list_tools()) if s.name == "calcola_scadenza"]
+    assert NOME_SCADENZE == "calcola_scadenza"
+    assert scadenze.description == DESCRIZIONE_SCADENZE == (
+        "Calcola la data di scadenza aggiungendo un numero di giorni a una data ISO (AAAA-MM-GG). "
+        "Con lavorativi=true conta solo i giorni dal lunedì al venerdì esclusi i festivi nazionali italiani. "
+        "Risultato indicativo, senza valore legale."
+    )
+    schema = scadenze.inputSchema
+    assert schema["required"] == ["data_inizio", "giorni", "lavorativi"]
+    assert [schema["properties"][n]["type"] for n in schema["required"]] == ["string", "integer", "boolean"]
+
+
+def test_scadenza_via_mcp():
+    r = con_client(lambda c: c.call_tool("calcola_scadenza", {"data_inizio": "2026-12-23", "giorni": 3, "lavorativi": True}))
+    assert r.structured_content["scadenza"] == "2026-12-29"
+
+
+def test_scadenza_errore_via_mcp():
+    r = con_client(lambda c: c.call_tool(
+        "calcola_scadenza", {"data_inizio": "2026-02-30", "giorni": 1, "lavorativi": True}, raise_on_error=False))
+    assert r.is_error and "Data non valida" in r.content[0].text
