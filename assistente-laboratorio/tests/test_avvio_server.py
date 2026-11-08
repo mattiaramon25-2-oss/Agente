@@ -126,3 +126,12 @@ def test_persistenza_dopo_riavvio(porta, tmp_path):
     with avvia_server_mcp(porta, tmp_path / "s.log", comando=comando) as avviato:
         elenco = json.loads(per_nome(avviato.strumenti, "list_notes").invoke({}))
     assert [n["testo"] for n in elenco["note"]] == ["resta dopo il riavvio"]
+
+
+def test_arresto_ordinato_registrato(porta, tmp_path):
+    """L'arresto richiesto scrive «arresto server» e il processo esce con codice 0, non 3."""
+    log = tmp_path / "server_mcp.log"
+    with avvia_server_mcp(porta, log) as avviato:
+        pass
+    assert avviato.processo.returncode == 0
+    assert "arresto server" in log.read_text(encoding="utf-8")
