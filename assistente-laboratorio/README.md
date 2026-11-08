@@ -13,6 +13,8 @@ l'assistente avvia da solo, interroga con la discovery (`tools/list`) e spegne a
 | `ora_corrente(fuso)` | data e ora attuali nel fuso IANA indicato, per esempio `Asia/Tokyo` |
 | `converti_unita(valore, da, a)` | conversione tra unità metriche di lunghezza, massa e volume, e tra °C e °F |
 | `calcola(espressione)` | espressioni aritmetiche con `+ - * / % **` e parentesi, senza `eval`, in aritmetica decimale esatta |
+| `search_catalog(query, max_results)` | cerca corsi dell'ITS nel catalogo locale (`risorse/catalogo_corsi.json`) per parola in titolo, sede o codice; elenco breve, al massimo 5 risultati se non indicato (1–20); nessun risultato è una lista vuota, non un errore |
+| `get_item(code)` | tutti i dettagli (titolo, sede, durata in ore) di un corso dato il codice esatto, per esempio `DLL-01` |
 | `calcola_scadenza(data_inizio, giorni, lavorativi)` | data di scadenza aggiungendo giorni di calendario o lavorativi (festività nazionali italiane 2026–2028 da `risorse/festivita_italia.json`); risultato indicativo, senza valore legale |
 
 Nome, descrizione e schema degli strumenti arrivano dal server, non sono riscritti nell'assistente.
@@ -231,7 +233,11 @@ Prova reale con LM Studio acceso, ogni domanda in una sessione nuova:
 - «Se parto il 23 dicembre 2026, quando scadono 3 giorni lavorativi?» una volta con le scadenze
   `mcp` e una con `fastapi`: la scadenza deve essere il 29 dicembre 2026 e, solo con `fastapi`,
   `logs/servizio_api.log` deve avere la riga della richiesta; più un errore controllato
-  (data `2026-02-30`) in entrambe le varianti.
+  (data `2026-02-30`) in entrambe le varianti;
+- catalogo: «Quali corsi di Python ci sono nel catalogo?» (una `search_catalog` con risultati),
+  «C'è un corso di astrofisica?» (nessun risultato e nessun codice inventato nella risposta),
+  «Quante ore dura il corso di Deep Learning e LLM?» (`search_catalog` e poi `get_item` con
+  `DLL-01` nello stesso turno, risposta 120); più un errore controllato (`get_item` con `XX-99`).
 
 Le prove reali leggono le variabili dal `.env`; calcolatrice e scadenze vengono forzate a
 ciascuna variante dal test stesso.
@@ -300,6 +306,10 @@ Il fuso dell'utente è rilevato una volta sola all'avvio, in quest'ordine:
 
   L'assistente considera pronto il servizio solo quando `/openapi.json` descrive `/scadenza`,
   non al primo HTTP 200.
+- **Il catalogo**: il file `risorse/catalogo_corsi.json` (lista di corsi con `codice`, `titolo`,
+  `sede`, `durata_ore`) si può modificare liberamente; il server lo legge solo all'avvio, quindi
+  dopo una modifica va riavviato l'assistente. Se il file non è valido (campo mancante o codice
+  duplicato) il server non parte e `logs/server_mcp.log` riporta `Catalogo non valido` con il motivo.
 - **`Festività disponibili solo per gli anni 2026–2028`**: con `lavorativi=true` il calcolo è
   uscito dagli anni del file `risorse/festivita_italia.json`; per altri anni va aggiornato il file.
 - **La calcolatrice rifiuta un'espressione** (`Carattere non consentito`, `Operazione non consentita`,
