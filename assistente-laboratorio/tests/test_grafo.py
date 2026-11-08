@@ -250,3 +250,7 @@ def test_messaggio_sistema_conferma_eliminazione():
 def test_messaggio_sistema_meteo():
     assert "nota" in messaggio_sistema(FUSO).content
     assert "città" in messaggio_sistema(FUSO).content
+
+
+def test_messaggio_sistema_vieta_azioni_non_eseguite():
+    assert "se non hai chiamato lo strumento, non l'hai fatto" in messaggio_sistema(FUSO).content

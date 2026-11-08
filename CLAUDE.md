@@ -22,6 +22,8 @@ Comandi (PowerShell, da `assistente-laboratorio/`, con `.\.venv\Scripts\Activate
 - Prova reale con LM Studio: `python -m pytest --lmstudio -m lmstudio -v -s`.
 - Prova reale con Docker: `python -m pytest --docker -m docker -v -s`.
 - Avvio diretto: `python -m assistente`. Avvio con Docker: `.\avvia.ps1`.
+- Solo il server MCP: `python -m server_mcp --porta 8765` (con `--note <file>` per non toccare l'archivio reale). Solo il servizio FastAPI: `python -m servizio_api --porta 8766`.
+- Variabili nel `.env`: `LMSTUDIO_BASE_URL`, `LMSTUDIO_MODEL`, `MCP_PORTA`, `VARIANTE_CALCOLATRICE` (`mcp`/`locale`), `VARIANTE_SCADENZE` (`mcp`/`fastapi`), `API_PORTA` (solo con `fastapi`); per Docker anche `LMSTUDIO_BASE_URL_DOCKER`.
 
 ## Obiettivo
 
@@ -30,7 +32,8 @@ Un'applicazione da terminale in Python che conversa con un modello locale e:
 - organizza il flusso in un grafo LangGraph esplicito (stato, nodi, instradamento riconoscibili);  
 - usa un modello servito da LM Studio, che resta sul computer host;  
 - conserva la cronologia della conversazione per la durata della sessione (nessuna persistenza della cronologia; le note sono l'unica persistenza, voluta);  
-- offre uno strumento orologio con fuso orario esplicito, richiesto dal modello tramite tool calling ed eseguito davvero dal programma;  
+- offre gli strumenti della lezione 5 (orologio, convertitore, calcolatrice, scadenze, catalogo, note, meteo) tramite un server MCP che avvia, scopre con la discovery e spegne da sé; il modello li richiede con il tool calling e il programma li esegue davvero;  
+- permette di confrontare tre modi di collegare uno strumento: MCP per tutti, `@tool` locale per la calcolatrice, FastAPI con wrapper HTTP per le scadenze, scelti nel `.env` (una sola versione per nome visibile al modello);  
 - si avvia anche con Docker Compose.
 
 ## Confini
