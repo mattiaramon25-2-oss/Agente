@@ -1,4 +1,5 @@
 import json
+import logging
 from datetime import datetime, timezone
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
@@ -11,16 +12,17 @@ from assistente.grafo import (
     instrada_dopo_modello,
     messaggio_sistema,
 )
-from assistente.strumenti import crea_strumento_orologio
-from tests.finti import ModelloFinto, chiamata_orologio
+import pytest
+
+from tests.finti import ModelloFinto, chiamata, chiamata_orologio, orologio_finto, strumento_finto
 
 ISTANTE = datetime(2026, 11, 2, 14, 4, 5, tzinfo=timezone.utc)
 FUSO = "Europe/Rome"
 
 
-def prepara(risposte):
+def prepara(risposte, extra=()):
     modello = ModelloFinto(risposte)
-    grafo = crea_grafo(modello, [crea_strumento_orologio(lambda: ISTANTE)])
+    grafo = crea_grafo(modello, [orologio_finto(ISTANTE), *extra])
     return modello, grafo
 
 
@@ -150,3 +152,55 @@ def test_limite_chiude_anche_le_chiamate_malformate():
     cronologia = esegui_turno(grafo, [], FUSO, "che ore sono?")
     assert cronologia[-1].content == TESTO_LIMITE
     assert "z9" in [m.tool_call_id for m in cronologia if isinstance(m, ToolMessage)]
+
+
+def test_chiamata_mcp_registrata(caplog):
+    caplog.set_level(logging.INFO, logger="assistente.strumenti")
+    strumento = strumento_finto('{"risultato": 2500}')
+    _, grafo = prepara([chiamata("converti_unita", {"valore": 2.5, "da": "km", "a": "m"}, "m1"), AIMessage("2500 m")], [strumento])
+    cronologia = esegui_turno(grafo, [], FUSO, "2,5 km in metri?")
+    risultato = cronologia[2]
+    assert risultato.tool_call_id == "m1" and risultato.status == "success"
+    for campo in ("origine=mcp", "tool=converti_unita", "call_id=m1", '"da":"km"', "esito=ok", "tool_message.call_id=m1"):
+        assert campo in caplog.text
+
+
+@pytest.mark.parametrize("risposta, esito", [
+    ('{"errore": "Unità sconosciuta", "tipo": "strumento"}', "esito=errore_tool"),
+    ('{"errore": "Server MCP non raggiungibile", "tipo": "collegamento"}', "esito=errore_collegamento"),
+])
+def test_errori_mcp_marcati(caplog, risposta, esito):
+    caplog.set_level(logging.INFO, logger="assistente.strumenti")
+    _, grafo = prepara([chiamata("converti_unita", {"valore": 1}, "e1"), AIMessage("no")], [strumento_finto(risposta)])
+    cronologia = esegui_turno(grafo, [], FUSO, "x")
+    assert cronologia[2].status == "error" and esito in caplog.text
+
+
+def test_errore_strumento_marcato(caplog):
+    caplog.set_level(logging.INFO, logger="assistente.strumenti")
+    fallito = strumento_finto('{"errore": "Fuso orario sconosciuto", "tipo": "strumento"}', nome="ora_corrente")
+    modello = ModelloFinto([chiamata_orologio("Mars/Olympus", "o1"), AIMessage("no")])
+    cronologia = esegui_turno(crea_grafo(modello, [fallito]), [], FUSO, "ora su Marte?")
+    assert cronologia[2].status == "error"
+    assert "origine=mcp" in caplog.text and "esito=errore_tool" in caplog.text
+
+
+def test_strumento_sconosciuto_registrato(caplog):
+    caplog.set_level(logging.INFO, logger="assistente.strumenti")
+    _, grafo = prepara([chiamata("meteo", {}, "s1"), AIMessage("ok")])
+    esegui_turno(grafo, [], FUSO, "x")
+    assert "esito=strumento_sconosciuto" in caplog.text and "origine=sconosciuta" in caplog.text
+
+
+def test_limite_registrato(caplog):
+    caplog.set_level(logging.INFO, logger="assistente.strumenti")
+    _, grafo = prepara([chiamata_orologio(FUSO, f"c{i}") for i in range(1, 5)])
+    esegui_turno(grafo, [], FUSO, "che ore sono?")
+    assert caplog.text.count("esito=ok") == 3
+    assert "call_id=c4" in caplog.text and "esito=limite" in caplog.text
+
+
+def test_testi_generici():
+    assert "strumenti" in TESTO_LIMITE and "orologio" not in TESTO_LIMITE
+    sistema = messaggio_sistema(FUSO).content
+    assert "ora_corrente" in sistema and "conversioni di unità" in sistema

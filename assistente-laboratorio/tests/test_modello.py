@@ -4,7 +4,7 @@ import pytest
 
 from assistente.configurazione import Configurazione
 from assistente.modello import ErroreServer, crea_modello, verifica_server
-from assistente.strumenti import crea_strumento_orologio
+from tests.finti import strumento_finto
 
 URL = "http://localhost:1234/v1"
 ELENCO = {"data": [{"id": "google/gemma-4-e2b"}, {"id": "qwen/qwen3.5-9b"}]}
@@ -64,8 +64,8 @@ def test_risposta_non_json():
 
 
 def test_crea_modello():
-    config = Configurazione(URL, "google/gemma-4-e2b")
-    modello = crea_modello(config, [crea_strumento_orologio()])
+    config = Configurazione(URL, "google/gemma-4-e2b", 8765)
+    modello = crea_modello(config, [strumento_finto("{}", nome="ora_corrente")])
     assert hasattr(modello, "invoke")
     assert modello.bound.model_name == "google/gemma-4-e2b"
     assert modello.bound.openai_api_base == URL
