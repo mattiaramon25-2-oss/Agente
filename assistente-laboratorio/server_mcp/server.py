@@ -3,6 +3,7 @@
 import json
 import logging
 from datetime import datetime
+from pathlib import Path
 from typing import Annotated, Any, Callable
 
 from fastmcp import FastMCP
@@ -21,6 +22,7 @@ from logica.catalogo import (
 )
 from logica.conversioni import UNITA_AMMESSE, converti
 from logica.errori import ErroreStrumento
+from logica.note import LIMITE_PREDEFINITO, PERCORSO_NOTE, SCHEMA_LIMIT, SCHEMA_NOTE_ID, SCHEMA_TEXT, ArchivioNote
 from logica.orologio import ora_corrente, ora_utc
 from logica.scadenze import SCHEMA_DATA_INIZIO, SCHEMA_GIORNI, SCHEMA_LAVORATIVI, calcola_scadenza
 
@@ -31,6 +33,9 @@ NOME_CALCOLATRICE = "calcola"
 NOME_SCADENZE = "calcola_scadenza"
 NOME_RICERCA = "search_catalog"
 NOME_DETTAGLIO = "get_item"
+NOME_AGGIUNGI_NOTA = "add_note"
+NOME_ELENCA_NOTE = "list_notes"
+NOME_ELIMINA_NOTA = "delete_note"
 
 DESCRIZIONE_CONVERTITORE = (
     "Converte un valore tra unità metriche della stessa grandezza (lunghezza, massa, volume) "
@@ -62,6 +67,19 @@ DESCRIZIONE_DETTAGLIO = (
     "codice esatto, per esempio DLL-01."
 )
 
+# Strumenti con effetti: descrizioni precise e nessuna eliminazione ambigua (slide 26).
+DESCRIZIONE_AGGIUNGI_NOTA = (
+    "Salva una nuova nota persistente con il testo indicato (massimo 500 caratteri). "
+    "Usala solo quando l'utente chiede di ricordare o annotare qualcosa."
+)
+DESCRIZIONE_ELENCA_NOTE = (
+    "Elenca le note salvate, dalla più recente, con ID, testo e data di creazione. Non modifica nulla."
+)
+DESCRIZIONE_ELIMINA_NOTA = (
+    "Elimina definitivamente la nota con l'ID esatto indicato. Prima di chiamarla mostra all'utente ID e "
+    "testo della nota e chiedi conferma; se l'utente non indica l'ID, prima elenca le note e chiedigli quale eliminare."
+)
+
 registro = logging.getLogger("server_mcp")
 
 
@@ -76,6 +94,9 @@ def esegui_registrato(nome: str, argomenti: dict, calcolo: Callable[[], dict]) -
     except ErroreStrumento as errore:
         registro.info("chiamata tool=%s argomenti=%s esito=errore messaggio=%s", nome, _json(argomenti), errore)
         raise ToolError(str(errore)) from None
+    except Exception as errore:  # rete di sicurezza: nessun errore imprevisto in inglese o senza log
+        registro.exception("chiamata tool=%s argomenti=%s esito=errore imprevisto", nome, _json(argomenti))
+        raise ToolError(f"Errore interno dello strumento {nome}: {type(errore).__name__}.") from None
     registro.info("chiamata tool=%s argomenti=%s esito=ok risultato=%s", nome, _json(argomenti), _json(risultato))
     return risultato
 
@@ -84,9 +105,12 @@ def _unita(descrizione: str) -> Any:
     return Annotated[Any, WithJsonSchema({"type": "string", "enum": list(UNITA_AMMESSE), "description": descrizione})]
 
 
-def crea_server(*, adesso: Callable[[], datetime] = ora_utc) -> FastMCP:
-    """Crea il server MCP con tutti gli strumenti; `adesso` è iniettabile nei test."""
+def crea_server(
+    *, adesso: Callable[[], datetime] = ora_utc, percorso_note: Path = PERCORSO_NOTE
+) -> FastMCP:
+    """Crea il server MCP con tutti gli strumenti; `adesso` e `percorso_note` sono iniettabili nei test."""
     server = FastMCP(NOME_SERVER)
+    archivio = ArchivioNote(percorso_note)
     catalogo = carica_catalogo()
 
     @server.tool(name=NOME_CONVERTITORE, description=DESCRIZIONE_CONVERTITORE)
@@ -135,5 +159,21 @@ def crea_server(*, adesso: Callable[[], datetime] = ora_utc) -> FastMCP:
     @server.tool(name=NOME_DETTAGLIO, description=DESCRIZIONE_DETTAGLIO)
     def get_item(code: Annotated[Any, WithJsonSchema(SCHEMA_CODE)]) -> dict:
         return esegui_registrato(NOME_DETTAGLIO, {"code": code}, lambda: dettaglio(catalogo, code))
+
+    @server.tool(name=NOME_AGGIUNGI_NOTA, description=DESCRIZIONE_AGGIUNGI_NOTA)
+    def add_note(text: Annotated[Any, WithJsonSchema(SCHEMA_TEXT)]) -> dict:
+        risultato = esegui_registrato(NOME_AGGIUNGI_NOTA, {"text": text}, lambda: archivio.aggiungi(text))
+        registro.info("modifica note operazione=aggiunta id=%s", risultato["id"])
+        return risultato
+
+    @server.tool(name=NOME_ELENCA_NOTE, description=DESCRIZIONE_ELENCA_NOTE)
+    def list_notes(limit: Annotated[Any, WithJsonSchema(SCHEMA_LIMIT)] = LIMITE_PREDEFINITO) -> dict:
+        return esegui_registrato(NOME_ELENCA_NOTE, {"limit": limit}, lambda: archivio.elenca(limit))
+
+    @server.tool(name=NOME_ELIMINA_NOTA, description=DESCRIZIONE_ELIMINA_NOTA)
+    def delete_note(note_id: Annotated[Any, WithJsonSchema(SCHEMA_NOTE_ID)]) -> dict:
+        risultato = esegui_registrato(NOME_ELIMINA_NOTA, {"note_id": note_id}, lambda: archivio.elimina(note_id))
+        registro.info("modifica note operazione=eliminazione id=%s", risultato["id"])
+        return risultato
 
     return server

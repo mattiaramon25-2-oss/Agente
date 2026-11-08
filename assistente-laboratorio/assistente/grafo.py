@@ -43,7 +43,10 @@ def messaggio_sistema(fuso_utente: str) -> SystemMessage:
         "Per conversioni di unità e altri calcoli usa sempre lo strumento adatto tra quelli disponibili: "
         "non farli a mente.\n"
         "Per domande sui corsi dell'ITS usa gli strumenti del catalogo e non inventare corsi che non "
-        "compaiono nei risultati."
+        "compaiono nei risultati.\n"
+        "Per le note: aggiungi una nota solo se l'utente chiede di ricordare o annotare qualcosa; "
+        "elimina le note solo per ID; se l'utente non indica l'ID, prima elencale e chiedigli quale eliminare; "
+        "prima di eliminare, anche se una sola nota corrisponde, mostra ID e testo e chiedi conferma all'utente."
     )
 
 

@@ -236,3 +236,12 @@ def test_argomento_mancante_strumento_locale_con_firma():
 
 def test_messaggio_sistema_catalogo():
     assert "catalogo" in messaggio_sistema(FUSO).content
+
+
+def test_messaggio_sistema_note():
+    sistema = messaggio_sistema(FUSO).content
+    assert "elimina le note solo per ID" in sistema and "chiedigli quale eliminare" in sistema
+
+
+def test_messaggio_sistema_conferma_eliminazione():
+    assert "anche se una sola nota corrisponde" in messaggio_sistema(FUSO).content
