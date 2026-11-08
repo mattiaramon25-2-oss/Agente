@@ -42,6 +42,8 @@ def messaggio_sistema(fuso_utente: str) -> SystemMessage:
         "(per esempio Asia/Tokyo per Tokyo).\n"
         "Per conversioni di unità e altri calcoli usa sempre lo strumento adatto tra quelli disponibili: "
         "non farli a mente.\n"
+        "Non dire mai di aver salvato, eliminato, calcolato o cercato qualcosa senza aver chiamato lo strumento "
+        "in questo turno: se non hai chiamato lo strumento, non l'hai fatto.\n"
         "Per domande sui corsi dell'ITS usa gli strumenti del catalogo e non inventare corsi che non "
         "compaiono nei risultati.\n"
         "Per le note: aggiungi una nota solo se l'utente chiede di ricordare o annotare qualcosa; "
