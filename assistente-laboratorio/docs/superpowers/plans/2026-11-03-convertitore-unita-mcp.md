@@ -1,5 +1,7 @@
 # Convertitore di unità tramite MCP — piano di implementazione
 
+> **Sostituito dal Task 2 in poi** (2026-11-08) dal piano `2026-11-08-passo-1-infrastruttura-mcp.md`. Il Task 1 è completato (commit `b1df2b3` e `02ce50d`). Il codice di test e i dettagli dei Task 2–8 restano il riferimento a cui il nuovo piano rimanda con «come nel Task N del piano 2026-11-03».
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** aggiungere all'assistente lo strumento `converti_unita`, esposto da un server MCP (`fastmcp`, Streamable HTTP) che l'agente avvia, scopre con `langchain-mcp-adapters`, usa tramite un ponte sincrono e spegne all'uscita, con log che dimostrano ogni chiamata.

@@ -29,10 +29,10 @@ Un'applicazione da terminale in Python che conversa con un modello locale e:
 
 ## Confini
 
-- Implementare solo i requisiti concordati. Altri strumenti, MCP, workflow e RAG arriveranno nelle lezioni successive: non anticiparli.  
+- Implementare solo i requisiti concordati. Gli strumenti MCP della lezione 5 sono descritti nella specifica `2026-11-08-strumenti-lezione-5-design.md`; workflow, RAG e altri strumenti arriveranno nelle lezioni successive: non anticiparli.  
 - Niente interfacce grafiche, servizi cloud o framework non concordati.  
 - Lavorare solo dentro `assistente-laboratorio/`. La repository contiene altre lezioni: non leggerle per copiarne il codice e non modificarle.  
-- Lavorare nel branch corrente; nessun branch o worktree nuovo se non richiesto.
+- Un branch per passo del piano, con nome `dev-<passo>` (per esempio `dev-calcolatrice`), che parte da `dev`; niente worktree se non richiesti. Il merge in `main` avviene solo con la mia approvazione esplicita, passo per passo.
 
 ## Scelte tecniche
 
@@ -49,7 +49,9 @@ Un'applicazione da terminale in Python che conversa con un modello locale e:
 - Usare le skill di Superpowers per brainstorming, specifica, piano, implementazione e verifica.  
 - Non scrivere codice prima che io abbia approvato la specifica e poi il piano.  
 - Salvare specifica e piano in `assistente-laboratorio/docs/superpowers/`.  
-- Procedere per incrementi piccoli, ciascuno verificato prima del commit.
+- Procedere per incrementi piccoli, ciascuno verificato prima del commit.  
+- Checkpoint: alla fine di ogni passo, e ogni volta che il lavoro si interrompe, scrivere un file in `assistente-laboratorio/docs/superpowers/checkpoint/` (`AAAA-MM-GG-<passo>.md`) con tre sezioni: **Fatto**, **Da fare**, **Stato attuale** (branch, ultimo commit, esito dei test, cosa non è verificato). Il checkpoint si committa insieme al lavoro che descrive.
+- Il modello in LM Studio lo sceglio e lo cambio io: se le prove reali falliscono, riportare l'esito con le evidenze.
 
 ## Test e verifiche
 
