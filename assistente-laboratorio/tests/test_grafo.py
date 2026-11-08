@@ -204,3 +204,31 @@ def test_testi_generici():
     assert "strumenti" in TESTO_LIMITE and "orologio" not in TESTO_LIMITE
     sistema = messaggio_sistema(FUSO).content
     assert "ora_corrente" in sistema and "conversioni di unità" in sistema
+
+
+def test_argomento_mancante_rifiutato_in_italiano(caplog):
+    """L'host controlla gli argomenti obbligatori prima di eseguire (slide 5), per ogni variante."""
+    caplog.set_level(logging.INFO, logger="assistente.strumenti")
+    eseguito = []
+    schema = {"type": "object", "properties": {"data_inizio": {"type": "string"}, "giorni": {"type": "integer"},
+              "lavorativi": {"type": "boolean"}}, "required": ["data_inizio", "giorni", "lavorativi"]}
+    from langchain_core.tools import StructuredTool
+    strumento = StructuredTool(name="calcola_scadenza", description="d", args_schema=schema,
+                               func=lambda **a: eseguito.append(a) or "{}", metadata={"origine": "fastapi"})
+    _, grafo = prepara([chiamata("calcola_scadenza", {"data_inizio": "2026-12-23", "giorni": 3}, "a1"),
+                        AIMessage("ok")], [strumento])
+    cronologia = esegui_turno(grafo, [], FUSO, "scadenza?")
+    risultato = cronologia[2]
+    assert risultato.status == "error" and eseguito == []
+    assert json.loads(risultato.content) == {
+        "errore": "Argomenti mancanti per calcola_scadenza: lavorativi. Riprova indicando tutti gli argomenti richiesti.",
+        "tipo": "strumento"}
+    assert "origine=fastapi" in caplog.text and "esito=errore_tool" in caplog.text
+
+
+def test_argomento_mancante_strumento_locale_con_firma():
+    from assistente.calcolatrice_locale import crea_calcolatrice_locale
+    _, grafo = prepara([chiamata("calcola", {}, "b1"), AIMessage("ok")], [crea_calcolatrice_locale()])
+    risultato = esegui_turno(grafo, [], FUSO, "calcola")[2]
+    assert risultato.status == "error"
+    assert json.loads(risultato.content)["errore"].startswith("Argomenti mancanti per calcola: espressione.")

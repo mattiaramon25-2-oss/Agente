@@ -48,10 +48,19 @@ La differenza si vede:
 Lo stesso vale per le scadenze («Se parto il 23 dicembre 2026, quando scadono 3 giorni
 lavorativi?», risposta 29 dicembre): con `fastapi` la chiamata compare in `logs/assistente.log`
 (`origine=fastapi`) e in `logs/servizio_api.log` (`endpoint=/scadenza`), non nel log del server MCP.
-Nel wrapper nome, descrizione e schema sono scritti a mano (non c'è discovery): un test controlla
-che coincidano con il catalogo MCP. Nella richiesta HTTP i valori viaggiano come testo, quindi per
-gli argomenti di tipo sbagliato le due varianti danno entrambe un errore in italiano, ma con testi
-che possono differire.
+Nel wrapper nome, descrizione e schema degli argomenti sono scritti a mano (non c'è discovery): un
+test controlla che coincidano con il catalogo MCP. Per argomenti del tipo giusto le due varianti
+danno lo stesso risultato e gli stessi errori. Differenze note, dovute ai framework:
+
+- nella richiesta HTTP i valori viaggiano come testo e FastAPI è più tollerante della variante MCP:
+  accetta per esempio `lavorativi` scritto `"true"`, `1` o `"yes"`, e `giorni` scritto `"3.0"`,
+  che la variante MCP rifiuta;
+- come per la calcolatrice, un argomento in più inventato dal modello è rifiutato da MCP e ignorato
+  dal wrapper.
+
+Un argomento obbligatorio mancante, invece, è rifiutato dall'assistente prima di eseguire, con lo
+stesso messaggio per tutte le varianti (`Argomenti mancanti per …`): in quel caso la chiamata non
+arriva né al server né al servizio.
 
 ## Requisiti
 

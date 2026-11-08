@@ -20,6 +20,7 @@ def test_esempio_della_specifica():
     ("2026-12-31", 1, True, "2027-01-04"), ("2026-03-10", 0, True, "2026-03-10"),
     ("2028-12-29", 365, False, "2029-12-29"), ("2026-01-30", "3", False, "2026-02-02"),
     ("2026-01-30", 3.0, False, "2026-02-02"),
+    ("2027-10-01", 1, True, "2027-10-05"),                                            # 4 ottobre 2027, lunedì
 ])
 def test_scadenze(inizio, giorni, lavorativi, scadenza):
     assert calcola_scadenza(inizio, giorni, lavorativi)["scadenza"] == scadenza
@@ -59,4 +60,6 @@ def test_fuori_dagli_anni_coperti():
 def test_file_delle_festivita():
     f = carica_festivita()
     assert PERCORSO_FESTIVITA.name == "festivita_italia.json"
-    assert f.anni == {2026, 2027, 2028} and len(f.date) == 33 and f.date[date(2027, 3, 29)] == "Pasquetta"
+    assert f.anni == {2026, 2027, 2028} and len(f.date) == 36 and f.date[date(2027, 3, 29)] == "Pasquetta"
+    # Festa nazionale di San Francesco dal 2026 (legge 8 ottobre 2025, n. 151).
+    assert all(f.date[date(anno, 10, 4)] == "San Francesco" for anno in (2026, 2027, 2028))

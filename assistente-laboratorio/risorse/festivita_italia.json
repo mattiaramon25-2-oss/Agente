@@ -1,5 +1,5 @@
 {
-  "_nota": "Festività nazionali italiane (fonte: calendario civile). Calcolo indicativo, senza valore legale; santi patroni esclusi.",
+  "_nota": "Festività nazionali italiane, compreso San Francesco (4 ottobre, legge 8 ottobre 2025 n. 151, dal 2026). Calcolo indicativo, senza valore legale; santi patroni esclusi.",
   "anni": [
     2026,
     2027,
@@ -33,6 +33,10 @@
     {
       "data": "2026-08-15",
       "nome": "Ferragosto"
+    },
+    {
+      "data": "2026-10-04",
+      "nome": "San Francesco"
     },
     {
       "data": "2026-11-01",
@@ -79,6 +83,10 @@
       "nome": "Ferragosto"
     },
     {
+      "data": "2027-10-04",
+      "nome": "San Francesco"
+    },
+    {
       "data": "2027-11-01",
       "nome": "Ognissanti"
     },
@@ -121,6 +129,10 @@
     {
       "data": "2028-08-15",
       "nome": "Ferragosto"
+    },
+    {
+      "data": "2028-10-04",
+      "nome": "San Francesco"
     },
     {
       "data": "2028-11-01",
