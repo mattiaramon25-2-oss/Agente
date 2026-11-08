@@ -146,12 +146,12 @@ Esempio (ingresso inviato con una pipe):
 ```
 Assistente del laboratorio
 Fuso orario: Europe/Berlin (computer locale)
-Strumenti: converti_unita (mcp), ora_corrente (mcp), calcola (mcp)
+Strumenti: converti_unita (mcp), ora_corrente (mcp), calcola (mcp), calcola_scadenza (mcp), search_catalog (mcp), get_item (mcp), add_note (mcp), list_notes (mcp), delete_note (mcp), get_weather (mcp)
 Scrivi «esci» o premi Ctrl+C per uscire.
 Tu: [ora_corrente · mcp: Asia/Tokyo]
-Assistente: Attualmente a Tokyo sono le ore **23:23:46** di domenica 8 novembre 2026.
+Assistente: Attualmente a Tokyo sono le 04:13 del lunedì, 9 novembre 2026.
 Tu: [converti_unita · mcp: 2.5, km, m]
-Assistente: 2,5 km sono **2500 metri**.
+Assistente: 2,5 km sono 2500 metri.
 Tu: Arrivederci.
 ```
 
@@ -197,7 +197,8 @@ con Docker è montata sull'host):
 
 Il `call_id` del modello non arriva al server (l'identificativo del protocollo è un altro): le due
 tracce si confrontano per strumento, argomenti e ora. Una risposta plausibile senza la riga
-`origine=mcp tool=…` in `assistente.log` non dimostra che lo strumento sia stato usato.
+`origine=… tool=…` in `assistente.log` (con `origine` uguale a `mcp`, `locale` o `fastapi`) non
+dimostra che lo strumento sia stato usato.
 
 ## Avvio con Docker
 
@@ -216,8 +217,9 @@ dell'assistente: le porte non vengono pubblicate. `compose.yaml` richiede `MCP_P
 `VARIANTE_CALCOLATRICE` e `VARIANTE_SCADENZE` nel file `.env` e monta `./logs` e `./archivio`:
 log e note restano sull'host anche dopo `--rm` (verificato: una nota scritta in un container si
 ritrova sull'host e da un container nuovo; le cartelle vengono create se mancano). Il meteo usa la
-rete del container; senza rete risponde subito `Servizio meteo non disponibile`, non un errore del
-server MCP. Per provare le varianti nel container senza cambiare il `.env`:
+rete del container: in un container senza interfaccia di rete risponde subito `Servizio meteo non
+disponibile`, distinto da `Città non trovata`; con rete ma senza Internet l'errore arriva entro la
+scadenza totale di 8 secondi (verificata dai test automatici, non in Docker). Per provare le varianti nel container senza cambiare il `.env`:
 
 ```powershell
 "Che tempo fa a Udine?", "esci" | docker compose run --rm -T -e VARIANTE_SCADENZE=fastapi -e API_PORTA=8766 -e VARIANTE_CALCOLATRICE=locale assistente
@@ -289,7 +291,10 @@ conversione nel container e controlla le righe nei log sull'host; con le variant
 `locale` chiede una scadenza e il meteo (e osserva la richiesta di una nota); verifica che una nota
 scritta nel container resti nel volume; infine chiama il meteo in un container senza rete e
 controlla che l'errore arrivi dal meteo entro 8 secondi. Durante la prova `logs/` e `archivio/`
-dell'utente vengono spostati da parte e poi ripristinati.
+dell'utente vengono spostati da parte (in `logs.riserva-prova-docker/` e
+`archivio.riserva-prova-docker/`, ignorate da Git) e poi ripristinati; se una prova venisse
+interrotta a forza, basta rinominarle di nuovo in `logs/` e `archivio/`. Non usare l'assistente
+mentre gira la prova Docker.
 
 ```powershell
 python -m pytest --docker -m docker -v -s
@@ -337,8 +342,9 @@ infine il modello. Un errore di un livello basso non si risolve cambiando il mes
   Un processo acceso o un HTTP 200 non bastano: l'assistente considera pronto il server solo quando
   la discovery (`tools/list`) riesce.
 - **`required variable MCP_PORTA is missing a value`** (con Docker): aggiungere `MCP_PORTA=8765` al file `.env`;
-  lo stesso per `VARIANTE_CALCOLATRICE`.
+  lo stesso per `VARIANTE_CALCOLATRICE` e `VARIANTE_SCADENZE`.
 - **`VARIANTE_CALCOLATRICE non valida`**: i valori ammessi sono `mcp` e `locale`.
+- **`VARIANTE_SCADENZE non valida`**: i valori ammessi sono `mcp` e `fastapi`.
 - **Il servizio FastAPI** (solo con `VARIANTE_SCADENZE=fastapi`):
 
   | Sintomo | Cosa controllare |
@@ -380,7 +386,10 @@ infine il modello. Un errore di un livello basso non si risolve cambiando il mes
   e parentesi; niente funzioni, nomi, `//` o notazione scientifica, esponenti interi fino a 1000.
 - **Il modello ogni tanto risponde senza usare lo strumento** (per esempio fa un calcolo a mente,
   oppure dopo un errore dello strumento non riprova): con dieci strumenti un modello piccolo come
-  `google/gemma-4-e2b` non è sempre affidabile. Nei log manca allora la riga `origine=… tool=…`. Si
+  `google/gemma-4-e2b` non è sempre affidabile. Il caso più insidioso osservato: risponde «Ho salvato
+  la nota» senza aver chiamato `add_note` (circa una volta su tre nelle prove), quindi la nota non
+  esiste. Lo si riconosce perché nel terminale manca la riga `[add_note · mcp: …]` e in
+  `logs/server_mcp.log` manca `modifica note operazione=aggiunta`. Nei log manca la riga `origine=… tool=…`. Si
   può riprovare la domanda o scegliere un modello più grande cambiando solo `LMSTUDIO_MODEL`.
 - **`Fuso orario: Europe/Berlin` anche se si è in Italia**: Windows chiama il fuso dell'Europa centrale
   `W. Europe Standard Time`, che la tabella standard traduce in `Europe/Berlin`. È la stessa ora di Roma.

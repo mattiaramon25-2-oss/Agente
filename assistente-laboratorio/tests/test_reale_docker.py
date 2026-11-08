@@ -5,14 +5,14 @@ Richiede Docker Desktop e LM Studio accesi, e il file .env.
 """
 
 import os
-import shutil
 import subprocess
 import time
-from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
 from tzlocal.windows_tz import win_tz
+
+from tests.cartelle_da_parte import cartelle_da_parte
 
 pytestmark = pytest.mark.docker
 
@@ -86,28 +86,13 @@ IMMAGINE = "assistente-laboratorio-assistente"  # nome dato da Compose al serviz
 VARIANTI = {"VARIANTE_SCADENZE": "fastapi", "API_PORTA": "8766", "VARIANTE_CALCOLATRICE": "locale"}
 
 
-@contextmanager
+# Valori come in un .env normale (tutto mcp): le varianti arrivano solo dai -e, come nel comando del README.
+ENV_COME_DA_DOTENV = {"MCP_PORTA": "8765", "VARIANTE_CALCOLATRICE": "mcp", "VARIANTE_SCADENZE": "mcp"}
+
+
 def cartelle_dell_utente_da_parte():
-    """Sposta logs/ e archivio/ dell'utente, così si prova la prima esecuzione; le ripristina sempre."""
-    spostate = {}
-    for nome in ("logs", "archivio"):
-        cartella = CARTELLA / nome
-        if cartella.exists():
-            riserva = CARTELLA / f"{nome}.riserva-prova-docker"
-            assert not riserva.exists(), f"{riserva} esiste già: ripristinala a mano prima della prova"
-            cartella.rename(riserva)
-            spostate[cartella] = riserva
-    try:
-        yield
-    finally:
-        for nome in ("logs", "archivio"):
-            creata = CARTELLA / nome
-            if creata.exists() and creata in spostate:
-                shutil.rmtree(creata)
-        for cartella, riserva in spostate.items():
-            if cartella.exists():
-                shutil.rmtree(cartella)
-            riserva.rename(cartella)
+    """Sposta logs/ e archivio/ dell'utente (prima esecuzione) e li ripristina sempre: vedi tests/cartelle_da_parte.py."""
+    return cartelle_da_parte(CARTELLA, ("logs", "archivio"))
 
 
 def compose_con_varianti(ingresso: str, *comando_nel_container: str) -> subprocess.CompletedProcess:
@@ -118,7 +103,7 @@ def compose_con_varianti(ingresso: str, *comando_nel_container: str) -> subproce
     comando += ["assistente", *comando_nel_container]
     risultato = subprocess.run(
         comando, cwd=CARTELLA, input=ingresso, capture_output=True, text=True, encoding="utf-8",
-        errors="replace", timeout=TIMEOUT, env={**os.environ, **VARIANTI},
+        errors="replace", timeout=TIMEOUT, env={**os.environ, **ENV_COME_DA_DOTENV},
     )
     print(f"\n$ {' '.join(comando)}\n{risultato.stdout}\n{risultato.stderr}")
     return risultato
@@ -157,7 +142,12 @@ def test_note_persistono_nel_volume():
 
 
 def test_meteo_senza_rete_nel_container():
-    """Senza rete l'errore arriva dal meteo («non disponibile» o scadenza), entro gli 8 s: mai dal ponte MCP."""
+    """Container senza interfaccia di rete: lo strumento del meteo (chiamato direttamente, senza server MCP)
+    risponde subito «Servizio meteo non disponibile», distinto da «Città non trovata».
+
+    Non copre il caso «rete presente ma Internet assente», in cui scatta la scadenza totale di 8 s:
+    quella è verificata dai test automatici (tests/test_meteo.py).
+    """
     codice = (
         "import httpx, time; from logica.meteo import meteo_attuale; from logica.errori import ErroreStrumento\n"
         "inizio = time.monotonic()\n"
