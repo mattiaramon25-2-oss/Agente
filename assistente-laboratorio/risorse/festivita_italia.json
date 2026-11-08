@@ -1,0 +1,142 @@
+{
+  "_nota": "Festività nazionali italiane (fonte: calendario civile). Calcolo indicativo, senza valore legale; santi patroni esclusi.",
+  "anni": [
+    2026,
+    2027,
+    2028
+  ],
+  "festivita": [
+    {
+      "data": "2026-01-01",
+      "nome": "Capodanno"
+    },
+    {
+      "data": "2026-01-06",
+      "nome": "Epifania"
+    },
+    {
+      "data": "2026-04-06",
+      "nome": "Pasquetta"
+    },
+    {
+      "data": "2026-04-25",
+      "nome": "Festa della Liberazione"
+    },
+    {
+      "data": "2026-05-01",
+      "nome": "Festa del Lavoro"
+    },
+    {
+      "data": "2026-06-02",
+      "nome": "Festa della Repubblica"
+    },
+    {
+      "data": "2026-08-15",
+      "nome": "Ferragosto"
+    },
+    {
+      "data": "2026-11-01",
+      "nome": "Ognissanti"
+    },
+    {
+      "data": "2026-12-08",
+      "nome": "Immacolata"
+    },
+    {
+      "data": "2026-12-25",
+      "nome": "Natale"
+    },
+    {
+      "data": "2026-12-26",
+      "nome": "Santo Stefano"
+    },
+    {
+      "data": "2027-01-01",
+      "nome": "Capodanno"
+    },
+    {
+      "data": "2027-01-06",
+      "nome": "Epifania"
+    },
+    {
+      "data": "2027-03-29",
+      "nome": "Pasquetta"
+    },
+    {
+      "data": "2027-04-25",
+      "nome": "Festa della Liberazione"
+    },
+    {
+      "data": "2027-05-01",
+      "nome": "Festa del Lavoro"
+    },
+    {
+      "data": "2027-06-02",
+      "nome": "Festa della Repubblica"
+    },
+    {
+      "data": "2027-08-15",
+      "nome": "Ferragosto"
+    },
+    {
+      "data": "2027-11-01",
+      "nome": "Ognissanti"
+    },
+    {
+      "data": "2027-12-08",
+      "nome": "Immacolata"
+    },
+    {
+      "data": "2027-12-25",
+      "nome": "Natale"
+    },
+    {
+      "data": "2027-12-26",
+      "nome": "Santo Stefano"
+    },
+    {
+      "data": "2028-01-01",
+      "nome": "Capodanno"
+    },
+    {
+      "data": "2028-01-06",
+      "nome": "Epifania"
+    },
+    {
+      "data": "2028-04-17",
+      "nome": "Pasquetta"
+    },
+    {
+      "data": "2028-04-25",
+      "nome": "Festa della Liberazione"
+    },
+    {
+      "data": "2028-05-01",
+      "nome": "Festa del Lavoro"
+    },
+    {
+      "data": "2028-06-02",
+      "nome": "Festa della Repubblica"
+    },
+    {
+      "data": "2028-08-15",
+      "nome": "Ferragosto"
+    },
+    {
+      "data": "2028-11-01",
+      "nome": "Ognissanti"
+    },
+    {
+      "data": "2028-12-08",
+      "nome": "Immacolata"
+    },
+    {
+      "data": "2028-12-25",
+      "nome": "Natale"
+    },
+    {
+      "data": "2028-12-26",
+      "nome": "Santo Stefano"
+    }
+  ]
+}
