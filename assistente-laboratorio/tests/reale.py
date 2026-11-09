@@ -10,11 +10,12 @@ from typing import Iterator, Mapping
 
 from dotenv import load_dotenv
 
+from assistente.ambito import carica_ambito
 from assistente.avvio import prepara_strumenti
 from assistente.configurazione import carica_configurazione
 from assistente.fuso import rileva_fuso
 from assistente.grafo import crea_grafo
-from assistente.modello import crea_modello, verifica_server
+from assistente.modello import crea_modello, crea_router, verifica_server
 from assistente.registro import LOG_ASSISTENTE, configura_registro
 
 
@@ -50,7 +51,7 @@ def ambiente_reale(
         temporaneo = archivio_note is None
         comando = [sys.executable, "-m", "server_mcp", "--porta", str(config.porta_mcp), "--note", str(archivio)]
         with prepara_strumenti(config, comando_server=comando) as strumenti:
-            grafo = crea_grafo(crea_modello(config, strumenti), strumenti)
+            grafo = crea_grafo(crea_modello(config, strumenti), strumenti, crea_router(config), carica_ambito())
             print(f"\nmodello: {config.modello} · fuso utente: {fuso_utente} · strumenti: {[s.name for s in strumenti]}")
             yield grafo, fuso_utente, strumenti
     finally:

@@ -5,13 +5,14 @@ import sys
 
 from dotenv import load_dotenv
 
+from assistente.ambito import carica_ambito
 from assistente.avvio import prepara_strumenti
 from assistente.configurazione import ErroreConfigurazione, carica_configurazione
 from assistente.console import configura_flussi
 from assistente.errori import ErroreAvvio
 from assistente.fuso import rileva_fuso
 from assistente.grafo import crea_grafo
-from assistente.modello import ErroreServer, crea_modello, verifica_server
+from assistente.modello import ErroreServer, crea_modello, crea_router, verifica_server
 from assistente.registro import LOG_ASSISTENTE, configura_registro
 from assistente.terminale import esegui_sessione
 from assistente.varianti import origini, parametri
@@ -23,10 +24,11 @@ def main() -> int:
         load_dotenv(override=False)  # le variabili già impostate hanno la precedenza
         config = carica_configurazione(os.environ)
         configura_registro(LOG_ASSISTENTE)
+        ambito = carica_ambito()
         verifica_server(config.base_url, config.modello)
         fuso = rileva_fuso(os.environ)
         with prepara_strumenti(config) as strumenti:
-            grafo = crea_grafo(crea_modello(config, strumenti), strumenti)
+            grafo = crea_grafo(crea_modello(config, strumenti), strumenti, crea_router(config), ambito)
             esegui_sessione(grafo, fuso, origini=origini(strumenti), parametri=parametri(strumenti))
     except (ErroreConfigurazione, ErroreServer, ErroreAvvio) as errore:
         print(f"Errore: {errore}", file=sys.stderr)
