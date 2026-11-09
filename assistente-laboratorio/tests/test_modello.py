@@ -88,3 +88,15 @@ def test_errore_del_protocollo_http():
     with pytest.raises(ErroreServer) as errore:
         verifica_server(URL, "google/gemma-4-e2b", leggi_json=LettoreFinto(http.client.InvalidURL("x")))
     assert "LM Studio" in str(errore.value)
+
+
+def test_crea_router_senza_strumenti_con_output_strutturato():
+    from assistente.modello import crea_router
+    from assistente.router import DecisioneRouter
+
+    config = Configurazione(URL, "google/gemma-4-e2b", 8765)
+    router = crea_router(config)
+    chat = router.first.bound
+    assert chat.model_name == "google/gemma-4-e2b" and chat.openai_api_base == URL
+    assert "tools" not in router.first.kwargs
+    assert router.first.kwargs["response_format"] is DecisioneRouter
