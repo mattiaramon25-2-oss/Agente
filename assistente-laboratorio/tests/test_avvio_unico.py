@@ -7,6 +7,7 @@ import pytest
 from langchain_core.messages import AIMessage
 
 import assistente.__main__ as avvio
+from assistente import agente
 from assistente import avvio as preparazione
 from assistente import registro
 from tests.finti import ModelloFinto, chiamata
@@ -50,9 +51,9 @@ def ambiente(monkeypatch, tmp_path, porta, popen_registrati):
         righe = list(stato["righe"])
         return originale(grafo, fuso, leggi=lambda p: righe.pop(0), scrivi=stato["stampate"].append, **opzioni)
 
-    monkeypatch.setattr(avvio, "crea_modello", crea_modello_finto)
+    monkeypatch.setattr(agente, "crea_modello", crea_modello_finto)
     # Anche il router è finto: senza, la prova chiamerebbe LM Studio davvero.
-    monkeypatch.setattr(avvio, "crea_router", lambda config: RouterSempreInAmbito())
+    monkeypatch.setattr(agente, "crea_router", lambda config: RouterSempreInAmbito())
     monkeypatch.setattr(avvio, "esegui_sessione", sessione)
 
     logger = logging.getLogger("assistente")
