@@ -66,7 +66,7 @@ def cartelle_dell_utente_da_parte():
     return cartelle_da_parte(CARTELLA, ("logs", "archivio"))
 
 
-def testo_del_log(nome: str) -> str:
+def leggi_log(nome: str) -> str:
     percorso = CARTELLA / "logs" / nome
     return percorso.read_text(encoding="utf-8", errors="replace") if percorso.exists() else ""
 
@@ -99,8 +99,8 @@ def test_convertitore_in_docker():
         assert r.returncode == 0
         assert "converti_unita (mcp)" in r.stdout and "[converti_unita · mcp:" in r.stdout
         for nome in ("assistente.log", "server_mcp.log"):  # log nuovi: contengono solo questa prova
-            assert "tool=converti_unita" in testo_del_log(nome), nome
-        assert "spento server MCP codice=0" in testo_del_log("assistente.log")  # arresto ordinato nel container
+            assert "tool=converti_unita" in leggi_log(nome), nome
+        assert "spento server MCP codice=0" in leggi_log("assistente.log")  # arresto ordinato nel container
 
 
 def compose_con_varianti(ingresso: str, *comando_nel_container: str) -> Esito:
@@ -128,9 +128,9 @@ def test_varianti_in_docker():
         assert r.returncode == 0
         assert "calcola_scadenza (fastapi)" in r.stdout and "calcola (locale)" in r.stdout
         assert "[calcola_scadenza · fastapi:" in r.stdout and "[get_weather · mcp:" in r.stdout
-        assert "endpoint=/scadenza" in testo_del_log("servizio_api.log")
-        assert "arresto servizio" in testo_del_log("servizio_api.log")
-        log_server = testo_del_log("server_mcp.log")
+        assert "endpoint=/scadenza" in leggi_log("servizio_api.log")
+        assert "arresto servizio" in leggi_log("servizio_api.log")
+        log_server = leggi_log("server_mcp.log")
         assert any("tool=get_weather" in riga and "esito=ok" in riga for riga in log_server.splitlines())
         assert "arresto server" in log_server
         # La richiesta di nota dipende dal modello: si osserva e si riporta, la persistenza la prova il test sotto.
