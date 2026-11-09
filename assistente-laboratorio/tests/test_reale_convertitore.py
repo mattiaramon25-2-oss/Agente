@@ -6,6 +6,7 @@ converti_unita del turno, così una correzione dopo un errore dello strumento è
 """
 
 import json
+import re
 
 import pytest
 from langchain_core.messages import AIMessage, ToolMessage
@@ -32,8 +33,8 @@ def ambiente():
         yield grafo, fuso_utente, strumenti
 
 
-def forme_del_numero(x: float) -> set[str]:
-    """Modi accettabili di scrivere il numero nella risposta."""
+def forme_del_numero(x: float, temperatura: bool) -> set[str]:
+    """Modi accettabili di scrivere il numero nella risposta (arrotondamento a 1 decimale solo per le temperature)."""
     if float(x).is_integer():
         n = int(x)
         forme = {str(n)}
@@ -41,8 +42,15 @@ def forme_del_numero(x: float) -> set[str]:
             forme |= {f"{n:,}", f"{n:,}".replace(",", ".")}
         return forme
     forme = {repr(x), repr(x).replace(".", ",")}
-    uno = f"{x:.1f}"
-    return forme | {uno, uno.replace(".", ",")}
+    if temperatura:
+        uno = f"{x:.1f}"
+        forme |= {uno, uno.replace(".", ",")}
+    return forme
+
+
+def numero_nel_testo(testo: str, forme: set[str]) -> bool:
+    """Il numero come parola intera: «0.75» non deve trovarsi dentro «10.75» o «0.755»."""
+    return any(re.search(rf"(?<![\d.,]){re.escape(f)}(?![\d]|[.,]\d)", testo) for f in forme)
 
 
 @pytest.mark.parametrize("domanda, argomenti, atteso", CASI, ids=[c[0] for c in CASI])
@@ -69,5 +77,6 @@ def test_il_modello_usa_il_convertitore(ambiente, domanda, argomenti, atteso):
     messaggio = risultati[ultima["id"]]
     assert messaggio.status == "success" and json.loads(messaggio.content)["risultato"] == atteso
     assert isinstance(risposta, AIMessage)
-    assert any(forma in risposta.text for forma in forme_del_numero(atteso)), f"numero {atteso} non nella risposta"
+    temperatura = da in ("°C", "°F")
+    assert numero_nel_testo(risposta.text, forme_del_numero(atteso, temperatura)), f"numero {atteso} non nella risposta"
     assert f"origine=mcp tool={NOME}" in righe_del_log(inizio_log)

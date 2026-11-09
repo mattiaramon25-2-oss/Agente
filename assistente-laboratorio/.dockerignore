@@ -8,3 +8,4 @@ __pycache__
 logs
 archivio
 *.riserva-prova-docker
+*.da-eliminare-*

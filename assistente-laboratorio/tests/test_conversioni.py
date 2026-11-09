@@ -39,3 +39,12 @@ def test_unita_sconosciuta_elenca_le_ammesse():
     with pytest.raises(ErroreConversione) as errore:
         converti(1, "miglia", "m")
     assert "km, hm, dam, m" in str(errore.value) and "°C, °F" in str(errore.value)
+
+
+def test_interi_lunghi_esatti():
+    assert converti(1234567890123456789012345678901, "m", "km")["risultato"] == "1234567890123456789012345678.901"
+    assert converti(10**30 + 1, "km", "mm")["risultato"] == 10**36 + 10**6
+
+
+def test_nessun_artefatto_della_virgola_mobile():
+    assert converti(12345678901234567, "mm", "m")["risultato"] == "12345678901234.567"

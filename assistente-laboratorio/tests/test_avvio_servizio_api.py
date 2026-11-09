@@ -56,3 +56,11 @@ def test_servizio_che_non_risponde_viene_spento(porta, tmp_path, popen_registrat
         with avvia_servizio_api(porta, tmp_path / "s.log", attesa=1, comando=comando):
             pass
     assert popen_registrati[0].poll() is not None
+
+
+def test_arresto_ordinato_registrato_servizio(porta, tmp_path):
+    log = tmp_path / "servizio_api.log"
+    with avvia_servizio_api(porta, log) as avviato:
+        pass
+    assert avviato.processo.returncode == 0
+    assert "arresto servizio" in log.read_text(encoding="utf-8")

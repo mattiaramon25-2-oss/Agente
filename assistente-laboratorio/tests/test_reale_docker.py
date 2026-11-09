@@ -1,7 +1,9 @@
-"""Prova reale con Docker: collegamento a LM Studio dal container e fuso dell'utente corretto.
+"""Prova reale con Docker: collegamento a LM Studio dal container, fuso dell'utente, varianti, note e meteo.
 
 Si attiva solo con: python -m pytest --docker -m docker -v -s
 Richiede Docker Desktop e LM Studio accesi, e il file .env.
+Ogni prova che avvia l'assistente sposta da parte logs/ e archivio/ dell'utente e li ripristina:
+il modello vero potrebbe chiamare add_note o delete_note anche durante una domanda sull'ora.
 """
 
 import os
@@ -13,32 +15,42 @@ import pytest
 from tzlocal.windows_tz import win_tz
 
 from tests.cartelle_da_parte import cartelle_da_parte
+from tests.processi import Esito, esegui_con_limite
 
 pytestmark = pytest.mark.docker
 
 CARTELLA = Path(__file__).resolve().parent.parent
 INGRESSO = "Che ore sono?\nesci\n"
-TIMEOUT = 300
+LIMITE = 300
+IMMAGINE = "assistente-laboratorio-assistente"  # nome dato da Compose al servizio «assistente»
+VARIANTI = {"VARIANTE_SCADENZE": "fastapi", "API_PORTA": "8766", "VARIANTE_CALCOLATRICE": "locale"}
+# Valori come in un .env normale (tutto mcp): servono all'interpolazione di compose.yaml se il .env non li ha;
+# le variabili già presenti nell'ambiente hanno la precedenza. Le varianti arrivano solo dai -e.
+ENV_COME_DA_DOTENV = {"MCP_PORTA": "8765", "VARIANTE_CALCOLATRICE": "mcp", "VARIANTE_SCADENZE": "mcp"}
 
 
-def esegui(comando: list[str], ingresso: str = INGRESSO) -> subprocess.CompletedProcess:
-    risultato = subprocess.run(
-        comando,
-        cwd=CARTELLA,
-        input=ingresso,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=TIMEOUT,
+def esegui(comando: list[str], ingresso: str = INGRESSO) -> Esito:
+    """Esegue con un limite che vale davvero: alla scadenza termina l'intero albero dei processi."""
+    risultato = esegui_con_limite(
+        comando, ingresso=ingresso, limite=LIMITE, cwd=CARTELLA, env={**ENV_COME_DA_DOTENV, **os.environ}
     )
     print(f"\n$ {' '.join(comando)}\n{risultato.stdout}\n{risultato.stderr}")
+    assert not risultato.scaduto, f"nessuna risposta entro {LIMITE} s: processi terminati"
     return risultato
+
+
+def container_della_prova() -> list[str]:
+    uscita = subprocess.run(["docker", "ps", "-q", "--filter", f"ancestor={IMMAGINE}"], capture_output=True, text=True)
+    return uscita.stdout.split()
 
 
 @pytest.fixture(scope="module", autouse=True)
 def immagine():
     subprocess.run(["docker", "compose", "build"], cwd=CARTELLA, check=True, timeout=900)
+    yield
+    rimasti = container_della_prova()  # per esempio dopo un limite scaduto: il container non resta acceso
+    if rimasti:
+        subprocess.run(["docker", "rm", "-f", *rimasti], capture_output=True)
 
 
 def fuso_di_windows() -> str:
@@ -49,9 +61,20 @@ def fuso_di_windows() -> str:
     return uscita.stdout.strip()
 
 
+def cartelle_dell_utente_da_parte():
+    """Sposta logs/ e archivio/ dell'utente e li ripristina sempre: vedi tests/cartelle_da_parte.py."""
+    return cartelle_da_parte(CARTELLA, ("logs", "archivio"))
+
+
+def leggi_log(nome: str) -> str:
+    percorso = CARTELLA / "logs" / nome
+    return percorso.read_text(encoding="utf-8", errors="replace") if percorso.exists() else ""
+
+
 def test_avvio_con_lo_script():
     atteso = win_tz[fuso_di_windows()]
-    r = esegui(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "avvia.ps1", "-SenzaTty"])
+    with cartelle_dell_utente_da_parte():
+        r = esegui(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "avvia.ps1", "-SenzaTty"])
     assert r.returncode == 0
     assert f"Fuso orario: {atteso} (host Windows)" in r.stdout
     assert "[ora_corrente · mcp:" in r.stdout
@@ -60,52 +83,36 @@ def test_avvio_con_lo_script():
 
 
 def test_avvio_senza_lo_script_usa_fuso_orario():
-    r = esegui(["docker", "compose", "run", "--rm", "-T", "assistente"])
+    with cartelle_dell_utente_da_parte():
+        r = esegui(["docker", "compose", "run", "--rm", "-T", "assistente"])
     assert r.returncode == 0
     assert "(FUSO_ORARIO)" in r.stdout
     assert "Arrivederci." in r.stdout
 
 
 def test_convertitore_in_docker():
-    log_assistente = CARTELLA / "logs" / "assistente.log"
-    log_server = CARTELLA / "logs" / "server_mcp.log"
-    prima = {p: (p.stat().st_size if p.exists() else 0) for p in (log_assistente, log_server)}
-    r = esegui(
-        ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "avvia.ps1", "-SenzaTty"],
-        ingresso="Quanti metri sono 2,5 km?\nesci\n",
-    )
-    assert r.returncode == 0
-    assert "converti_unita (mcp)" in r.stdout and "[converti_unita · mcp:" in r.stdout
-    for percorso, inizio in prima.items():
-        with open(percorso, "rb") as file:
-            file.seek(inizio)
-            assert "tool=converti_unita" in file.read().decode("utf-8", errors="replace"), percorso
+    with cartelle_dell_utente_da_parte():
+        r = esegui(
+            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "avvia.ps1", "-SenzaTty"],
+            ingresso="Quanti metri sono 2,5 km?\nesci\n",
+        )
+        assert r.returncode == 0
+        assert "converti_unita (mcp)" in r.stdout and "[converti_unita · mcp:" in r.stdout
+        for nome in ("assistente.log", "server_mcp.log"):  # log nuovi: contengono solo questa prova
+            assert "tool=converti_unita" in leggi_log(nome), nome
+        assert "spento server MCP codice=0" in leggi_log("assistente.log")  # arresto ordinato nel container
 
 
-IMMAGINE = "assistente-laboratorio-assistente"  # nome dato da Compose al servizio «assistente»
-VARIANTI = {"VARIANTE_SCADENZE": "fastapi", "API_PORTA": "8766", "VARIANTE_CALCOLATRICE": "locale"}
-
-
-# Valori come in un .env normale (tutto mcp): le varianti arrivano solo dai -e, come nel comando del README.
-ENV_COME_DA_DOTENV = {"MCP_PORTA": "8765", "VARIANTE_CALCOLATRICE": "mcp", "VARIANTE_SCADENZE": "mcp"}
-
-
-def cartelle_dell_utente_da_parte():
-    """Sposta logs/ e archivio/ dell'utente (prima esecuzione) e li ripristina sempre: vedi tests/cartelle_da_parte.py."""
-    return cartelle_da_parte(CARTELLA, ("logs", "archivio"))
-
-
-def compose_con_varianti(ingresso: str, *comando_nel_container: str) -> subprocess.CompletedProcess:
-    fuso = fuso_di_windows()
-    comando = ["docker", "compose", "run", "--rm", "-T", "-e", f"FUSO_HOST_WINDOWS={fuso}"]
+def compose_con_varianti(ingresso: str, *comando_nel_container: str) -> Esito:
+    comando = ["docker", "compose", "run", "--rm", "-T", "-e", f"FUSO_HOST_WINDOWS={fuso_di_windows()}"]
     for nome, valore in VARIANTI.items():
         comando += ["-e", f"{nome}={valore}"]
     comando += ["assistente", *comando_nel_container]
-    risultato = subprocess.run(
-        comando, cwd=CARTELLA, input=ingresso, capture_output=True, text=True, encoding="utf-8",
-        errors="replace", timeout=TIMEOUT, env={**os.environ, **ENV_COME_DA_DOTENV},
+    risultato = esegui_con_limite(
+        comando, ingresso=ingresso, limite=LIMITE, cwd=CARTELLA, env={**os.environ, **ENV_COME_DA_DOTENV}
     )
     print(f"\n$ {' '.join(comando)}\n{risultato.stdout}\n{risultato.stderr}")
+    assert not risultato.scaduto, f"nessuna risposta entro {LIMITE} s: processi terminati"
     return risultato
 
 
@@ -121,9 +128,11 @@ def test_varianti_in_docker():
         assert r.returncode == 0
         assert "calcola_scadenza (fastapi)" in r.stdout and "calcola (locale)" in r.stdout
         assert "[calcola_scadenza · fastapi:" in r.stdout and "[get_weather · mcp:" in r.stdout
-        assert "endpoint=/scadenza" in (CARTELLA / "logs" / "servizio_api.log").read_text(encoding="utf-8")
-        log_server = (CARTELLA / "logs" / "server_mcp.log").read_text(encoding="utf-8")
-        assert "tool=get_weather" in log_server and "esito=ok" in log_server
+        assert "endpoint=/scadenza" in leggi_log("servizio_api.log")
+        assert "arresto servizio" in leggi_log("servizio_api.log")
+        log_server = leggi_log("server_mcp.log")
+        assert any("tool=get_weather" in riga and "esito=ok" in riga for riga in log_server.splitlines())
+        assert "arresto server" in log_server
         # La richiesta di nota dipende dal modello: si osserva e si riporta, la persistenza la prova il test sotto.
         chiamata = "[add_note · mcp:" in r.stdout and "operazione=aggiunta" in log_server
         print(f"  osservazione: il modello ha chiamato davvero add_note: {chiamata}")

@@ -63,3 +63,9 @@ def test_file_delle_festivita():
     assert f.anni == {2026, 2027, 2028} and len(f.date) == 36 and f.date[date(2027, 3, 29)] == "Pasquetta"
     # Festa nazionale di San Francesco dal 2026 (legge 8 ottobre 2025, n. 151).
     assert all(f.date[date(anno, 10, 4)] == "San Francesco" for anno in (2026, 2027, 2028))
+
+
+@pytest.mark.parametrize("inizio, giorni, lavorativi", [("9999-12-31", 1, False), ("9999-01-01", 3650, False), ("9999-12-31", 1, True)])
+def test_oltre_la_data_massima(inizio, giorni, lavorativi):
+    with pytest.raises(ErroreStrumento, match="data massima"):
+        calcola_scadenza(inizio, giorni, lavorativi)

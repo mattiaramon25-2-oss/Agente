@@ -82,7 +82,10 @@ def calcola_scadenza(
     contati = 0
     saltate: list[str] = []
     while contati < quanti:
-        giorno += timedelta(days=1)
+        try:
+            giorno += timedelta(days=1)
+        except OverflowError:  # oltre il 9999-12-31 non esistono date
+            raise ErroreStrumento("La scadenza supera la data massima gestibile (9999-12-31).") from None
         if not lavorativi:
             contati += 1
             continue

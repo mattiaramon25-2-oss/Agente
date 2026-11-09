@@ -91,3 +91,18 @@ def test_rinomina_che_fallisce_a_meta_ripristina_la_prima(tmp_path, monkeypatch)
     assert (tmp_path / "logs" / "dato.txt").read_text(encoding="utf-8") == "log dell'utente"
     assert (tmp_path / "archivio" / "dato.txt").read_text(encoding="utf-8") == "note dell'utente"
     assert not list(tmp_path.glob(f"*{SUFFISSO_RISERVA}"))
+
+
+def test_residui_da_eliminare_ignorati_da_git():
+    from pathlib import Path
+
+    radice = Path(__file__).resolve().parent.parent
+    assert "*.da-eliminare-*/" in (radice / ".gitignore").read_text(encoding="utf-8").splitlines()
+    assert "*.da-eliminare-*" in (radice / ".dockerignore").read_text(encoding="utf-8").splitlines()
+
+
+def test_residuo_non_eliminabile_segnalato(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr("tests.cartelle_da_parte.shutil.rmtree", lambda percorso, **opzioni: None)  # non cancella nulla
+    with cartelle_da_parte(tmp_path, ("logs",)):
+        prepara(tmp_path, "logs", "log della prova")
+    assert "non eliminata" in capsys.readouterr().err

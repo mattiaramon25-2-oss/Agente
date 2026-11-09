@@ -2,10 +2,24 @@
 
 import argparse
 import logging
+import signal
 import sys
 from pathlib import Path
 
 from server_mcp.server import crea_server
+
+
+def _arresto_su_segnale(numero, frame):
+    """Uvicorn chiude in modo ordinato e poi rilancia il segnale ricevuto: qui diventa un'uscita normale."""
+    raise KeyboardInterrupt
+
+
+def _installa_segnali_di_arresto() -> None:
+    # SIGBREAK: CTRL_BREAK_EVENT inviato dall'assistente su Windows; SIGTERM: arresto in Docker/Linux.
+    # Senza questo gestore il processo uscirebbe con codice 3 senza eseguire il blocco finally.
+    for nome in ("SIGBREAK", "SIGTERM"):
+        if hasattr(signal, nome):
+            signal.signal(getattr(signal, nome), _arresto_su_segnale)
 
 
 def main() -> None:
@@ -19,6 +33,7 @@ def main() -> None:
     )
     registro = logging.getLogger("server_mcp")
     registro.info("avvio server porta=%d", argomenti.porta)
+    _installa_segnali_di_arresto()
     try:
         opzioni = {"percorso_note": argomenti.note} if argomenti.note else {}
         crea_server(**opzioni).run(
@@ -31,6 +46,8 @@ def main() -> None:
             json_response=True,
             log_level="warning",
         )
+    except KeyboardInterrupt:
+        pass  # arresto richiesto: uscita con codice 0
     finally:
         registro.info("arresto server")
 

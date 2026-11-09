@@ -72,6 +72,10 @@ class ArchivioNote:
             raise ErroreStrumento("Il testo della nota è vuoto.")
         if len(testo) > LUNGHEZZA_MASSIMA:
             raise ErroreStrumento(f"Il testo della nota supera i {LUNGHEZZA_MASSIMA} caratteri.")
+        try:
+            testo.encode("utf-8")
+        except UnicodeEncodeError:
+            raise ErroreStrumento("Il testo della nota contiene caratteri non validi.") from None
         creata = self.adesso().isoformat(timespec="seconds")
 
         def operazione(connessione: sqlite3.Connection) -> dict:

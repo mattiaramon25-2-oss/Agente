@@ -74,13 +74,33 @@ def _esito(contenuto: object) -> str:
     return "ok"
 
 
+def _schema(strumento: BaseTool) -> dict:
+    schema = strumento.tool_call_schema
+    return schema if isinstance(schema, dict) else schema.model_json_schema()
+
+
 def _argomenti_mancanti(strumento: BaseTool, argomenti: object) -> list[str]:
     """Argomenti obbligatori dello schema che la richiesta del modello non contiene."""
-    schema = strumento.tool_call_schema
-    if not isinstance(schema, dict):
-        schema = schema.model_json_schema()
     presenti = argomenti if isinstance(argomenti, dict) else {}
-    return [nome for nome in schema.get("required", []) if nome not in presenti]
+    return [nome for nome in _schema(strumento).get("required", []) if nome not in presenti]
+
+
+def _argomenti_in_piu(strumento: BaseTool, argomenti: object) -> tuple[list[str], list[str]]:
+    """Argomenti della richiesta che lo schema non prevede, e quelli previsti.
+
+    Vale per ogni variante, salvo che lo schema ammetta esplicitamente argomenti liberi
+    (`additionalProperties: true`), cosa che nessuno strumento del progetto fa.
+    """
+    schema = _schema(strumento)
+    previsti = list(schema.get("properties", {}))
+    if schema.get("additionalProperties") is True:
+        return [], previsti
+    presenti = argomenti if isinstance(argomenti, dict) else {}
+    return [nome for nome in presenti if nome not in previsti], previsti
+
+
+def _errore_argomenti(testo: str) -> str:
+    return json.dumps({"errore": testo, "tipo": "strumento"}, ensure_ascii=False)
 
 
 def _registra(origine: str, chiamata: dict, esito: str, contenuto: object, messaggio: ToolMessage) -> None:
@@ -137,14 +157,17 @@ def crea_grafo(modello, strumenti: list[BaseTool]):
                 origine = (strumento.metadata or {}).get("origine", "locale")
                 # Controllo dell'host prima dell'esecuzione (slide 5), uguale per ogni variante.
                 mancanti = _argomenti_mancanti(strumento, chiamata["args"])
+                in_piu, previsti = _argomenti_in_piu(strumento, chiamata["args"])
                 if mancanti:
-                    contenuto = json.dumps(
-                        {
-                            "errore": f"Argomenti mancanti per {chiamata['name']}: {', '.join(mancanti)}. "
-                            "Riprova indicando tutti gli argomenti richiesti.",
-                            "tipo": "strumento",
-                        },
-                        ensure_ascii=False,
+                    contenuto = _errore_argomenti(
+                        f"Argomenti mancanti per {chiamata['name']}: {', '.join(mancanti)}. "
+                        "Riprova indicando tutti gli argomenti richiesti."
+                    )
+                    esito = "errore_tool"
+                elif in_piu:  # un argomento inventato: rifiutato qui, prima di qualsiasi variante
+                    contenuto = _errore_argomenti(
+                        f"Argomenti non previsti per {chiamata['name']}: {', '.join(in_piu)}. "
+                        f"Usa solo: {', '.join(previsti)}."
                     )
                     esito = "errore_tool"
                 else:

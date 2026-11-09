@@ -1,9 +1,10 @@
 """Logica pura del convertitore di unità: nessuna dipendenza da MCP."""
 
 import math
-from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation, localcontext
 
 from logica.errori import ErroreStrumento
+from logica.numeri import numero_json
 
 # Esponente di 10 rispetto all'unità base di ogni grandezza.
 _METRICHE = {
@@ -54,7 +55,9 @@ def _calcola(x: Decimal, da: str, a: str, grandezza: str) -> Decimal:
             return (x * 9 / 5 + 32).quantize(Decimal("0.01"), ROUND_HALF_UP)
         return ((x - 32) * 5 / 9).quantize(Decimal("0.01"), ROUND_HALF_UP)
     tabella = _METRICHE[grandezza]
-    return x * Decimal(10) ** (tabella[da] - tabella[a])
+    with localcontext() as contesto:  # le potenze di 10 sono esatte: nessun arrotondamento a 28 cifre
+        contesto.prec = 400
+        return x.scaleb(tabella[da] - tabella[a])
 
 
 def converti(valore: object, da: object, a: object) -> dict:
@@ -81,5 +84,6 @@ def converti(valore: object, da: object, a: object) -> dict:
         decimale = math.inf
     if not math.isfinite(decimale):
         raise ErroreConversione("Risultato troppo grande per essere rappresentato.")
-    uscita = int(risultato) if risultato == risultato.to_integral_value() else decimale
+    # Esatto: intero, numero decimale o, se un float perderebbe cifre, il testo del valore esatto.
+    uscita = numero_json(risultato, inesatto=False)
     return {"valore": numero, "da": da, "a": a, "risultato": uscita, "grandezza": grandezza}

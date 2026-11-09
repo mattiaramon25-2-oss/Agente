@@ -52,6 +52,11 @@ def crea_wrapper_scadenze(url_base: str, http: httpx.Client | None = None, timeo
         params = {"data_inizio": _parametro(data_inizio), "giorni": _parametro(giorni), "lavorativi": _parametro(lavorativi)}
         try:
             risposta = chiama(params)
+        except (httpx.InvalidURL, UnicodeEncodeError):  # richiesta impossibile da costruire: colpa degli argomenti
+            return _errore(
+                "Argomenti non validi per calcola_scadenza: valore troppo lungo o con caratteri non validi.",
+                TIPO_STRUMENTO,
+            )
         except httpx.TimeoutException:
             return _errore(f"Servizio scadenze: nessuna risposta entro {timeout:g} secondi.", TIPO_COLLEGAMENTO)
         except httpx.HTTPError as errore:
@@ -63,7 +68,8 @@ def crea_wrapper_scadenze(url_base: str, http: httpx.Client | None = None, timeo
             dati = None
         if risposta.status_code == 200 and isinstance(dati, dict):
             return json.dumps(dati, ensure_ascii=False, separators=(",", ":"))
-        if risposta.status_code == 400 and isinstance(dati, dict) and isinstance(dati.get("errore"), str):
+        if risposta.status_code in (400, 500) and isinstance(dati, dict) and isinstance(dati.get("errore"), str):
+            # 400: argomenti non validi; 500 con {"errore": ...}: errore interno dello strumento, il servizio è acceso.
             return _errore(dati["errore"], TIPO_STRUMENTO)
         return _errore(
             f"Servizio scadenze non raggiungibile: risposta non valida (HTTP {risposta.status_code}).", TIPO_COLLEGAMENTO
