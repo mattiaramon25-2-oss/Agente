@@ -60,3 +60,10 @@ def test_errore_di_collegamento_propagato():
 def test_decisione_accetta_anche_un_dizionario():
     router = RouterFinto([{"categoria": "fuori_ambito", "motivo": "poesia"}])
     assert decidi(router, AMBITO, [HumanMessage("poesia")]) == "fuori_ambito"
+
+
+def test_il_router_non_va_in_streaming():
+    """Con il tag `nostream` LangGraph non registra la risposta del router (niente avvisi di pydantic)."""
+    router = RouterFinto([DecisioneRouter(categoria="conversazione", motivo="saluto")])
+    decidi(router, AMBITO, [HumanMessage("ciao")])
+    assert "nostream" in router.configurazioni[0]["tags"]

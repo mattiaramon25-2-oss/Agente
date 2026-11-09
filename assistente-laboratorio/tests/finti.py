@@ -31,9 +31,11 @@ class RouterFinto:
     def __init__(self, risposte: list):
         self.risposte = list(risposte)
         self.chiamate: list[list[BaseMessage]] = []
+        self.configurazioni: list = []
 
     def invoke(self, messaggi, config=None):
         self.chiamate.append(list(messaggi))
+        self.configurazioni.append(config)
         if not self.risposte:
             raise AssertionError("il router finto non ha più risposte preparate")
         risposta = self.risposte.pop(0)
