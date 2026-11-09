@@ -21,7 +21,8 @@
 
 ## Da fare
 
-- **Lezione 6.** Brainstorming, poi specifica e piano degli step da terminale: router, revisore e riassunto della cronologia. Resta aperta una domanda. Le slide dicono che il router decide solo se la domanda è nell'ambito, mentre gli strumenti restano scelti dall'agente. Nel primo messaggio, invece, l'utente parlava di un router che decide se usare i tool.
+- **Lezione 6.** Specifica e piano degli step da terminale, uno alla volta come chiedono le slide: prima il router, poi il revisore, poi il riassunto della cronologia. L'interfaccia grafica (step 6–9) arriva più avanti.
+  - **Decisione dell'utente (2026-11-09):** il router segue le slide. Decide solo se la domanda rientra nell'ambito («conversazione» o «fuori ambito», con un motivo). Non valuta gli strumenti: se servono, li sceglie l'agente come oggi.
 - **Branch remoti.** Su GitHub restano `dev-calcolatrice`, `dev-catalogo`, `dev-docker-docs`, `dev-infrastruttura-mcp`, `dev-meteo`, `dev-note`, `dev-scadenze` e `dev-revisione`. La cancellazione remota non è stata permessa all'assistente: può farla l'utente.
 - **Push.** `main` e `dev` sono avanti rispetto a GitHub. Il push si fa solo su richiesta.
 - **Modifiche locali non decise.** `.gitattributes` e `.env.example` risultano cancellati nella copia di lavoro, e `.env.ll` non è tracciato. Nessuno dei tre entra in questo commit.
