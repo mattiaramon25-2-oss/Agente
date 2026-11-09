@@ -75,7 +75,7 @@ Le slide del docente (`LLM_Lez_6.pdf`, 19 slide, fuori dal repository) dividono 
 
 | Step | Che cosa | Evidenza minima (slide 19) |
 |---|---|---|
-| 1 · Router | un nodo LLM decide se la domanda rientra nell'ambito dell'agente | domanda fuori ambito rifiutata senza passare dall'agente |
+| 1 · Router (fatto, branch `dev-router`: [04, sezione 21](04-grafo-langgraph.md#21-lezione-6-il-router-dellambito)) | un nodo LLM decide se la domanda rientra nell'ambito dell'agente | domanda fuori ambito rifiutata senza passare dall'agente |
 | 2 · Revisore | un nodo LLM controlla che la risposta sia coerente con la domanda | risposta incompleta corretta dopo la revisione, entro il limite |
 | 3 · Riassunto | un nodo LLM comprime la cronologia oltre una soglia | informazione del primo turno ancora usata dopo la compressione |
 | 4 · Resource | preferenze dell'utente lette dal server MCP a inizio sessione | preferenze applicate cambiando il file, non il codice |

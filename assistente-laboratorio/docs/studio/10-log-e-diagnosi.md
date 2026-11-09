@@ -282,6 +282,26 @@ Con i tempi massimi veri il testo diventa `Server MCP: nessuna risposta entro 10
 
 ---
 
+### 2.7 Le righe del router e dei nodi (lezione 6)
+
+Dalla lezione 6 ogni turno comincia con la riga del router (logger `assistente.router`) e ogni
+passaggio dall'agente lascia `nodo=modello` (logger `assistente.grafo`). Una domanda fuori ambito
+lascia invece `nodo=rifiuto` e **nessuna** riga `nodo=modello`: l'assenza è la prova che l'agente non
+è partito. Prova reale del 9 novembre:
+
+```text
+2026-11-09 15:39:12 nodo=router categoria=conversazione motivo=La richiesta riguarda la conversione di un orario tra diverse località. esito=ok
+2026-11-09 15:39:12 nodo=modello giri_strumento=0
+2026-11-09 15:39:37 origine=mcp tool=ora_corrente call_id=… argomenti={"fuso":"Asia/Tokyo"} esito=ok …
+2026-11-09 15:39:37 nodo=modello giri_strumento=1
+2026-11-09 15:40:12 nodo=router categoria=fuori_ambito motivo=La richiesta riguarda la creazione di un testo creativo (una poesia), che è classificato come fuori ambito. esito=ok
+2026-11-09 15:40:12 nodo=rifiuto
+```
+
+Se l'output del router non è valido la riga diventa `nodo=router categoria=conversazione motivo=
+esito=errore errore=…` e la domanda passa all'agente. Dettagli in
+[04 — sezione 21](04-grafo-langgraph.md#21-lezione-6-il-router-dellambito).
+
 ## 3. `logs/server_mcp.log`, il registro del server
 
 ### 3.1 Formato

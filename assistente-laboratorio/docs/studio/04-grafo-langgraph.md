@@ -10,7 +10,11 @@ del progetto ruota intorno a questo file.
 
 **Le idee chiave**
 
-1. **Tre nodi e una sola decisione.** I nodi sono `modello`, `strumenti` e `limite`. Dopo
+0. **Lezione 6: prima dell'agente c'è un router.** Il nodo `router` classifica la domanda come
+   `conversazione` o `fuori_ambito`, usando lo stesso modello senza strumenti e l'ambito scritto in
+   `risorse/ambito.json`. Fuori ambito, il nodo `rifiuto` risponde con un testo fisso e l'agente non
+   parte. → sezione 21
+1. **Tre nodi e una sola decisione.** I nodi dell'agente sono `modello`, `strumenti` e `limite`. Dopo
    `modello`, la funzione `instrada_dopo_modello` sceglie la strada: fine, strumenti o limite. Da
    `strumenti` si torna sempre al modello, che legge i risultati. → sezioni 3 e 8
 2. **Lo stato è piccolo.** Contiene la cronologia dei messaggi, il fuso dell'utente e un contatore
@@ -36,7 +40,10 @@ del progetto ruota intorno a questo file.
 
 ```mermaid
 flowchart LR
-    S([START]) --> M[modello]
+    S([START]) --> RT[router]
+    RT -->|conversazione| M[modello]
+    RT -->|fuori_ambito| RF[rifiuto]
+    RF --> E
     M --> R{richieste di strumento?}
     R -->|no| E([END])
     R -->|"sì, giri < 3"| T[strumenti]
@@ -49,12 +56,14 @@ flowchart LR
 
 | Cosa | Valore | Dove |
 |---|---|---|
-| Limite di giri per turno | `MAX_GIRI_STRUMENTO = 3` | `assistente/grafo.py:20` |
-| Campi dello stato | `messages` (con `add_messages`), `fuso_utente`, `giri_strumento` | `assistente/grafo.py:29-32` |
-| Instradamento | `END`, `"limite"` o `"strumenti"` | `assistente/grafo.py:132-138` |
-| Costruzione | 3 nodi, 3 archi fissi, 1 arco condizionale, `compile()` senza checkpointer | `assistente/grafo.py:203-211` |
-| Contatore azzerato a ogni turno | `"giri_strumento": 0` | `assistente/grafo.py:220` |
-| Logger delle chiamate | `assistente.strumenti`, che scrive in `logs/assistente.log` | `assistente/grafo.py:26` |
+| Limite di giri per turno | `MAX_GIRI_STRUMENTO = 3` | `assistente/grafo.py:26` |
+| Campi dello stato | `messages` (con `add_messages`), `fuso_utente`, `giri_strumento`, `categoria` (lezione 6) | `assistente/grafo.py:36-40` |
+| Instradamento dopo il modello | `END`, `"limite"` o `"strumenti"` | `assistente/grafo.py:140-146` |
+| Instradamento dopo il router | `"modello"` o `"rifiuto"` | `assistente/grafo.py:149-150` |
+| Costruzione | con router: 5 nodi, 2 archi condizionali; senza: 3 nodi; `compile()` senza checkpointer | `assistente/grafo.py:229-244` |
+| Contatore azzerato a ogni turno | `"giri_strumento": 0` | `assistente/grafo.py:253` |
+| Logger | `assistente.strumenti` (chiamate), `assistente.grafo` (nodi), `assistente.router`, tutti in `logs/assistente.log` | `assistente/grafo.py:32-33`, `assistente/router.py` |
+| Ambito e rifiuto | `risorse/ambito.json` | `assistente/ambito.py` |
 
 **Se te lo chiedono all'orale**
 
@@ -71,7 +80,7 @@ Per i dettagli continua con il resto del capitolo: le idee rimandano alle sezion
 
 ---
 
-Questo documento smonta `assistente/grafo.py` (223 righe) pezzo per pezzo. È il cuore dell'agente:
+Questo documento smonta `assistente/grafo.py` (256 righe con la lezione 6) pezzo per pezzo. È il cuore dell'agente:
 decide **quando** chiamare il modello, **quando** eseguire uno strumento e **quando** fermarsi.
 Tutto il resto del progetto (server MCP, varianti, terminale, Docker) ruota intorno a questo file.
 
@@ -105,6 +114,7 @@ Tutto il resto del progetto (server MCP, varianti, terminale, Docker) ruota into
 18. [Storia del file](#18-storia-del-file)
 19. [Punti delicati e limiti noti](#19-punti-delicati-e-limiti-noti)
 20. [Domande da orale](#20-domande-da-orale)
+21. [Lezione 6: il router dell'ambito](#21-lezione-6-il-router-dellambito)
 - [Scaletta per le slide](#scaletta-per-le-slide)
 
 ---
@@ -1140,9 +1150,11 @@ del modello; che il modello scelga lo strumento giusto lo dimostrano solo le pro
 | `a5528a5`, `75c0a73`, `2c067fd`, `0cb67f5`, `4c30798` | 2026-11-08 | regole del messaggio di sistema per catalogo, note (con la conferma) e meteo |
 | `fe2048d` | 2026-11-08 | regola «se non hai chiamato lo strumento, non l'hai fatto» |
 | `5bed890` | 2026-11-08 | rifiuto degli argomenti non previsti; `_schema` comune alle due forme di schema |
+| `669e362` | 2026-11-09 | lezione 6, step 1: nodi `router` e `rifiuto`, `instrada_dopo_router`, campo `categoria`, riga `nodo=modello` nel log (vedi sezione 21) |
 
-La struttura del grafo (nodi e archi) **non è mai cambiata** dal primo commit: la specifica della
-lezione 5 lo chiedeva («La struttura resta invariata»). Sono cambiati solo il contenuto dei nodi e il
+La struttura del grafo (nodi e archi) **non è cambiata** dal primo commit fino alla lezione 5: la
+specifica della lezione 5 lo chiedeva («La struttura resta invariata»). La lezione 6 aggiunge i nodi
+`router` e `rifiuto` davanti all'agente, senza toccare i tre nodi esistenti. Sono cambiati solo il contenuto dei nodi e il
 messaggio di sistema. La storia completa del progetto è in
 [11 — Storia del progetto e decisioni](11-storia-del-progetto.md).
 
@@ -1297,9 +1309,72 @@ ignorarli in silenzio, come faceva prima del commit `5bed890`.
 
 ---
 
+## 21. Lezione 6: il router dell'ambito
+
+Specifica: `docs/superpowers/specs/2026-11-09-router-ambito-design.md`. Obiettivo: le domande fuori
+ambito ricevono un rifiuto **senza raggiungere l'agente**.
+
+```mermaid
+flowchart LR
+    S([START]) --> RT[router<br/>stesso modello, senza strumenti<br/>output: categoria + motivo]
+    RT -->|conversazione| M[modello]
+    RT -->|fuori_ambito| RF[rifiuto<br/>testo fisso da ambito.json]
+    RF --> E([END])
+    M --> X[strumenti / limite / END come prima]
+```
+
+| Pezzo | Dove | Che cosa fa |
+|---|---|---|
+| Ambito | `risorse/ambito.json`, letto da `assistente/ambito.py` | elenchi `in_ambito`, `fuori_ambito` e il testo `rifiuto`: si cambia il file, non il codice; file assente o malformato → `ErroreAvvio` |
+| Output strutturato | `DecisioneRouter` in `assistente/router.py` | `categoria` (`conversazione`/`fuori_ambito`) e `motivo` |
+| Modello del router | `crea_router` in `assistente/modello.py` | lo stesso `ChatOpenAI` di LM Studio **senza** `bind_tools`, con `with_structured_output(..., method="json_schema")` |
+| Prompt | `prompt_router` | costruito dagli elenchi del file; i seguiti brevi («e a Roma?», «la 2») sono conversazione; non valuta gli strumenti |
+| Che cosa vede | `messaggi_router` | la nuova domanda e gli ultimi messaggi testuali, al massimo `MAX_MESSAGGI_ROUTER = 6`, senza `ToolMessage` |
+| Decisione | `decidi` | output non valido → `conversazione` con `esito=errore` nel log; `openai.APIConnectionError` (anche il timeout) si propaga come per l'agente |
+| Arco | `instrada_dopo_router` | `fuori_ambito` → `rifiuto`, altrimenti `modello` |
+| Rifiuto | `nodo_rifiuto` | aggiunge `AIMessage(ambito.rifiuto)`: domanda e rifiuto restano in cronologia, il motivo va solo nel log |
+
+**Le righe del log.** Ogni turno scrive `nodo=router categoria=... motivo=... esito=ok`; poi
+`nodo=modello giri_strumento=N` a ogni passaggio dall'agente, oppure `nodo=rifiuto`. Nella prova
+reale del 9 novembre (`google/gemma-4-e2b`):
+
+```text
+nodo=router categoria=conversazione motivo=La richiesta riguarda la conversione di un orario tra diverse località. esito=ok
+nodo=modello giri_strumento=0
+origine=mcp tool=ora_corrente ... argomenti={"fuso":"Asia/Tokyo"} esito=ok ...
+nodo=modello giri_strumento=1
+
+nodo=router categoria=fuori_ambito motivo=La richiesta riguarda la creazione di un testo creativo (una poesia), che è classificato come fuori ambito. esito=ok
+nodo=rifiuto
+```
+
+Nel secondo turno manca `nodo=modello`: è l'evidenza che l'agente non è partito.
+
+**Perché `router=None` resta possibile.** `crea_grafo(modello, strumenti)` senza router costruisce il
+grafo della lezione 5: i test esistenti non cambiano. Router e ambito vanno passati insieme
+(altrimenti `ValueError`). L'avvio (`assistente/__main__.py:31`) e le prove reali
+(`tests/reale.py:54`) passano sempre entrambi.
+
+**Test.** `tests/test_ambito.py` (il file), `tests/test_router.py` (prompt, messaggi visti, decisioni,
+router difettoso, errore di collegamento), `tests/test_grafo_router.py` (i due percorsi con
+`RouterFinto`, cronologia, log), `tests/test_reale_router.py` (prova reale con `--lmstudio`).
+
+**Limiti.** Il router aggiunge una chiamata al modello a ogni turno. La classificazione è del modello:
+un falso «fuori ambito» rifiuta una domanda lecita, e solo le prove reali lo rivelano.
+
+<details>
+<summary>Perché il router non sceglie anche lo strumento?</summary>
+
+È una decisione presa (slide 4 e checkpoint del 9 novembre): il router decide solo l'ambito. Gli
+strumenti restano all'agente, che ha il modello collegato con `bind_tools`; il router non li vede
+nemmeno.
+</details>
+
+---
+
 ## Scaletta per le slide
 
-Una presentazione di circa 10 slide su questo capitolo. Ogni slide: titolo, tre punti brevi, che cosa mostrare.
+Una presentazione di circa 11 slide su questo capitolo. Ogni slide: titolo, tre punti brevi, che cosa mostrare.
 
 ### Slide 1 · Il grafo: il cuore dell'agente
 - Decide quando chiamare il modello, eseguire strumenti, fermarsi
@@ -1369,7 +1444,14 @@ Una presentazione di circa 10 slide su questo capitolo. Ogni slide: titolo, tre 
 - Ogni richiesta di strumento riceve sempre una risposta
 - Massimo 3 giri per turno; la memoria sta nel terminale
 
-*Da mostrare:* lo schema nella docstring di `assistente/grafo.py:1-6`.
+*Da mostrare:* lo schema nella docstring di `assistente/grafo.py:1-10`.
+
+### Slide 11 · Lezione 6: il router prima dell'agente
+- `router` classifica: `conversazione` o `fuori_ambito`, con un motivo
+- Ambito e testo del rifiuto in `risorse/ambito.json`, non nel codice
+- Fuori ambito: nodo `rifiuto`, nessuna riga `nodo=modello` nel log
+
+*Da mostrare:* il diagramma e le righe del log della sezione 21.
 
 ---
 
