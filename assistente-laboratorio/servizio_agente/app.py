@@ -26,6 +26,12 @@ ENDPOINT_CHAT = "/chat"
 registro = logging.getLogger("assistente.servizio")
 
 
+class RispostaJson(JSONResponse):
+    """JSON con il charset dichiarato: Invoke-RestMethod di PowerShell 5.1 altrimenti legge in Latin-1."""
+
+    media_type = "application/json; charset=utf-8"
+
+
 class RichiestaChat(BaseModel):
     messaggio: str = Field(description="il testo dell'utente")
     cronologia: list[dict] = Field(default_factory=list, description="la cronologia restituita dal turno precedente")
@@ -36,7 +42,7 @@ def _errore(stato: int, messaggio: str, inizio: float) -> JSONResponse:
         formatta({"richiesta endpoint": ENDPOINT_CHAT, "esito": "errore", "stato": stato, "messaggio": messaggio,
                   "durata": round(time.monotonic() - inizio, 2)})
     )
-    return JSONResponse(status_code=stato, content={"errore": messaggio})
+    return RispostaJson(status_code=stato, content={"errore": messaggio})
 
 
 def crea_app(
@@ -47,7 +53,11 @@ def crea_app(
     origini: Mapping[str, str],
     parametri: Mapping[str, Sequence[str]],
 ) -> FastAPI:
-    app = FastAPI(title=TITOLO, description="L'agente con router e strumenti, lo stesso di python -m assistente.")
+    app = FastAPI(
+        title=TITOLO,
+        description="L'agente con router e strumenti, lo stesso di python -m assistente.",
+        default_response_class=RispostaJson,
+    )
     turno_in_corso = threading.Lock()  # un turno alla volta: LM Studio e archivio delle note non si sovrappongono
 
     @app.exception_handler(RequestValidationError)

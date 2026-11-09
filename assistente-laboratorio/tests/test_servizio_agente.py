@@ -126,3 +126,10 @@ def test_un_turno_alla_volta():
     for f in fili:
         f.join()
     assert esiti == [200, 200, 200] and massimo[0] == 1
+
+
+def test_utf8_dichiarato_per_powershell():
+    """Invoke-RestMethod di PowerShell 5.1 legge in Latin-1 un JSON senza charset («lunedÃ¬»)."""
+    c = client([AIMessage("lunedì")])
+    for risposta in (c.get("/salute"), c.post("/chat", json={"messaggio": "x"}), c.post("/chat", json={})):
+        assert risposta.headers["content-type"] == "application/json; charset=utf-8"
