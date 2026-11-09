@@ -85,3 +85,17 @@ def crea_modello(config: Configurazione, strumenti: list[BaseTool]):
         max_retries=1,
     )
     return chat.bind_tools(strumenti)
+
+
+def crea_router(config: Configurazione):
+    """Lo stesso modello, senza strumenti, con output strutturato (categoria e motivo)."""
+    from assistente.router import DecisioneRouter
+
+    chat = ChatOpenAI(
+        model=config.modello,
+        base_url=config.base_url,
+        api_key=CHIAVE_SEGNAPOSTO,
+        timeout=120,
+        max_retries=1,
+    )
+    return chat.with_structured_output(DecisioneRouter, method="json_schema")

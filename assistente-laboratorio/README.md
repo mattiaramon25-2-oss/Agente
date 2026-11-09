@@ -178,12 +178,23 @@ python -m servizio_api --porta 8766
 Esempio di richiesta: `http://127.0.0.1:8766/scadenza?data_inizio=2026-12-23&giorni=3&lavorativi=true`.
 Gli errori sono risposte `400` con `{"errore": "..."}` in italiano.
 
+## Ambito e router
+
+Prima dell'agente, un nodo `router` usa lo stesso modello di LM Studio (senza strumenti, con output
+strutturato) per decidere se la domanda è `conversazione` o `fuori_ambito`. L'ambito e il testo del
+rifiuto stanno in `risorse/ambito.json`: per cambiarli si modifica quel file, non il codice (vale al
+riavvio). Le domande fuori ambito ricevono il rifiuto senza raggiungere l'agente; domanda e rifiuto
+restano nella cronologia. Se il router restituisce un output non valido la domanda passa comunque
+all'agente e il log lo registra con `esito=errore`.
+
 ## Log
 
 Ogni chiamata a uno strumento lascia una traccia nei file della cartella `logs/` (fuori da Git;
 con Docker è montata sull'host):
 
-- `logs/assistente.log`: avvio e arresto del server, catalogo scoperto e, per ogni chiamata,
+- `logs/assistente.log`: a ogni turno la riga del router (`nodo=router categoria=… motivo=… esito=…`),
+  poi `nodo=modello` a ogni passaggio dall'agente oppure `nodo=rifiuto`; avvio e arresto del
+  server, catalogo scoperto e, per ogni chiamata,
   `origine`, `tool`, `call_id`, `argomenti`, `esito` (`ok`, `errore_tool`, `errore_collegamento`,
   `strumento_sconosciuto`, `limite`), `risultato` e `tool_message.call_id`;
 - `logs/server_mcp.log`: ogni chiamata ricevuta dal server con argomenti ed esito, più l'output
@@ -273,6 +284,9 @@ Prova reale con LM Studio acceso, ogni domanda in una sessione nuova:
 - note, su un archivio temporaneo (mai quello reale): «Ricordami di consegnare il report venerdì»
   (una sola `add_note`), «Elimina la nota 99» (errore, nessuna eliminazione), riavvio e «Quali note
   ho salvato?» (la nota c'è ancora); «Elimina la nota sul report» è solo osservato e riportato;
+- router: «che ore sono a Tokyo?» (riga `nodo=router categoria=conversazione`, poi `nodo=modello`
+  e la chiamata a `ora_corrente`) e «scrivimi una poesia sul mare» (riga
+  `categoria=fuori_ambito`, `nodo=rifiuto`, il testo del rifiuto e nessuna riga `nodo=modello`);
 - meteo (serve la rete): «Che tempo fa a Udine?» (una `get_weather` riuscita e la temperatura
   restituita nella risposta); più un errore controllato (città `Xqzvbnmlkj`, «Città non trovata»).
 

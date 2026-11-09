@@ -25,6 +25,23 @@ class ModelloFinto:
         return risposta
 
 
+class RouterFinto:
+    """Router con decisioni preparate: oggetti, dizionari, None o eccezioni da sollevare."""
+
+    def __init__(self, risposte: list):
+        self.risposte = list(risposte)
+        self.chiamate: list[list[BaseMessage]] = []
+
+    def invoke(self, messaggi, config=None):
+        self.chiamate.append(list(messaggi))
+        if not self.risposte:
+            raise AssertionError("il router finto non ha più risposte preparate")
+        risposta = self.risposte.pop(0)
+        if isinstance(risposta, BaseException):
+            raise risposta
+        return risposta
+
+
 def chiamata_orologio(fuso: str, id: str = "c1") -> AIMessage:
     return AIMessage(
         content="",
