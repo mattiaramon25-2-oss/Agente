@@ -1,0 +1,22 @@
+{
+  "in_ambito": [
+    "data e ora, anche in altri fusi orari o città",
+    "conversioni di unità di misura",
+    "calcoli",
+    "scadenze e giorni lavorativi",
+    "catalogo dei corsi dell'ITS",
+    "note personali dell'utente (aggiungere, elencare, cercare, eliminare)",
+    "meteo",
+    "domande sui temi del corso: deep learning, LLM, chatbot, agenti, Python",
+    "conversazione normale: saluti, ringraziamenti, domande su che cosa sa fare l'assistente"
+  ],
+  "fuori_ambito": [
+    "poesie e testi creativi",
+    "cultura generale",
+    "sport",
+    "ricette",
+    "consigli medici, legali o finanziari",
+    "qualsiasi altro argomento non elencato in ambito"
+  ],
+  "rifiuto": "Mi dispiace, questa richiesta è fuori dal mio ambito. Posso aiutarti con data e ora, conversioni, calcoli, scadenze, corsi dell'ITS, note, meteo e domande sui temi del corso."
+}
