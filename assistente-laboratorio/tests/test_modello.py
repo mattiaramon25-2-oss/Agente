@@ -100,3 +100,4 @@ def test_crea_router_senza_strumenti_con_output_strutturato():
     assert chat.model_name == "google/gemma-4-e2b" and chat.openai_api_base == URL
     assert "tools" not in router.first.kwargs
     assert router.first.kwargs["response_format"] is DecisioneRouter
+    assert chat.disable_streaming is True  # il router non va mai in streaming

@@ -115,6 +115,7 @@ Tutto il resto del progetto (server MCP, varianti, terminale, Docker) ruota into
 19. [Punti delicati e limiti noti](#19-punti-delicati-e-limiti-noti)
 20. [Domande da orale](#20-domande-da-orale)
 21. [Lezione 6: il router dell'ambito](#21-lezione-6-il-router-dellambito)
+22. [La risposta in streaming](#22-la-risposta-in-streaming)
 - [Scaletta per le slide](#scaletta-per-le-slide)
 
 ---
@@ -1372,9 +1373,31 @@ nemmeno.
 
 ---
 
+## 22. La risposta in streaming
+
+Specifica: `docs/superpowers/specs/2026-11-09-streaming-rifiuto-design.md` (richiesta dell'utente,
+fuori dai nove step). Il grafo non cambia: cambia **come** lo si esegue.
+
+| Pezzo | Dove | Che cosa fa |
+|---|---|---|
+| Turno in streaming | `esegui_turno_in_streaming` in `assistente/grafo.py` | `grafo.stream(..., stream_mode=["messages", "values"])`: i pezzi di testo con `langgraph_node == "modello"` vanno a `su_testo`; ogni evento `values` dà la cronologia parziale a `su_messaggi`; il risultato è l'ultima cronologia, uguale a quella di `esegui_turno` |
+| Terminale | `_StampaInStreaming` in `assistente/terminale.py` | «Assistente: » al primo pezzo; righe degli strumenti stampate appena arrivano, andando a capo se serve; senza pezzi (rifiuto, limite, risposta vuota) stampa la riga intera come prima |
+| Avvio | `scrivi_pezzo` in `assistente/__main__.py` | `sys.stdout.write` più `flush`, senza andare a capo |
+| Router fuori dallo streaming | `crea_router` (`disable_streaming=True`) e `decidi` (tag `nostream`) | la risposta del router è JSON per il programma; senza queste due righe pydantic stampava un avviso nel terminale a ogni turno |
+
+**Perché il modello non cambia.** LangChain usa lo streaming dell'API di LM Studio da solo quando il
+grafo è eseguito con `stream` e c'è un gestore che raccoglie i pezzi. Con LM Studio molti pezzi sono
+vuoti (il ragionamento del modello): `su_testo` riceve solo quelli con testo.
+
+**Test.** `tests/test_streaming.py` (pezzi solo dal nodo `modello`, cronologia uguale, rifiuto e
+limite interi), cinque test `test_streaming_*` in `tests/test_terminale.py` (ordine di righe e
+pezzi), `tests/test_reale_streaming.py` (48 pezzi nella prova del 9 novembre).
+
+---
+
 ## Scaletta per le slide
 
-Una presentazione di circa 11 slide su questo capitolo. Ogni slide: titolo, tre punti brevi, che cosa mostrare.
+Una presentazione di circa 12 slide su questo capitolo. Ogni slide: titolo, tre punti brevi, che cosa mostrare.
 
 ### Slide 1 · Il grafo: il cuore dell'agente
 - Decide quando chiamare il modello, eseguire strumenti, fermarsi
@@ -1452,6 +1475,13 @@ Una presentazione di circa 11 slide su questo capitolo. Ogni slide: titolo, tre 
 - Fuori ambito: nodo `rifiuto`, nessuna riga `nodo=modello` nel log
 
 *Da mostrare:* il diagramma e le righe del log della sezione 21.
+
+### Slide 12 · La risposta in streaming
+- Stesso grafo, eseguito con `stream` invece di `invoke`
+- Vanno a schermo solo i pezzi del nodo `modello`
+- Router, rifiuto e limite restano interi
+
+*Da mostrare:* la tabella della sezione 22.
 
 ---
 

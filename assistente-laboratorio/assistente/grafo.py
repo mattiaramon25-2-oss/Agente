@@ -11,7 +11,7 @@ Senza router (`crea_grafo(modello, strumenti)`) si parte da `modello`, come nell
 
 import json
 import logging
-from typing import Annotated, Literal, NotRequired, TypedDict
+from typing import Annotated, Callable, Literal, NotRequired, TypedDict
 
 from langchain_core.messages import AIMessage, AnyMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import BaseTool
@@ -254,3 +254,29 @@ def esegui_turno(grafo, cronologia: list[BaseMessage], fuso_utente: str, testo: 
         }
     )
     return list(stato["messages"])
+
+
+def esegui_turno_in_streaming(
+    grafo,
+    cronologia: list[BaseMessage],
+    fuso_utente: str,
+    testo: str,
+    su_testo: Callable[[str], None],
+    su_messaggi: Callable[[list[BaseMessage]], None] = lambda messaggi: None,
+) -> list[BaseMessage]:
+    """Come `esegui_turno`, ma passa a `su_testo` i pezzi di testo del nodo `modello` appena arrivano.
+
+    I pezzi del router (JSON) e i messaggi degli altri nodi (rifiuto, limite) non vanno a `su_testo`.
+    `su_messaggi` riceve la cronologia parziale dopo ogni nodo.
+    """
+    ingresso = {"messages": [*cronologia, HumanMessage(testo)], "fuso_utente": fuso_utente, "giri_strumento": 0}
+    messaggi: list[BaseMessage] = list(ingresso["messages"])
+    for modo, dati in grafo.stream(ingresso, stream_mode=["messages", "values"]):
+        if modo == "messages":
+            pezzo, metadati = dati
+            if metadati.get("langgraph_node") == "modello" and isinstance(pezzo, AIMessage) and pezzo.text:
+                su_testo(pezzo.text)
+        else:
+            messaggi = list(dati["messages"])
+            su_messaggi(messaggi)
+    return messaggi

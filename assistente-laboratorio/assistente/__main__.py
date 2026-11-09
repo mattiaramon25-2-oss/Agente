@@ -18,6 +18,12 @@ from assistente.terminale import esegui_sessione
 from assistente.varianti import origini, parametri
 
 
+def scrivi_pezzo(testo: str) -> None:
+    """Un pezzo della risposta in streaming: subito a schermo, senza andare a capo."""
+    sys.stdout.write(testo)
+    sys.stdout.flush()
+
+
 def main() -> int:
     configura_flussi()  # pipe e file in UTF-8 (su Windows sarebbero cp1252)
     try:
@@ -29,7 +35,9 @@ def main() -> int:
         fuso = rileva_fuso(os.environ)
         with prepara_strumenti(config) as strumenti:
             grafo = crea_grafo(crea_modello(config, strumenti), strumenti, crea_router(config), ambito)
-            esegui_sessione(grafo, fuso, origini=origini(strumenti), parametri=parametri(strumenti))
+            esegui_sessione(
+                grafo, fuso, origini=origini(strumenti), parametri=parametri(strumenti), scrivi_pezzo=scrivi_pezzo
+            )
     except (ErroreConfigurazione, ErroreServer, ErroreAvvio) as errore:
         print(f"Errore: {errore}", file=sys.stderr)
         return 1

@@ -68,5 +68,9 @@ Router, revisore e riassunto della cronologia, poi resource e prompt MCP, infine
 | Checkpoint | [2026-11-09-documentazione-studio.md](checkpoint/2026-11-09-documentazione-studio.md) | documenti di studio aggiornati e riordinati prima di cominciare la lezione |
 | Specifica | [2026-11-09-router-ambito-design.md](specs/2026-11-09-router-ambito-design.md) | step 1: router «conversazione» o «fuori ambito», ambito in `risorse/ambito.json` |
 | Piano | [2026-11-09-router-ambito.md](plans/2026-11-09-router-ambito.md) | i cinque task dello step 1 |
+| Checkpoint | [2026-11-09-router.md](checkpoint/2026-11-09-router.md) | step 1 completato, prove reali passate |
+| Specifica | [2026-11-09-streaming-rifiuto-design.md](specs/2026-11-09-streaming-rifiuto-design.md) | richiesta extra: risposta in streaming e rifiuto che rimanda a un altro provider |
+| Piano | [2026-11-09-streaming-rifiuto.md](plans/2026-11-09-streaming-rifiuto.md) | i cinque task dello streaming |
+| Checkpoint | [2026-11-09-streaming.md](checkpoint/2026-11-09-streaming.md) | streaming e nuovo rifiuto fatti, due correzioni emerse dalle prove |
 
 Specifica e piani degli step arriveranno qui, con lo stesso schema: `specs/AAAA-MM-GG-<argomento>-design.md`, `plans/AAAA-MM-GG-<argomento>.md`, `checkpoint/AAAA-MM-GG-<passo>.md`.

@@ -97,5 +97,6 @@ def crea_router(config: Configurazione):
         api_key=CHIAVE_SEGNAPOSTO,
         timeout=120,
         max_retries=1,
+        disable_streaming=True,  # anche quando il grafo è in streaming: la risposta è JSON per il programma
     )
     return chat.with_structured_output(DecisioneRouter, method="json_schema")

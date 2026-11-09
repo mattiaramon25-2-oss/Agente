@@ -157,3 +157,63 @@ def test_argomenti_nell_ordine_dello_schema():
         parametri={"converti_unita": ["valore", "da", "a"]},
     )
     assert "[converti_unita · mcp: 2.5, km, m]" in stampate
+
+
+
+def sessione_streaming(righe, risposte=(), router=None, ambito=None, strumenti=None):
+    """Sessione con `scrivi_pezzo`: righe e pezzi finiscono in un unico testo, nell'ordine di stampa."""
+    modello = ModelloFinto(list(risposte))
+    grafo = crea_grafo(modello, strumenti if strumenti is not None else [orologio_finto(ISTANTE)], router, ambito)
+    da_leggere = list(righe)
+    uscita = []
+
+    def leggi(prompt):
+        riga = da_leggere.pop(0)
+        if isinstance(riga, BaseException):
+            raise riga
+        return riga
+
+    esegui_sessione(
+        grafo, FUSO, leggi=leggi, scrivi=lambda r: uscita.append(r + "\n"), origini=ORIGINI,
+        scrivi_pezzo=uscita.append,
+    )
+    return "".join(uscita), modello
+
+
+def test_streaming_risposta_a_pezzi():
+    testo, _ = sessione_streaming(["ciao", "esci"], [AIMessage("Ciao!")])
+    assert "Assistente: Ciao!\nArrivederci.\n" in testo
+
+
+def test_streaming_riga_dello_strumento_prima_del_testo():
+    testo, _ = sessione_streaming(
+        ["che ore sono a Tokyo?", "esci"], [chiamata_orologio("Asia/Tokyo"), AIMessage("Sono le 23:04.")]
+    )
+    assert "[ora_corrente · mcp: Asia/Tokyo]\nAssistente: Sono le 23:04.\n" in testo
+
+
+def test_streaming_rifiuto_stampato_intero():
+    from assistente.ambito import Ambito
+    from assistente.router import DecisioneRouter
+    from tests.finti import RouterFinto
+
+    ambito = Ambito(("ora",), ("poesie",), "Prova un altro provider.")
+    router = RouterFinto([DecisioneRouter(categoria="fuori_ambito", motivo="poesia")])
+    testo, modello = sessione_streaming(["poesia", "esci"], router=router, ambito=ambito)
+    assert "Assistente: Prova un altro provider.\n" in testo
+    assert modello.chiamate == []
+
+
+def test_streaming_risposta_vuota_e_limite():
+    testo, _ = sessione_streaming(["ciao", "esci"], [AIMessage("")])
+    assert "Assistente: (nessuna risposta dal modello)\n" in testo
+    chiamate = [chiamata_orologio("Europe/Rome", f"c{i}") for i in range(1, 5)]
+    testo, _ = sessione_streaming(["che ore sono?", "esci"], chiamate)
+    assert testo.count("[ora_corrente · mcp: Europe/Rome]\n") == 3
+    assert "Assistente: Non sono riuscito" in testo
+
+
+def test_streaming_errore_e_cronologia():
+    testo, modello = sessione_streaming(["a", "b", "esci"], [RuntimeError("server giù"), AIMessage("ok")])
+    assert "Errore: server giù\n" in testo and "Assistente: ok\n" in testo
+    assert "a" not in [m.content for m in modello.chiamate[1]]

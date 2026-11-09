@@ -8,6 +8,7 @@ import logging
 from typing import Literal
 
 import openai
+from langgraph.constants import TAG_NOSTREAM
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
 
@@ -59,9 +60,13 @@ def _categoria(risposta: object) -> tuple[str, str]:
 
 
 def decidi(router, ambito: Ambito, messaggi: list[BaseMessage]) -> str:
-    """Restituisce la categoria; se l'output non è valido la domanda passa all'agente (errore nel log)."""
+    """Restituisce la categoria; se l'output non è valido la domanda passa all'agente (errore nel log).
+
+    Il tag `nostream` tiene il router fuori dallo streaming del grafo: la sua risposta è JSON per il
+    programma, non testo per l'utente.
+    """
     try:
-        categoria, motivo = _categoria(router.invoke(messaggi_router(ambito, messaggi)))
+        categoria, motivo = _categoria(router.invoke(messaggi_router(ambito, messaggi), config={"tags": [TAG_NOSTREAM]}))
         campi = {"nodo": "router", "categoria": categoria, "motivo": motivo, "esito": "ok"}
     except openai.APIConnectionError:  # anche il timeout: gestito come per l'agente
         raise
