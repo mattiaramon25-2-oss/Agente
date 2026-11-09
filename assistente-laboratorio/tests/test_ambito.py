@@ -6,8 +6,8 @@ from assistente.ambito import PERCORSO_AMBITO, Ambito, carica_ambito
 from assistente.errori import ErroreAvvio
 
 RIFIUTO = (
-    "Mi dispiace, questa richiesta è fuori dal mio ambito. Posso aiutarti con data e ora, conversioni, "
-    "calcoli, scadenze, corsi dell'ITS, note, meteo e domande sui temi del corso."
+    "Questo agente è costruito per compiti specifici: data e ora, conversioni, calcoli, scadenze, corsi dell'ITS, note, meteo"
+    ' e domande sui temi del corso. Se hai bisogno di aiuto per un compito diverso, prova a usare un altro provider.'
 )
 
 
