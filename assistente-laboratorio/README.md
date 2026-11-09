@@ -134,6 +134,11 @@ nell'elenco, avvia il server MCP sulla porta `MCP_PORTA` e aspetta che risponda 
 poi mostra il fuso orario in uso e gli strumenti disponibili con la loro origine.
 Si esce scrivendo `esci`, con `Ctrl+C` o a fine input: il server viene spento in ogni caso.
 
+La risposta del modello compare **in streaming**, a pezzi, man mano che LM Studio la genera. Le
+righe degli strumenti (`[ora_corrente · mcp: …]`) compaiono prima del testo, come prima. Il rifiuto
+del router e il messaggio del limite di chiamate sono testi fissi e si stampano interi. Il router
+non va mai in streaming: la sua risposta è JSON per il programma.
+
 Esempio (ingresso inviato con una pipe):
 
 ```powershell
@@ -183,7 +188,8 @@ Gli errori sono risposte `400` con `{"errore": "..."}` in italiano.
 Prima dell'agente, un nodo `router` usa lo stesso modello di LM Studio (senza strumenti, con output
 strutturato) per decidere se la domanda è `conversazione` o `fuori_ambito`. L'ambito e il testo del
 rifiuto stanno in `risorse/ambito.json`: per cambiarli si modifica quel file, non il codice (vale al
-riavvio). Le domande fuori ambito ricevono il rifiuto senza raggiungere l'agente; domanda e rifiuto
+riavvio). Il rifiuto attuale ricorda i compiti dell'agente e invita a usare un altro provider per
+tutto il resto. Le domande fuori ambito ricevono il rifiuto senza raggiungere l'agente; domanda e rifiuto
 restano nella cronologia. Se il router restituisce un output non valido la domanda passa comunque
 all'agente e il log lo registra con `esito=errore`.
 
@@ -284,6 +290,9 @@ Prova reale con LM Studio acceso, ogni domanda in una sessione nuova:
 - note, su un archivio temporaneo (mai quello reale): «Ricordami di consegnare il report venerdì»
   (una sola `add_note`), «Elimina la nota 99» (errore, nessuna eliminazione), riavvio e «Quali note
   ho salvato?» (la nota c'è ancora); «Elimina la nota sul report» è solo osservato e riportato;
+- streaming: «Ciao! Che cosa sai fare?» deve arrivare in più di un pezzo, e i pezzi ricomposti devono
+  essere uguali alla risposta finale; «scrivimi una poesia sul mare» non manda pezzi e risponde con
+  il rifiuto del file;
 - router: «che ore sono a Tokyo?» (riga `nodo=router categoria=conversazione`, poi `nodo=modello`
   e la chiamata a `ora_corrente`) e «scrivimi una poesia sul mare» (riga
   `categoria=fuori_ambito`, `nodo=rifiuto`, il testo del rifiuto e nessuna riga `nodo=modello`);
