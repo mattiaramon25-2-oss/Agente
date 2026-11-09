@@ -66,5 +66,7 @@ Router, revisore e riassunto della cronologia, poi resource e prompt MCP, infine
 | Tipo | Documento | In una riga |
 |---|---|---|
 | Checkpoint | [2026-11-09-documentazione-studio.md](checkpoint/2026-11-09-documentazione-studio.md) | documenti di studio aggiornati e riordinati prima di cominciare la lezione |
+| Specifica | [2026-11-09-router-ambito-design.md](specs/2026-11-09-router-ambito-design.md) | step 1: router «conversazione» o «fuori ambito», ambito in `risorse/ambito.json` |
+| Piano | [2026-11-09-router-ambito.md](plans/2026-11-09-router-ambito.md) | i cinque task dello step 1 |
 
 Specifica e piani degli step arriveranno qui, con lo stesso schema: `specs/AAAA-MM-GG-<argomento>-design.md`, `plans/AAAA-MM-GG-<argomento>.md`, `checkpoint/AAAA-MM-GG-<passo>.md`.
