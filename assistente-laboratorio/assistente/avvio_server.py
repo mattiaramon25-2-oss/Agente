@@ -38,7 +38,13 @@ def porta_libera(porta: int) -> bool:
             prova.bind(("127.0.0.1", porta))  # senza SO_REUSEADDR: una porta in uso risulta occupata
         except OSError:
             return False
-    return True
+    # Su Windows il bind su 127.0.0.1 riesce anche se un altro programma ascolta su 0.0.0.0:
+    # se qualcuno risponde a una connessione, la porta è comunque occupata.
+    try:
+        with socket.create_connection(("127.0.0.1", porta), timeout=0.5):
+            return False
+    except OSError:
+        return True
 
 
 def ultime_righe(percorso: Path, quante: int = 10) -> str:
@@ -62,8 +68,12 @@ def ferma(processo: subprocess.Popen, attesa: float = ATTESA_ARRESTO) -> None:
     try:
         processo.wait(attesa)
     except subprocess.TimeoutExpired:
-        processo.kill()
-        processo.wait()
+        pass
+    finally:
+        # Anche se l'attesa è interrotta (per esempio da un secondo Ctrl+C), il processo non resta orfano.
+        if processo.poll() is None:
+            processo.kill()
+            processo.wait()
 
 
 def _opzioni_processo() -> dict:

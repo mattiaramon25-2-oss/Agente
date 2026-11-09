@@ -19,6 +19,7 @@ TIMEOUT_METEO = 4.0  # per fase di httpx (connessione, lettura...): non limita l
 # Copre anche la risoluzione DNS, che in httpx non ha un timeout proprio.
 TEMPO_TOTALE = 8.0
 ALTERNATIVE_MASSIME = 4
+LUNGHEZZA_MASSIMA_CITTA = 200
 FONTE = "Open-Meteo"
 
 SCHEMA_CITY = {"type": "string", "description": "Nome della città, per esempio Udine"}
@@ -129,6 +130,15 @@ def _meteo(city: object, http: httpx.Client, timeout: float) -> dict:
     if not isinstance(city, str) or not city.strip():
         raise ErroreStrumento("Indica il nome di una città.")
     nome_richiesto = city.strip()
+    try:
+        nome_richiesto.encode("utf-8")
+        valido = len(nome_richiesto) <= LUNGHEZZA_MASSIMA_CITTA
+    except UnicodeEncodeError:
+        valido = False
+    if not valido:
+        raise ErroreStrumento(
+            f"Nome della città non valido: al massimo {LUNGHEZZA_MASSIMA_CITTA} caratteri, senza caratteri non validi."
+        )
 
     geo = _richiedi(http, URL_GEOCODING, {"name": nome_richiesto, "count": 5, "language": "it", "format": "json"}, timeout)
     risultati = geo.get("results")

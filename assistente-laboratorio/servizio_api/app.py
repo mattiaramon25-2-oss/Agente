@@ -55,6 +55,10 @@ def crea_app() -> FastAPI:
             risultato = calcola_scadenza(data_inizio, giorni, lavorativi)
         except ErroreStrumento as errore:
             return _errore(argomenti, str(errore))
+        except Exception as errore:  # rete di sicurezza, come esegui_registrato nel server MCP
+            registro.exception("richiesta endpoint=%s argomenti=%s esito=errore imprevisto", ENDPOINT, _json(argomenti))
+            messaggio = f"Errore interno dello strumento {NOME_STRUMENTO}: {type(errore).__name__}."
+            return JSONResponse(status_code=500, content={"errore": messaggio})
         registro.info(
             "richiesta endpoint=%s argomenti=%s esito=ok risultato=%s", ENDPOINT, _json(argomenti), _json(risultato)
         )

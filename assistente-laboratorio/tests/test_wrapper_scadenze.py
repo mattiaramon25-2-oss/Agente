@@ -41,6 +41,7 @@ def test_origine_e_costanti():
 @pytest.mark.filterwarnings("ignore:You should not use the 'timeout' argument with the TestClient")
 @pytest.mark.parametrize("data_inizio, giorni, lavorativi", [
     ("2026-12-23", 3, True), ("2026-12-23", 3, False), ("2026-02-30", 1, True), ("2028-12-29", 5, True),
+    ("9999-12-31", 1, False),
 ])
 def test_parita_con_la_variante_mcp(data_inizio, giorni, lavorativi):
     argomenti = {"data_inizio": data_inizio, "giorni": giorni, "lavorativi": lavorativi}
@@ -86,3 +87,17 @@ def test_servizio_spento_senza_eccezioni():
         )
     )
     assert risultato["tipo"] == "collegamento"
+
+
+def test_errore_interno_del_servizio_e_dello_strumento():
+    errore = {"errore": "Errore interno dello strumento calcola_scadenza: RuntimeError."}
+    risultato = json.loads(wrapper_finto(lambda r: httpx.Response(500, json=errore)).invoke(
+        {"data_inizio": "2026-12-23", "giorni": 3, "lavorativi": True}))
+    assert risultato == {**errore, "tipo": "strumento"}
+
+
+@pytest.mark.parametrize("data_inizio", ["2026-12-23" + "x" * 70000, "2026-12-23\ud800"])
+def test_argomenti_impossibili_da_inviare(data_inizio):
+    risultato = json.loads(wrapper_finto(lambda r: httpx.Response(200, json={})).invoke(
+        {"data_inizio": data_inizio, "giorni": 3, "lavorativi": True}))
+    assert risultato["tipo"] == "strumento" and risultato["errore"].startswith("Argomenti non validi per calcola_scadenza")
