@@ -14,6 +14,8 @@ Dentro `assistente-laboratorio/`:
 - `logs/`: `assistente.log`, `server_mcp.log` e `servizio_api.log`, fuori da Git.
 - `archivio/`: `note.sqlite3`, l'archivio delle note persistenti, fuori da Git e dall'immagine Docker.
 - `tests/`: test automatici; `finti.py` contiene modello e strumenti finti; `reale.py` l'ambiente comune delle prove reali; `test_reale_*.py` sono le prove reali.
+- `docs/studio/`: documenti di studio per argomento, con indice per lezione in `00-indice.md`; ogni capitolo ha una «Scheda in 5 minuti» in cima e una «Scaletta per le slide» in fondo. Quando cambia il codice, si aggiornano anche i capitoli interessati.
+- `docs/superpowers/`: specifiche, piani e checkpoint in `specs/`, `plans/` e `checkpoint/`, con un indice per lezione in `README.md`.
 - Dipendenze in `requirements.txt` (applicazione) e `requirements-dev.txt` (più pytest), versioni fissate.
 
 Comandi (PowerShell, da `assistente-laboratorio/`, con `.\.venv\Scripts\Activate.ps1`):
