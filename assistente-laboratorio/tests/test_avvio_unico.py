@@ -10,6 +10,12 @@ import assistente.__main__ as avvio
 from assistente import avvio as preparazione
 from assistente import registro
 from tests.finti import ModelloFinto, chiamata
+from assistente.router import DecisioneRouter
+
+
+class RouterSempreInAmbito:
+    def invoke(self, messaggi, config=None):
+        return DecisioneRouter(categoria="conversazione", motivo="router finto")
 
 
 @pytest.fixture
@@ -19,7 +25,7 @@ def ambiente(monkeypatch, tmp_path, porta, popen_registrati):
     log_server = tmp_path / "server_mcp.log"
     log_api = tmp_path / "servizio_api.log"
     for nome, valore in {
-        "LMSTUDIO_BASE_URL": "http://localhost:1234/v1",
+        "LMSTUDIO_BASE_URL": "http://127.0.0.1:9/v1",  # nessun server: un accesso a LM Studio fallirebbe
         "LMSTUDIO_MODEL": "finto",
         "MCP_PORTA": str(porta),
         "VARIANTE_CALCOLATRICE": "mcp",
@@ -45,6 +51,8 @@ def ambiente(monkeypatch, tmp_path, porta, popen_registrati):
         return originale(grafo, fuso, leggi=lambda p: righe.pop(0), scrivi=stato["stampate"].append, **opzioni)
 
     monkeypatch.setattr(avvio, "crea_modello", crea_modello_finto)
+    # Anche il router è finto: senza, la prova chiamerebbe LM Studio davvero.
+    monkeypatch.setattr(avvio, "crea_router", lambda config: RouterSempreInAmbito())
     monkeypatch.setattr(avvio, "esegui_sessione", sessione)
 
     logger = logging.getLogger("assistente")
