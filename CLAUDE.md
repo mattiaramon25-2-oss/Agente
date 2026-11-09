@@ -9,8 +9,9 @@ Dentro `assistente-laboratorio/`:
 - `logica/`: logica pura degli strumenti (`orologio.py`, `conversioni.py`, `calcolatrice.py`, `scadenze.py`, `catalogo.py`, `note.py`, `meteo.py`, `errori.py`), senza dipendenze da MCP, FastAPI o LangChain.
 - `server_mcp/`: registrazione MCP degli strumenti (`server.py`) e avvio (`python -m server_mcp --porta 8765`).
 - `servizio_api/`: servizio FastAPI delle scadenze (`app.py`) e avvio (`python -m servizio_api --porta 8766`).
+- `servizio_agente/`: l'agente come servizio HTTP (`app.py` con `/salute` e `/chat`, senza stato) e avvio (`python -m servizio_agente`, porta da `AGENTE_PORTA`).
 - `risorse/`: dati versionati letti dagli strumenti (`festivita_italia.json`, `catalogo_corsi.json`) e ambito dell'assistente con il testo del rifiuto (`ambito.json`).
-- `assistente/`: `configurazione.py` e `fuso.py` (variabili d'ambiente, rilevamento del fuso), `modello.py` (LM Studio), `grafo.py` (stato, nodi, instradamento), `ambito.py` (lettura di `risorse/ambito.json`), `router.py` (router dell'ambito con output strutturato), `client_mcp.py` (discovery e ponte sincrono), `varianti.py` (scelta delle varianti e selezione degli strumenti), `calcolatrice_locale.py` (variante locale di `calcola` con `@tool`), `wrapper_scadenze.py` (variante FastAPI di `calcola_scadenza`: wrapper HTTP con `@tool`), `avvio_server.py` (avvio, attesa e arresto dei processi), `avvio.py` (preparazione degli strumenti), `registro.py` (log), `errori.py`, `terminale.py` (ciclo di chat), `__main__.py` (avvio).
+- `assistente/`: `configurazione.py` e `fuso.py` (variabili d'ambiente, rilevamento del fuso), `modello.py` (LM Studio), `grafo.py` (stato, nodi, instradamento), `ambito.py` (lettura di `risorse/ambito.json`), `router.py` (router dell'ambito con output strutturato), `agente.py` (`crea_agente`, costruzione comune a CLI e servizio), `client_mcp.py` (discovery e ponte sincrono), `varianti.py` (scelta delle varianti e selezione degli strumenti), `calcolatrice_locale.py` (variante locale di `calcola` con `@tool`), `wrapper_scadenze.py` (variante FastAPI di `calcola_scadenza`: wrapper HTTP con `@tool`), `avvio_server.py` (avvio, attesa e arresto dei processi), `avvio.py` (preparazione degli strumenti), `registro.py` (log), `errori.py`, `terminale.py` (ciclo di chat), `__main__.py` (avvio).
 - `logs/`: `assistente.log`, `server_mcp.log` e `servizio_api.log`, fuori da Git.
 - `archivio/`: `note.sqlite3`, l'archivio delle note persistenti, fuori da Git e dall'immagine Docker.
 - `tests/`: test automatici; `finti.py` contiene modello e strumenti finti; `reale.py` l'ambiente comune delle prove reali; `test_reale_*.py` sono le prove reali.
@@ -24,8 +25,8 @@ Comandi (PowerShell, da `assistente-laboratorio/`, con `.\.venv\Scripts\Activate
 - Prova reale con LM Studio: `python -m pytest --lmstudio -m lmstudio -v -s`.
 - Prova reale con Docker: `python -m pytest --docker -m docker -v -s`.
 - Avvio diretto: `python -m assistente`. Avvio con Docker: `.\avvia.ps1`.
-- Solo il server MCP: `python -m server_mcp --porta 8765` (con `--note <file>` per non toccare l'archivio reale). Solo il servizio FastAPI: `python -m servizio_api --porta 8766`.
-- Variabili nel `.env`: `LMSTUDIO_BASE_URL`, `LMSTUDIO_MODEL`, `MCP_PORTA`, `VARIANTE_CALCOLATRICE` (`mcp`/`locale`), `VARIANTE_SCADENZE` (`mcp`/`fastapi`), `API_PORTA` (solo con `fastapi`); per Docker anche `LMSTUDIO_BASE_URL_DOCKER`.
+- Solo il server MCP: `python -m server_mcp --porta 8765` (con `--note <file>` per non toccare l'archivio reale). Solo il servizio FastAPI: `python -m servizio_api --porta 8766`. L'agente come servizio HTTP: `python -m servizio_agente`.
+- Variabili nel `.env`: `LMSTUDIO_BASE_URL`, `LMSTUDIO_MODEL`, `MCP_PORTA`, `VARIANTE_CALCOLATRICE` (`mcp`/`locale`), `VARIANTE_SCADENZE` (`mcp`/`fastapi`), `API_PORTA` (solo con `fastapi`), `AGENTE_PORTA` (solo per `servizio_agente`); per Docker anche `LMSTUDIO_BASE_URL_DOCKER`.
 
 ## Obiettivo
 

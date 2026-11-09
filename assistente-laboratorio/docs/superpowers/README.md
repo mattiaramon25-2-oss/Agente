@@ -74,5 +74,6 @@ Router, revisore e riassunto della cronologia, poi resource e prompt MCP, infine
 | Checkpoint | [2026-11-09-streaming.md](checkpoint/2026-11-09-streaming.md) | streaming e nuovo rifiuto fatti, due correzioni emerse dalle prove |
 | Specifica | [2026-11-09-agente-servizio-design.md](specs/2026-11-09-agente-servizio-design.md) | step 6: l'agente risponde anche via HTTP (`/salute`, `/chat`), senza stato |
 | Piano | [2026-11-09-agente-servizio.md](plans/2026-11-09-agente-servizio.md) | i sei task dello step 6 |
+| Checkpoint | [2026-11-09-agente-servizio.md](checkpoint/2026-11-09-agente-servizio.md) | step 6 fatto: stessa risposta da CLI e API, prova reale passata |
 
 Specifica e piani degli step arriveranno qui, con lo stesso schema: `specs/AAAA-MM-GG-<argomento>-design.md`, `plans/AAAA-MM-GG-<argomento>.md`, `checkpoint/AAAA-MM-GG-<passo>.md`.

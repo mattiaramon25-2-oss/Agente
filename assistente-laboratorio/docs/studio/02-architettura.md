@@ -173,6 +173,14 @@ Due dettagli da saper spiegare:
 - **Documentazione automatica.** FastAPI genera da sé `/openapi.json` e `/docs`. L'assistente usa proprio `/openapi.json` per capire quando il servizio è pronto (sezione 2.3).
 - **Come lo usa l'agente.** L'agente non chiama il servizio direttamente. Passa da un **wrapper scritto a mano** (`assistente/wrapper_scadenze.py`), registrato con `@tool`. Qui non c'è discovery: nome, descrizione e schema sono copiati a mano, e un test controlla che coincidano con quelli MCP.
 
+### 1.5 bis Il servizio dell'agente (lezione 6, step 6)
+
+`python -m servizio_agente` è una seconda porta d'ingresso allo stesso agente: al posto del
+terminale c'è un server HTTP (FastAPI e uvicorn) su `127.0.0.1:AGENTE_PORTA`, con `/salute` e
+`/chat`. Avvia e spegne il server MCP come la CLI e costruisce il grafo con la stessa funzione,
+`crea_agente` (`assistente/agente.py`). È senza stato: la cronologia la rimanda il client.
+Dettagli in [13 — L'agente come servizio HTTP](13-agente-come-servizio.md).
+
 ### 1.6 LM Studio
 
 - **Sta sempre sull'host**, anche quando l'assistente gira in Docker (regola del `CLAUDE.md`: «LM Studio non va containerizzato»).

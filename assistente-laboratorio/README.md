@@ -107,6 +107,7 @@ Poi aprire `.env` e controllare i valori:
 | `VARIANTE_CALCOLATRICE` | sì | `mcp` oppure `locale`: quale versione di `calcola` vede il modello |
 | `VARIANTE_SCADENZE` | sì | `mcp` oppure `fastapi`: quale versione di `calcola_scadenza` vede il modello |
 | `API_PORTA` | solo con `fastapi` | porta locale del servizio FastAPI, diversa da `MCP_PORTA`, per esempio `8766` |
+| `AGENTE_PORTA` | solo per il servizio HTTP | porta locale di `python -m servizio_agente`, diversa da `MCP_PORTA` e `API_PORTA`, per esempio `8767` |
 | `FUSO_ORARIO` | no | fuso IANA di riserva se il rilevamento automatico non riesce |
 
 Per vedere gli identificativi disponibili:
@@ -182,6 +183,35 @@ python -m servizio_api --porta 8766
 
 Esempio di richiesta: `http://127.0.0.1:8766/scadenza?data_inizio=2026-12-23&giorni=3&lavorativi=true`.
 Gli errori sono risposte `400` con `{"errore": "..."}` in italiano.
+
+## L'agente come servizio HTTP
+
+Lo stesso agente della CLI (router, modello, strumenti) risponde anche via HTTP. Il servizio legge
+il `.env`, controlla LM Studio, avvia il server MCP e ascolta su `127.0.0.1:AGENTE_PORTA`;
+`Ctrl+C` lo ferma e spegne i processi avviati. La documentazione interattiva è su `/docs`.
+
+```powershell
+python -m servizio_agente
+```
+
+- `GET /salute`: modello, fuso e strumenti con la loro origine.
+- `POST /chat` con `{"messaggio": "...", "cronologia": [...]}`: restituisce `risposta`, gli
+  `strumenti` eseguiti e la nuova `cronologia`. Il servizio non conserva le conversazioni: per
+  continuarne una si rimanda la `cronologia` ricevuta.
+- Errori sempre `{"errore": "..."}` in italiano: `400` richiesta non valida, `503` LM Studio non
+  raggiungibile, `500` altro errore. Un turno alla volta.
+
+Esempio da PowerShell, con un seguito che usa la cronologia:
+
+```powershell
+$r = Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8767/chat -ContentType 'application/json; charset=utf-8' -Body ([Text.Encoding]::UTF8.GetBytes((@{ messaggio = 'che ore sono a Tokyo?' } | ConvertTo-Json)))
+$r.risposta
+$r2 = Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8767/chat -ContentType 'application/json; charset=utf-8' -Body ([Text.Encoding]::UTF8.GetBytes((@{ messaggio = 'e a Roma?'; cronologia = $r.cronologia } | ConvertTo-Json -Depth 20)))
+$r2.risposta
+```
+
+Il corpo va inviato in UTF-8 (`GetBytes`), altrimenti PowerShell 5.1 rovina le lettere accentate.
+Ogni richiesta lascia in `logs/assistente.log` una riga `richiesta endpoint=/chat esito=…`.
 
 ## Ambito e router
 
@@ -290,6 +320,9 @@ Prova reale con LM Studio acceso, ogni domanda in una sessione nuova:
 - note, su un archivio temporaneo (mai quello reale): «Ricordami di consegnare il report venerdì»
   (una sola `add_note`), «Elimina la nota 99» (errore, nessuna eliminazione), riavvio e «Quali note
   ho salvato?» (la nota c'è ancora); «Elimina la nota sul report» è solo osservato e riportato;
+- servizio HTTP: «scrivimi una poesia sul mare» alla CLI e a `POST /chat` (uvicorn su una porta
+  vera) deve dare lo stesso rifiuto; «Quanto fa (3+4)*2?» deve dare 14 con una chiamata a
+  `calcola` in entrambe;
 - streaming: «Ciao! Che cosa sai fare?» deve arrivare in più di un pezzo, e i pezzi ricomposti devono
   essere uguali alla risposta finale; «scrivimi una poesia sul mare» non manda pezzi e risponde con
   il rifiuto del file;
