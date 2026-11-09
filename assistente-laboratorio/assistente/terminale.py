@@ -5,7 +5,7 @@ from typing import Callable, Mapping, Sequence
 from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 
 from assistente.fuso import RisultatoFuso
-from assistente.grafo import esegui_turno
+from assistente.grafo import esegui_turno, esegui_turno_in_streaming
 
 PAROLA_USCITA = "esci"
 NESSUNA_RISPOSTA = "(nessuna risposta dal modello)"
@@ -38,6 +38,39 @@ def _righe_strumenti(
     return righe
 
 
+class _StampaInStreaming:
+    """Stampa i pezzi della risposta dopo «Assistente: » e le righe degli strumenti appena eseguiti."""
+
+    def __init__(self, cronologia, scrivi, scrivi_pezzo, origini, parametri):
+        self.inizio = len(cronologia)
+        self.scrivi, self.scrivi_pezzo = scrivi, scrivi_pezzo
+        self.origini, self.parametri = origini, parametri
+        self.righe_stampate = 0
+        self.a_meta_riga = False  # c'è una riga «Assistente: …» ancora aperta
+        self.ha_scritto = False  # almeno un pezzo stampato in questo turno
+
+    def chiudi_riga(self) -> None:
+        if self.a_meta_riga:
+            self.scrivi_pezzo("\n")
+            self.a_meta_riga = False
+
+    def testo(self, pezzo: str) -> None:
+        if not self.a_meta_riga:
+            self.scrivi_pezzo("Assistente: ")
+            self.a_meta_riga = True
+        self.scrivi_pezzo(pezzo)
+        self.ha_scritto = True
+
+    def messaggi(self, messaggi) -> None:
+        righe = _righe_strumenti(messaggi[self.inizio:], self.origini, self.parametri)
+        nuove = righe[self.righe_stampate:]
+        if nuove:
+            self.chiudi_riga()
+            for riga in nuove:
+                self.scrivi(riga)
+            self.righe_stampate = len(righe)
+
+
 def esegui_sessione(
     grafo,
     fuso: RisultatoFuso,
@@ -45,7 +78,9 @@ def esegui_sessione(
     scrivi: Callable[[str], None] = print,
     origini: Mapping[str, str] | None = None,
     parametri: Mapping[str, Sequence[str]] | None = None,
+    scrivi_pezzo: Callable[[str], None] | None = None,
 ) -> None:
+    """Con `scrivi_pezzo` la risposta del modello compare a pezzi man mano che arriva."""
     origini = dict(origini or {})
     parametri = dict(parametri or {})
     scrivi("Assistente del laboratorio")
@@ -68,19 +103,34 @@ def esegui_sessione(
         if testo.lower() == PAROLA_USCITA:
             break
 
+        stampa = _StampaInStreaming(cronologia, scrivi, scrivi_pezzo, origini, parametri) if scrivi_pezzo else None
         try:
-            nuova = esegui_turno(grafo, cronologia, fuso.fuso, testo)
+            if stampa:
+                nuova = esegui_turno_in_streaming(grafo, cronologia, fuso.fuso, testo, stampa.testo, stampa.messaggi)
+            else:
+                nuova = esegui_turno(grafo, cronologia, fuso.fuso, testo)
         except KeyboardInterrupt:
+            if stampa:
+                stampa.chiudi_riga()
             break
         except Exception as eccezione:
             # La cronologia resta quella di prima: il messaggio fallito non viene conservato.
+            if stampa:
+                stampa.chiudi_riga()
             scrivi(f"Errore: {eccezione}")
             continue
 
-        for riga in _righe_strumenti(nuova[len(cronologia):], origini, parametri):
-            scrivi(riga)
+        if stampa:
+            stampa.messaggi(nuova)
+            ultimo_in_streaming = stampa.ha_scritto and stampa.a_meta_riga
+            stampa.chiudi_riga()
+        else:
+            for riga in _righe_strumenti(nuova[len(cronologia):], origini, parametri):
+                scrivi(riga)
+            ultimo_in_streaming = False
         cronologia = nuova
-        risposta = nuova[-1].text.strip() if isinstance(nuova[-1], AIMessage) else ""
-        scrivi(f"Assistente: {risposta or NESSUNA_RISPOSTA}")
+        if not ultimo_in_streaming:  # rifiuto, limite, risposta vuota o niente streaming: riga intera
+            risposta = nuova[-1].text.strip() if isinstance(nuova[-1], AIMessage) else ""
+            scrivi(f"Assistente: {risposta or NESSUNA_RISPOSTA}")
 
     scrivi("Arrivederci.")
