@@ -1,20 +1,26 @@
 """Grafo LangGraph della conversazione: stato, nodi e instradamento espliciti.
 
-    START -> modello -> (instrada_dopo_modello) -> strumenti -> modello
-                                                -> limite    -> END
-                                                -> END
+    START -> router -> (instrada_dopo_router) -> modello   (conversazione)
+                                              -> rifiuto   (fuori_ambito) -> END
+    modello -> (instrada_dopo_modello) -> strumenti -> modello
+                                       -> limite    -> END
+                                       -> END
+
+Senza router (`crea_grafo(modello, strumenti)`) si parte da `modello`, come nella lezione 5.
 """
 
 import json
 import logging
-from typing import Annotated, Literal, TypedDict
+from typing import Annotated, Literal, NotRequired, TypedDict
 
 from langchain_core.messages import AIMessage, AnyMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import BaseTool
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 
+from assistente.ambito import Ambito
 from assistente.registro import formatta
+from assistente.router import FUORI_AMBITO, decidi
 
 NOME_OROLOGIO = "ora_corrente"  # nome pubblicato dal server MCP
 MAX_GIRI_STRUMENTO = 3
@@ -24,12 +30,14 @@ TESTO_LIMITE = (
 TESTO_NON_JSON = "Argomenti non validi: devono essere un oggetto JSON con gli argomenti dello strumento."
 
 registro = logging.getLogger("assistente.strumenti")
+registro_nodi = logging.getLogger("assistente.grafo")
 
 
 class StatoConversazione(TypedDict):
     messages: Annotated[list[AnyMessage], add_messages]
     fuso_utente: str
     giri_strumento: int  # giri di strumento nel turno corrente
+    categoria: NotRequired[str]  # decisione del router nel turno corrente
 
 
 def messaggio_sistema(fuso_utente: str) -> SystemMessage:
@@ -138,11 +146,29 @@ def instrada_dopo_modello(stato: StatoConversazione) -> Literal["strumenti", "li
     return "strumenti"
 
 
-def crea_grafo(modello, strumenti: list[BaseTool]):
-    """`modello` ha `.invoke(messaggi) -> AIMessage` ed è già collegato agli strumenti."""
+def instrada_dopo_router(stato: StatoConversazione) -> Literal["modello", "rifiuto"]:
+    return "rifiuto" if stato.get("categoria") == FUORI_AMBITO else "modello"
+
+
+def crea_grafo(modello, strumenti: list[BaseTool], router=None, ambito: Ambito | None = None):
+    """`modello` ha `.invoke(messaggi) -> AIMessage` ed è già collegato agli strumenti.
+
+    `router` (senza strumenti, output strutturato) e `ambito` vanno passati insieme: aggiungono i nodi
+    `router` e `rifiuto` prima dell'agente.
+    """
+    if (router is None) != (ambito is None):
+        raise ValueError("router e ambito vanno passati insieme")
     per_nome = {strumento.name: strumento for strumento in strumenti}
 
+    def nodo_router(stato: StatoConversazione) -> dict:
+        return {"categoria": decidi(router, ambito, stato["messages"])}
+
+    def nodo_rifiuto(stato: StatoConversazione) -> dict:
+        registro_nodi.info(formatta({"nodo": "rifiuto"}))
+        return {"messages": [AIMessage(ambito.rifiuto)]}
+
     def nodo_modello(stato: StatoConversazione) -> dict:
+        registro_nodi.info(formatta({"nodo": "modello", "giri_strumento": stato["giri_strumento"]}))
         risposta = modello.invoke([messaggio_sistema(stato["fuso_utente"]), *stato["messages"]])
         return {"messages": [risposta]}
 
@@ -204,7 +230,14 @@ def crea_grafo(modello, strumenti: list[BaseTool]):
     costruttore.add_node("modello", nodo_modello)
     costruttore.add_node("strumenti", nodo_strumenti)
     costruttore.add_node("limite", nodo_limite)
-    costruttore.add_edge(START, "modello")
+    if router is None:
+        costruttore.add_edge(START, "modello")
+    else:
+        costruttore.add_node("router", nodo_router)
+        costruttore.add_node("rifiuto", nodo_rifiuto)
+        costruttore.add_edge(START, "router")
+        costruttore.add_conditional_edges("router", instrada_dopo_router, ["modello", "rifiuto"])
+        costruttore.add_edge("rifiuto", END)
     costruttore.add_conditional_edges("modello", instrada_dopo_modello, ["strumenti", "limite", END])
     costruttore.add_edge("strumenti", "modello")
     costruttore.add_edge("limite", END)
