@@ -20,3 +20,29 @@ services:
       - "host.docker.internal:host-gateway"
     stdin_open: true
     tty: true
+
+  # L'agente come servizio HTTP (lezione 6, step 6): stessa immagine, un server MCP suo.
+  # Avvio: .\avvia-agente.ps1 (oppure docker compose up --build agente).
+  agente:
+    build: .
+    command: ["python", "-m", "servizio_agente"]
+    env_file: .env
+    environment:
+      LMSTUDIO_BASE_URL: ${LMSTUDIO_BASE_URL_DOCKER:?Imposta LMSTUDIO_BASE_URL_DOCKER nel file .env}
+      MCP_PORTA: ${MCP_PORTA:?Imposta MCP_PORTA nel file .env, per esempio MCP_PORTA=8765}
+      VARIANTE_CALCOLATRICE: ${VARIANTE_CALCOLATRICE:?Imposta VARIANTE_CALCOLATRICE nel file .env (mcp oppure locale)}
+      VARIANTE_SCADENZE: ${VARIANTE_SCADENZE:?Imposta VARIANTE_SCADENZE nel file .env (mcp oppure fastapi)}
+      API_PORTA: ${API_PORTA:-}
+      AGENTE_PORTA: ${AGENTE_PORTA:?Imposta AGENTE_PORTA nel file .env, per esempio AGENTE_PORTA=8767}
+      # Nel container la porta pubblicata arriva dall'interfaccia di rete, non da 127.0.0.1.
+      AGENTE_HOST: 0.0.0.0
+      # Passato da avvia-agente.ps1; vuoto se si usa docker compose direttamente (vale allora FUSO_ORARIO).
+      FUSO_HOST_WINDOWS: ${FUSO_HOST_WINDOWS:-}
+    ports:
+      # Solo sull'host locale: il servizio non ha autenticazione.
+      - "127.0.0.1:${AGENTE_PORTA}:${AGENTE_PORTA}"
+    volumes:
+      - ./logs:/app/logs
+      - ./archivio:/app/archivio
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
