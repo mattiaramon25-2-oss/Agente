@@ -93,3 +93,11 @@ def test_porta_agente_occupata(ambiente, capsys):
         assert avvio.main() == 1
     assert "occupata" in capsys.readouterr().err
     assert ambiente["processi"] == []
+
+
+def test_indirizzo_di_ascolto_da_agente_host(ambiente, monkeypatch):
+    """In Docker Compose imposta AGENTE_HOST=0.0.0.0, altrimenti la porta pubblicata non arriva al servizio."""
+    monkeypatch.setenv("AGENTE_HOST", "0.0.0.0")
+    ambiente["stato"]["risposte"][:] = [AIMessage("ciao")]
+    assert avvio.main() == 0
+    assert ambiente["stato"]["uvicorn"]["host"] == "0.0.0.0"

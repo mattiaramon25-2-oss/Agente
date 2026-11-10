@@ -1,7 +1,7 @@
 """Avvio del servizio dell'agente: python -m servizio_agente
 
 Stesso percorso di `python -m assistente` (configurazione, LM Studio, server MCP, router), ma al posto
-del terminale c'è un server HTTP su 127.0.0.1:AGENTE_PORTA. Ctrl+C ferma il servizio e i processi avviati.
+del terminale c'è un server HTTP su AGENTE_HOST:AGENTE_PORTA (predefinito 127.0.0.1). Ctrl+C ferma il servizio e i processi avviati.
 """
 
 import logging
@@ -16,7 +16,12 @@ from assistente.agente import crea_agente
 from assistente.ambito import carica_ambito
 from assistente.avvio import prepara_strumenti
 from assistente.avvio_server import porta_libera
-from assistente.configurazione import ErroreConfigurazione, carica_configurazione, leggi_porta_agente
+from assistente.configurazione import (
+    ErroreConfigurazione,
+    carica_configurazione,
+    leggi_host_agente,
+    leggi_porta_agente,
+)
 from assistente.console import configura_flussi
 from assistente.errori import ErroreAvvio
 from assistente.fuso import rileva_fuso
@@ -45,6 +50,7 @@ def main() -> int:
         load_dotenv(override=False)
         config = carica_configurazione(os.environ)
         porta = leggi_porta_agente(os.environ, config)
+        host = leggi_host_agente(os.environ)
         configura_registro(LOG_ASSISTENTE)
         ambito = carica_ambito()
         if not porta_libera(porta):
@@ -57,10 +63,10 @@ def main() -> int:
             app = crea_app(
                 grafo, fuso=fuso.fuso, modello=config.modello, origini=origini(strumenti), parametri=parametri(strumenti)
             )
-            registro.info("avvio servizio agente porta=%d fuso=%s", porta, fuso.fuso)
-            print(f"Servizio dell'agente su http://127.0.0.1:{porta} (documentazione su /docs). Ctrl+C per fermarlo.")
+            registro.info("avvio servizio agente host=%s porta=%d fuso=%s", host, porta, fuso.fuso)
+            print(f"Servizio dell'agente in ascolto su {host}:{porta} (dall'host: http://127.0.0.1:{porta}, documentazione su /docs). Ctrl+C per fermarlo.")
             try:
-                uvicorn.run(app, host="127.0.0.1", port=porta, log_level="warning", access_log=False)
+                uvicorn.run(app, host=host, port=porta, log_level="warning", access_log=False)
             except KeyboardInterrupt:
                 pass
             finally:

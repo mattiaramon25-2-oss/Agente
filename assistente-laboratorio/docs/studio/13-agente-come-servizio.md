@@ -22,6 +22,8 @@ con `python -m servizio_agente`. È il primo passo verso l'interfaccia grafica (
 5. **Un turno alla volta.** Un `threading.Lock` mette in fila le richieste contemporanee. → sezione 3
 6. **L'evidenza.** La stessa domanda alla CLI e all'API dà la stessa risposta: identica per il
    rifiuto (testo fisso), con lo stesso risultato e lo stesso strumento per un calcolo. → sezione 5
+7. **Anche in Docker** (10 novembre): servizio Compose `agente`, avviato con `avvia-agente.ps1`,
+   porta pubblicata solo su `127.0.0.1`. → sezione 7
 
 **Il quadro**
 
@@ -46,6 +48,8 @@ flowchart LR
 | Costruzione comune | `crea_agente(config, strumenti, ambito)` | `assistente/agente.py` |
 | Righe degli strumenti | `chiamate_riuscite`, comune a terminale e servizio | `assistente/terminale.py` |
 | Log | `richiesta endpoint=/chat esito=... durata=...` in `logs/assistente.log` | logger `assistente.servizio` |
+| Indirizzo di ascolto | `AGENTE_HOST`, predefinito `127.0.0.1`, `0.0.0.0` in Docker | `leggi_host_agente` |
+| Docker | `.\avvia-agente.ps1`, servizio Compose `agente` | `compose.yaml` |
 
 **Se te lo chiedono all'orale**
 
@@ -147,12 +151,28 @@ strumenti:
 
 ## 6. Limiti noti
 
-- Il servizio ascolta solo su `127.0.0.1` e non ha autenticazione: per i container (step 9) andrà
-  rivisto.
+- Il servizio non ha autenticazione: per questo ascolta su `127.0.0.1` e, in Docker, la porta è
+  pubblicata solo su `127.0.0.1` dell'host. Con più container (step 9) andrà rivisto.
 - Un turno alla volta: con più utenti le richieste fanno la fila.
 - La cronologia viaggia intera a ogni richiesta e cresce con la conversazione.
 - L'arresto con `Ctrl+C` in un terminale interattivo non è stato provato a mano; è provato il
   percorso di arresto nel test di avvio.
+
+## 7. In Docker
+
+Il servizio Compose `agente` (`compose.yaml`) usa la stessa immagine della CLI e avvia
+`python -m servizio_agente` con il suo server MCP. Nel container il servizio ascolta su `0.0.0.0`
+(`AGENTE_HOST`, impostata da Compose), sull'host la porta è pubblicata solo su `127.0.0.1`.
+
+```powershell
+.\avvia-agente.ps1
+```
+
+Lo script passa il fuso di Windows e lancia `docker compose up --build agente`; `Ctrl+C` lo ferma
+in modo ordinato. La prova Docker del 10 novembre (`tests/test_reale_docker_agente.py`) ha
+verificato `/salute` con il fuso di Windows, una conversione con `converti_unita`, il rifiuto e
+l'uscita con codice 0 con il server MCP spento. Dettagli in
+[08, sezione 7.9](08-configurazione-avvio-docker.md#79-il-servizio-dellagente-in-docker).
 
 ---
 
@@ -208,6 +228,13 @@ Una presentazione di circa 8 slide. Ogni slide: titolo, tre punti brevi, che cos
 - Righe del log uguali
 
 *Da mostrare:* l'esito della prova reale nella sezione 5.
+
+### Slide 7 bis · Il servizio in Docker
+- Servizio Compose `agente`, stessa immagine
+- Dentro `0.0.0.0`, fuori solo `127.0.0.1`
+- `avvia-agente.ps1`, arresto ordinato con Ctrl+C
+
+*Da mostrare:* la sezione 7 e il blocco `agente` di `compose.yaml`.
 
 ### Slide 8 · Che cosa ricordare
 - Un agente, due porte d'ingresso

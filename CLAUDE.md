@@ -24,9 +24,9 @@ Comandi (PowerShell, da `assistente-laboratorio/`, con `.\.venv\Scripts\Activate
 - Test automatici: `python -m pytest` (le prove reali risultano `skipped`).
 - Prova reale con LM Studio: `python -m pytest --lmstudio -m lmstudio -v -s`.
 - Prova reale con Docker: `python -m pytest --docker -m docker -v -s`.
-- Avvio diretto: `python -m assistente`. Avvio con Docker: `.\avvia.ps1`.
+- Avvio diretto: `python -m assistente`. Avvio con Docker: `.\avvia.ps1` (CLI) e `.\avvia-agente.ps1` (servizio HTTP dell'agente, porta solo su 127.0.0.1).
 - Solo il server MCP: `python -m server_mcp --porta 8765` (con `--note <file>` per non toccare l'archivio reale). Solo il servizio FastAPI: `python -m servizio_api --porta 8766`. L'agente come servizio HTTP: `python -m servizio_agente`.
-- Variabili nel `.env`: `LMSTUDIO_BASE_URL`, `LMSTUDIO_MODEL`, `MCP_PORTA`, `VARIANTE_CALCOLATRICE` (`mcp`/`locale`), `VARIANTE_SCADENZE` (`mcp`/`fastapi`), `API_PORTA` (solo con `fastapi`), `AGENTE_PORTA` (solo per `servizio_agente`); per Docker anche `LMSTUDIO_BASE_URL_DOCKER`.
+- Variabili nel `.env`: `LMSTUDIO_BASE_URL`, `LMSTUDIO_MODEL`, `MCP_PORTA`, `VARIANTE_CALCOLATRICE` (`mcp`/`locale`), `VARIANTE_SCADENZE` (`mcp`/`fastapi`), `API_PORTA` (solo con `fastapi`), `AGENTE_PORTA` (solo per `servizio_agente`), `AGENTE_HOST` (facoltativa, predefinita `127.0.0.1`; in Docker la imposta Compose); per Docker anche `LMSTUDIO_BASE_URL_DOCKER`.
 
 ## Obiettivo
 

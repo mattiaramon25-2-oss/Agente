@@ -105,3 +105,14 @@ def test_porta_agente():
             leggi_porta_agente({"AGENTE_PORTA": valore}, config)
     with pytest.raises(ErroreConfigurazione, match="AGENTE_PORTA"):
         leggi_porta_agente({}, config)
+
+
+def test_host_agente():
+    from assistente.configurazione import leggi_host_agente
+
+    assert leggi_host_agente({}) == "127.0.0.1"
+    assert leggi_host_agente({"AGENTE_HOST": "  "}) == "127.0.0.1"
+    assert leggi_host_agente({"AGENTE_HOST": " 0.0.0.0 "}) == "0.0.0.0"
+    for valore in ("localhost", "0.0.0", "tutti"):
+        with pytest.raises(ErroreConfigurazione, match="AGENTE_HOST"):
+            leggi_host_agente({"AGENTE_HOST": valore})

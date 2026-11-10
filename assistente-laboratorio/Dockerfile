@@ -13,6 +13,7 @@ COPY assistente/ assistente/
 COPY logica/ logica/
 COPY server_mcp/ server_mcp/
 COPY servizio_api/ servizio_api/
+COPY servizio_agente/ servizio_agente/
 COPY risorse/ risorse/
 
 CMD ["python", "-m", "assistente"]
