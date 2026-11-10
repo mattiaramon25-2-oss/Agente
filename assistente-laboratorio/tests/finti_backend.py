@@ -1,8 +1,10 @@
 """Archivio in memoria per i test: rispetta il contratto di `servizio_backend.archivio.Archivio`."""
 import copy
+import threading
 from datetime import datetime, timezone
 
 from servizio_backend.archivio import ChatInesistente, DatabaseNonRaggiungibile, ProgettoInesistente
+from servizio_backend.client_agente import AgenteInterrotto, AgenteNonDisponibile
 from servizio_backend.testi import TITOLO_PREDEFINITO, estratto, titolo_da
 
 _LIMITE_RICERCA = 50
@@ -192,3 +194,50 @@ class ArchivioInMemoria:
                 }
             )
         return risultato
+
+
+class TurnoFinto:
+    """Un turno dell'agente già aperto, con gli eventi preparati."""
+
+    def __init__(self, eventi, interrompi_dopo=None, cancello=None):
+        self._eventi = list(eventi)
+        self._interrompi_dopo = interrompi_dopo
+        self._cancello = cancello
+        self.chiuso = False
+
+    def eventi(self):
+        for numero, (nome, dati) in enumerate(self._eventi):
+            if self._interrompi_dopo is not None and numero >= self._interrompi_dopo:
+                raise AgenteInterrotto("Il collegamento con l'agente si è interrotto.")
+            if nome == "fine" and self._cancello is not None:
+                self._cancello.wait()
+            yield nome, dati
+        if self._interrompi_dopo is not None and len(self._eventi) <= self._interrompi_dopo:
+            raise AgenteInterrotto("Il collegamento con l'agente si è interrotto.")
+
+    def chiudi(self) -> None:
+        self.chiuso = True
+
+
+class AgenteFinto:
+    """Rispetta il contratto di `servizio_backend.client_agente.ClientAgente`."""
+
+    def __init__(self, eventi, *, non_disponibile: str | None = None, interrompi_dopo: int | None = None,
+                 cancello: threading.Event | None = None):
+        self._eventi = eventi
+        self.non_disponibile = non_disponibile
+        self.interrompi_dopo = interrompi_dopo
+        self.cancello = cancello
+        self.chiamate: list[tuple] = []
+        self.turni: list[TurnoFinto] = []
+
+    def salute(self) -> bool:
+        return self.non_disponibile is None
+
+    def apri_turno(self, messaggio: str, cronologia: list[dict], istruzioni: str) -> TurnoFinto:
+        self.chiamate.append((messaggio, cronologia, istruzioni))
+        if self.non_disponibile is not None:
+            raise AgenteNonDisponibile(self.non_disponibile)
+        turno = TurnoFinto(self._eventi, self.interrompi_dopo, self.cancello)
+        self.turni.append(turno)
+        return turno
