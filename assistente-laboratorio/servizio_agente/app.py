@@ -17,6 +17,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from langchain_core.messages import AIMessage, messages_from_dict, messages_to_dict
 from pydantic import BaseModel, Field
 
+from assistente.http import RispostaJson, messaggio_validazione
 from assistente.grafo import esegui_turno, esegui_turno_in_streaming
 from assistente.registro import formatta
 from assistente.sse import formatta_sse
@@ -28,12 +29,6 @@ ENDPOINT_STREAM = "/chat/stream"
 MESSAGGIO_OCCUPATO = "L'agente sta già rispondendo a un'altra richiesta."
 
 registro = logging.getLogger("assistente.servizio")
-
-
-class RispostaJson(JSONResponse):
-    """JSON con il charset dichiarato: Invoke-RestMethod di PowerShell 5.1 altrimenti legge in Latin-1."""
-
-    media_type = "application/json; charset=utf-8"
 
 
 class RichiestaChat(BaseModel):
@@ -101,11 +96,7 @@ def crea_app(
 
     @app.exception_handler(RequestValidationError)
     async def validazione_in_italiano(richiesta: Request, eccezione: RequestValidationError) -> JSONResponse:
-        dettagli = []
-        for errore in eccezione.errors():
-            nome = ".".join(str(parte) for parte in errore.get("loc", ("?",))[1:]) or "corpo"
-            dettagli.append(f"{nome}: mancante" if errore.get("type") == "missing" else f"{nome}: valore non valido")
-        return _errore(400, "Richiesta non valida: " + "; ".join(dettagli), time.monotonic(), richiesta.url.path)
+        return _errore(400, messaggio_validazione(eccezione), time.monotonic(), richiesta.url.path)
 
     @app.get("/salute", summary="Stato del servizio")
     def salute() -> dict:
