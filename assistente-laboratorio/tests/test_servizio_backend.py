@@ -235,3 +235,65 @@ def test_ricerca():
     assert set(risultati[0]) == {"chat_id", "titolo", "progetto_id", "messaggio_id", "ruolo", "estratto"}
     assert risultati[0]["chat_id"] == cid
     assert client.get("/ricerca?q=inesistente").json() == []
+
+
+def test_id_fuori_intervallo_400():
+    client, _, _ = prepara()
+    assert client.post("/chat", json={"progetto_id": 3000000000}).status_code == 400
+    assert client.post("/chat", json={"progetto_id": 0}).status_code == 400
+    assert client.get("/chat/3000000000").status_code == 400
+    assert client.get("/chat?progetto=3000000000").status_code == 400
+
+
+def test_errore_imprevisto_500_json(monkeypatch):
+    archivio = ArchivioInMemoria()
+    client = TestClient(crea_app(archivio, AgenteFinto(EVENTI)), raise_server_exceptions=False)
+
+    def guasto():
+        raise RuntimeError("segreto interno")
+
+    monkeypatch.setattr(archivio, "elenca_progetti", guasto)
+    risposta = client.get("/progetti")
+    assert risposta.status_code == 500
+    assert risposta.json() == {"errore": "Errore interno del back-end: RuntimeError."}
+
+
+def test_nome_del_progetto_senza_spazi_ai_lati():
+    client, _, _ = prepara()
+    for nome in ("", "   ", " \t\n "):
+        assert client.post("/progetti", json={"nome": nome}).status_code == 400
+    pid = client.post("/progetti", json={"nome": "  Alfa  "}).json()["id"]
+    assert client.get(f"/progetti/{pid}").json()["nome"] == "Alfa"
+    assert client.patch(f"/progetti/{pid}", json={"nome": "  Beta "}).json()["nome"] == "Beta"
+    assert client.patch(f"/progetti/{pid}", json={"nome": "   "}).status_code == 400
+
+
+def test_patch_istruzioni_null_e_vuote():
+    client, _, _ = prepara()
+    pid = client.post("/progetti", json={"nome": "P", "istruzioni": "Sii breve."}).json()["id"]
+    assert client.patch(f"/progetti/{pid}", json={"istruzioni": None}).json()["istruzioni"] == "Sii breve."
+    assert client.patch(f"/progetti/{pid}", json={"istruzioni": ""}).json()["istruzioni"] == ""
+
+
+def test_cancellazione_prenota_la_chat_e_poi_la_libera():
+    cancello = threading.Event()
+    client, _, agente = prepara(cancello=cancello)
+    pid = client.post("/progetti", json={"nome": "P"}).json()["id"]
+    a = client.post("/chat", json={"progetto_id": pid}).json()["id"]
+    b = client.post("/chat", json={"progetto_id": pid}).json()["id"]
+    primo = threading.Thread(target=lambda: turno(client, b))
+    primo.start()
+    try:
+        for _ in range(100):
+            if agente.chiamate:
+                break
+            time.sleep(0.05)
+        assert client.delete(f"/progetti/{pid}").status_code == 409
+        # la chat "a" era stata prenotata e va liberata: ora accetta un turno
+        agente.cancello = None
+        assert turno(client, a)[1][-1][0] == "fine"
+    finally:
+        cancello.set()
+        primo.join(10)
+    assert client.delete(f"/progetti/{pid}").status_code == 204
+    assert client.get(f"/chat/{a}").status_code == 404

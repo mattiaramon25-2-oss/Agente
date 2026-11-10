@@ -7,10 +7,10 @@ e il log non contiene mai il testo dei messaggi né le istruzioni.
 import logging
 from typing import Annotated
 
-from fastapi import FastAPI, Query, Request
+from fastapi import FastAPI, Path, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response, StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StringConstraints
 
 from assistente.http import RispostaJson, messaggio_validazione
 from servizio_backend.archivio import Archivio, DatabaseNonRaggiungibile, ErroreArchivio, ProgettoInesistente
@@ -24,23 +24,28 @@ MESSAGGIO_CANCELLAZIONE = "C'è un turno in corso in questa chat: aspetta che fi
 
 registro = logging.getLogger("servizio_backend")
 
+_MASSIMO_ID = 2**31 - 1  # gli id sono INTEGER nel database
+IdPercorso = Annotated[int, Path(ge=1, le=_MASSIMO_ID)]
+IdCorpo = Annotated[int, Field(ge=1, le=_MASSIMO_ID)]
+Nome = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
+
 
 class NuovoProgetto(BaseModel):
-    nome: str = Field(min_length=1, max_length=100)
+    nome: Nome
     istruzioni: str = Field(default="", max_length=4000)
 
 
 class ModificaProgetto(BaseModel):
-    nome: str | None = Field(default=None, min_length=1, max_length=100)
+    nome: Nome | None = None
     istruzioni: str | None = Field(default=None, max_length=4000)
 
 
 class NuovaChat(BaseModel):
-    progetto_id: int | None = None
+    progetto_id: IdCorpo | None = None
 
 
 class SpostaChat(BaseModel):
-    progetto_id: int | None  # obbligatorio, ma può essere null: la chat esce dal progetto
+    progetto_id: IdCorpo | None  # obbligatorio, ma può essere null: la chat esce dal progetto
 
 
 class NuovoMessaggio(BaseModel):
@@ -69,13 +74,18 @@ def crea_app(archivio: Archivio, agente) -> FastAPI:
 
     @app.exception_handler(DatabaseNonRaggiungibile)
     async def database_spento(richiesta: Request, eccezione: DatabaseNonRaggiungibile) -> JSONResponse:
-        registro.warning("richiesta endpoint=%s esito=errore database non raggiungibile", richiesta.url.path)
+        registro.warning("richiesta endpoint=%s esito=errore database non raggiungibile: %s", richiesta.url.path, eccezione)
         return _errore(503, MESSAGGIO_DATABASE)
 
     @app.exception_handler(ErroreArchivio)
     async def errore_archivio(richiesta: Request, eccezione: ErroreArchivio) -> JSONResponse:
         registro.warning("richiesta endpoint=%s esito=errore archivio %s", richiesta.url.path, type(eccezione).__name__)
         return _errore(500, "Errore dell'archivio delle chat.")
+
+    @app.exception_handler(Exception)
+    async def errore_imprevisto(richiesta: Request, eccezione: Exception) -> JSONResponse:
+        registro.exception("richiesta endpoint=%s esito=errore imprevisto", richiesta.url.path)
+        return _errore(500, f"Errore interno del back-end: {type(eccezione).__name__}.")
 
     @app.get("/salute", summary="Stato del back-end")
     def salute() -> dict:
@@ -93,22 +103,30 @@ def crea_app(archivio: Archivio, agente) -> FastAPI:
         return archivio.crea_progetto(corpo.nome, corpo.istruzioni)
 
     @app.get("/progetti/{id}", summary="Un progetto")
-    def leggi_progetto(id: int):
+    def leggi_progetto(id: IdPercorso):
         progetto = archivio.leggi_progetto(id)
         return progetto if progetto is not None else _non_trovato("Progetto", id)
 
     @app.patch("/progetti/{id}", summary="Cambia nome o istruzioni di un progetto")
-    def aggiorna_progetto(id: int, corpo: ModificaProgetto):
+    def aggiorna_progetto(id: IdPercorso, corpo: ModificaProgetto):
         progetto = archivio.aggiorna_progetto(id, corpo.nome, corpo.istruzioni)
         return progetto if progetto is not None else _non_trovato("Progetto", id)
 
     @app.delete("/progetti/{id}", status_code=204, summary="Cancella un progetto e le sue chat")
-    def cancella_progetto(id: int):
-        if any(turni.in_corso(chat["id"]) for chat in archivio.elenca_chat(progetto_id=id)):
-            return _errore(409, MESSAGGIO_CANCELLAZIONE)
-        if not archivio.cancella_progetto(id):
-            return _non_trovato("Progetto", id)
-        return Response(status_code=204)
+    def cancella_progetto(id: IdPercorso):
+        # Le chat del progetto si prenotano tutte, così nessun turno può cominciare durante la cancellazione.
+        prese: list[int] = []
+        try:
+            for chat in archivio.elenca_chat(progetto_id=id):
+                if not turni.occupa(chat["id"]):
+                    return _errore(409, MESSAGGIO_CANCELLAZIONE)
+                prese.append(chat["id"])
+            if not archivio.cancella_progetto(id):
+                return _non_trovato("Progetto", id)
+            return Response(status_code=204)
+        finally:
+            for chat_id in prese:
+                turni.libera(chat_id)
 
     # Chat
 
@@ -119,7 +137,7 @@ def crea_app(archivio: Archivio, agente) -> FastAPI:
             return archivio.elenca_chat()
         if progetto == "nessuno":
             return archivio.elenca_chat(senza_progetto=True)
-        if progetto.isascii() and progetto.isdigit():
+        if progetto.isascii() and progetto.isdigit() and 1 <= int(progetto) <= _MASSIMO_ID:
             return archivio.elenca_chat(progetto_id=int(progetto))
         return _errore(400, "Richiesta non valida: progetto: usa un numero oppure «nessuno».")
 
@@ -131,12 +149,12 @@ def crea_app(archivio: Archivio, agente) -> FastAPI:
             return _errore(404, f"Il progetto {corpo.progetto_id} non esiste.")
 
     @app.get("/chat/{id}", summary="Una chat con i suoi messaggi")
-    def leggi_chat(id: int):
+    def leggi_chat(id: IdPercorso):
         chat = archivio.leggi_chat(id)
         return chat if chat is not None else _non_trovato("Chat", id)
 
     @app.patch("/chat/{id}", summary="Sposta una chat in un progetto o la toglie dal progetto")
-    def sposta_chat(id: int, corpo: SpostaChat):
+    def sposta_chat(id: IdPercorso, corpo: SpostaChat):
         try:
             chat = archivio.sposta_chat(id, corpo.progetto_id)
         except ProgettoInesistente:
@@ -144,15 +162,18 @@ def crea_app(archivio: Archivio, agente) -> FastAPI:
         return chat if chat is not None else _non_trovato("Chat", id)
 
     @app.delete("/chat/{id}", status_code=204, summary="Cancella una chat")
-    def cancella_chat(id: int):
-        if turni.in_corso(id):
+    def cancella_chat(id: IdPercorso):
+        if not turni.occupa(id):
             return _errore(409, MESSAGGIO_CANCELLAZIONE)
-        if not archivio.cancella_chat(id):
-            return _non_trovato("Chat", id)
-        return Response(status_code=204)
+        try:
+            if not archivio.cancella_chat(id):
+                return _non_trovato("Chat", id)
+            return Response(status_code=204)
+        finally:
+            turni.libera(id)
 
     @app.post("/chat/{id}/messaggi", summary="Un turno di conversazione in streaming (SSE)")
-    def nuovo_messaggio(id: int, corpo: NuovoMessaggio):
+    def nuovo_messaggio(id: IdPercorso, corpo: NuovoMessaggio):
         testo = corpo.messaggio.replace("\ufeff", "").strip()
         if not testo:
             return _errore(400, "Richiesta non valida: il messaggio è vuoto.")

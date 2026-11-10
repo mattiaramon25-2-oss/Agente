@@ -17,8 +17,8 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from langchain_core.messages import AIMessage, messages_from_dict, messages_to_dict
 from pydantic import BaseModel, Field
 
-from assistente.http import RispostaJson, messaggio_validazione
 from assistente.grafo import esegui_turno, esegui_turno_in_streaming
+from assistente.http import RispostaJson, messaggio_validazione
 from assistente.registro import formatta
 from assistente.sse import formatta_sse
 from assistente.terminale import NESSUNA_RISPOSTA, chiamate_riuscite
