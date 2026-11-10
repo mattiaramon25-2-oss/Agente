@@ -133,3 +133,12 @@ def test_utf8_dichiarato_per_powershell():
     c = client([AIMessage("lunedì")])
     for risposta in (c.get("/salute"), c.post("/chat", json={"messaggio": "x"}), c.post("/chat", json={})):
         assert risposta.headers["content-type"] == "application/json; charset=utf-8"
+
+
+def test_istruzioni_arrivano_al_modello():
+    modello = ModelloFinto([AIMessage("ok")])
+    app = crea_app(crea_grafo(modello, [OROLOGIO], in_ambito(), AMBITO), fuso=FUSO, modello="m", origini={}, parametri={})
+    c = TestClient(app)
+    assert c.post("/chat", json={"messaggio": "ciao", "istruzioni": "Sii breve."}).status_code == 200
+    assert modello.chiamate[0][0].content.endswith("Sii breve.")
+    assert c.post("/chat", json={"messaggio": "ciao", "istruzioni": "x" * 4001}).status_code == 400
