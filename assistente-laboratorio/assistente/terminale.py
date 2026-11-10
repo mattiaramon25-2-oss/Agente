@@ -11,31 +11,44 @@ PAROLA_USCITA = "esci"
 NESSUNA_RISPOSTA = "(nessuna risposta dal modello)"
 
 
-def _valori(argomenti: Mapping[str, object], ordine: Sequence[str]) -> str:
-    """Valori degli argomenti nell'ordine dello schema (il modello può mandarli in qualsiasi ordine)."""
+def _ordinati(argomenti: Mapping[str, object], ordine: Sequence[str]) -> dict[str, object]:
+    """Argomenti nell'ordine dello schema (il modello può mandarli in qualsiasi ordine)."""
     nomi = [n for n in ordine if n in argomenti] + [n for n in argomenti if n not in ordine]
-    return ", ".join(str(argomenti[n]) for n in nomi)
+    return {n: argomenti[n] for n in nomi}
 
 
-def _righe_strumenti(
+def chiamate_riuscite(
     nuovi: list[BaseMessage], origini: Mapping[str, str], parametri: Mapping[str, Sequence[str]]
-) -> list[str]:
-    """Una riga per ogni chiamata eseguita con successo in questo turno, con la variante usata."""
+) -> list[dict]:
+    """Le chiamate eseguite con successo in questo turno: nome, variante usata e argomenti ordinati.
+
+    Le usano il terminale (righe `[nome · origine: valori]`) e il servizio HTTP (campo `strumenti`).
+    """
     richieste = {
         chiamata["id"]: chiamata
         for messaggio in nuovi
         if isinstance(messaggio, AIMessage)
         for chiamata in messaggio.tool_calls
     }
-    righe = []
+    riuscite = []
     for messaggio in nuovi:
         if isinstance(messaggio, ToolMessage) and messaggio.status != "error":
             chiamata = richieste.get(messaggio.tool_call_id)
             if chiamata:
                 nome = chiamata["name"]
-                valori = _valori(chiamata.get("args") or {}, parametri.get(nome, ()))
-                righe.append(f"[{nome} · {origini.get(nome, '?')}: {valori}]")
-    return righe
+                argomenti = _ordinati(chiamata.get("args") or {}, parametri.get(nome, ()))
+                riuscite.append({"nome": nome, "origine": origini.get(nome, "?"), "argomenti": argomenti})
+    return riuscite
+
+
+def _righe_strumenti(
+    nuovi: list[BaseMessage], origini: Mapping[str, str], parametri: Mapping[str, Sequence[str]]
+) -> list[str]:
+    """Una riga per ogni chiamata eseguita con successo in questo turno, con la variante usata."""
+    return [
+        f"[{c['nome']} · {c['origine']}: {', '.join(str(v) for v in c['argomenti'].values())}]"
+        for c in chiamate_riuscite(nuovi, origini, parametri)
+    ]
 
 
 class _StampaInStreaming:

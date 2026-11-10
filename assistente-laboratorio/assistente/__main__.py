@@ -5,14 +5,14 @@ import sys
 
 from dotenv import load_dotenv
 
+from assistente.agente import crea_agente
 from assistente.ambito import carica_ambito
 from assistente.avvio import prepara_strumenti
 from assistente.configurazione import ErroreConfigurazione, carica_configurazione
 from assistente.console import configura_flussi
 from assistente.errori import ErroreAvvio
 from assistente.fuso import rileva_fuso
-from assistente.grafo import crea_grafo
-from assistente.modello import ErroreServer, crea_modello, crea_router, verifica_server
+from assistente.modello import ErroreServer, verifica_server
 from assistente.registro import LOG_ASSISTENTE, configura_registro
 from assistente.terminale import esegui_sessione
 from assistente.varianti import origini, parametri
@@ -34,7 +34,7 @@ def main() -> int:
         verifica_server(config.base_url, config.modello)
         fuso = rileva_fuso(os.environ)
         with prepara_strumenti(config) as strumenti:
-            grafo = crea_grafo(crea_modello(config, strumenti), strumenti, crea_router(config), ambito)
+            grafo = crea_agente(config, strumenti, ambito)
             esegui_sessione(
                 grafo, fuso, origini=origini(strumenti), parametri=parametri(strumenti), scrivi_pezzo=scrivi_pezzo
             )

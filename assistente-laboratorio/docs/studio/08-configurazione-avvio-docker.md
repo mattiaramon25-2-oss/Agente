@@ -137,6 +137,7 @@ Il file è cresciuto un pezzo alla volta, insieme al progetto (`git log --follow
 | `VARIANTE_CALCOLATRICE` | sì | `configurazione.py:71-73` | `mcp` o `locale`, ignorando maiuscole e spazi (`leggi_variante`, righe 37-41). | `VARIANTE_CALCOLATRICE non valida: 'remota'. Valori ammessi: mcp, locale.` |
 | `VARIANTE_SCADENZE` | sì | `configurazione.py:55` | `mcp` o `fastapi`, con le stesse regole. | `VARIANTE_SCADENZE non valida: 'HTTP'. Valori ammessi: mcp, fastapi.` |
 | `API_PORTA` | solo con `fastapi` | `configurazione.py:57-66` | Come `MCP_PORTA`, e in più diversa da `MCP_PORTA`. Con `mcp` non viene **nemmeno letta**. | `Variabili d'ambiente mancanti: API_PORTA (serve con VARIANTE_SCADENZE=fastapi). …` oppure `API_PORTA deve essere diversa da MCP_PORTA.` |
+| `AGENTE_PORTA` | solo per `python -m servizio_agente` (lezione 6, step 6) | `leggi_porta_agente` in `configurazione.py` | Come `MCP_PORTA`, e in più diversa da `MCP_PORTA` e `API_PORTA`. La CLI non la legge. | `Variabili d'ambiente mancanti: AGENTE_PORTA (serve al servizio HTTP dell'agente). …` |
 | `LMSTUDIO_BASE_URL_DOCKER` | solo per Docker | **Compose**, non Python | `:?` in `compose.yaml:7` | Compose si ferma prima di creare il container (vedi [7.4](#74-composeyaml-riga-per-riga)). |
 | `FUSO_ORARIO` | no | `fuso.py:47-50` | Deve essere un nome IANA esatto (`è_fuso_valido`). | Nessun messaggio proprio. Se non è valida viene ignorata, e se non resta nient'altro si usa UTC con l'avviso. |
 
@@ -178,7 +179,7 @@ Il messaggio delle variabili mancanti chiede di *aggiungere* le righe prendendol
 
 ### 1.5 Stato attuale del `.env` di questo computer
 
-Oggi il `.env` reale contiene tutte le otto variabili di `.env.example`, comprese `MCP_PORTA`, `VARIANTE_CALCOLATRICE`, `VARIANTE_SCADENZE` e `API_PORTA`. Passato a `carica_configurazione`, senza avviare nulla, viene accettato (verificato il 2026-11-09).
+Dal 9 novembre `.env.example` ha anche `AGENTE_PORTA=8767` (servizio HTTP dell'agente), aggiunta anche al `.env` reale. Prima dello step 6 il `.env` reale conteneva tutte le otto variabili di `.env.example`, comprese `MCP_PORTA`, `VARIANTE_CALCOLATRICE`, `VARIANTE_SCADENZE` e `API_PORTA`. Passato a `carica_configurazione`, senza avviare nulla, viene accettato (verificato il 2026-11-09).
 
 Un `.env` fermo alla lezione 3 contiene invece solo quattro chiavi: `LMSTUDIO_BASE_URL`, `LMSTUDIO_BASE_URL_DOCKER`, `LMSTUDIO_MODEL` e `FUSO_ORARIO`. Passandolo a `carica_configurazione`, senza avviare nulla, il risultato è (eseguito):
 

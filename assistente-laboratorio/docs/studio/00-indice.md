@@ -80,7 +80,7 @@ Le slide del docente (`LLM_Lez_6.pdf`, 19 slide, fuori dal repository) dividono 
 | 3 · Riassunto | un nodo LLM comprime la cronologia oltre una soglia | informazione del primo turno ancora usata dopo la compressione |
 | 4 · Resource | preferenze dell'utente lette dal server MCP a inizio sessione | preferenze applicate cambiando il file, non il codice |
 | 5 · Prompt | comandi `/prompts` e `/prompt` nella CLI | comandi funzionanti, con argomenti validati |
-| 6 · Agente come servizio | l'agente risponde anche via HTTP | stessa risposta dalla CLI e dall'API |
+| 6 · Agente come servizio (fatto, branch `dev-grafica-gui`: [13](13-agente-come-servizio.md)) | l'agente risponde anche via HTTP | stessa risposta dalla CLI e dall'API |
 | 7 · Back-end | API per le chat, salvate in PostgreSQL | chat ancora presenti dopo il riavvio |
 | 8 · Front-end | interfaccia di chat nel browser | conversazione completa dal browser, errori mostrati |
 | 9 · Docker Compose | quattro container: front-end, back-end, agente, database | quattro container avviati con un comando |
@@ -106,6 +106,7 @@ Le slide del docente (`LLM_Lez_6.pdf`, 19 slide, fuori dal repository) dividono 
 | 10 | [Log, diagnosi e limiti noti](10-log-e-diagnosi.md) | i tre file di log, la diagnosi per livelli, che cosa il codice non può impedire |
 | 11 | [Storia del progetto e decisioni](11-storia-del-progetto.md) | dalla base del 2 novembre alla revisione unita il 9 novembre, con le decisioni prese |
 | 12 | [Glossario e domande di ripasso](12-glossario-e-domande.md) | i termini tecnici e le domande tipiche dell'orale |
+| 13 | [L'agente come servizio HTTP](13-agente-come-servizio.md) | lezione 6, step 6: `python -m servizio_agente`, `/salute` e `/chat`, stessa risposta della CLI |
 
 ---
 

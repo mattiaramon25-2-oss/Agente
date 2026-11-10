@@ -74,3 +74,19 @@ def carica_configurazione(env: Mapping[str, str]) -> Configurazione:
         variante_scadenze=variante_scadenze,
         porta_api=porta_api,
     )
+
+
+def leggi_porta_agente(env: Mapping[str, str], config: Configurazione) -> int:
+    """AGENTE_PORTA, che serve solo al servizio HTTP dell'agente (python -m servizio_agente)."""
+    testo = (env.get("AGENTE_PORTA") or "").strip()
+    if not testo:
+        raise ErroreConfigurazione(
+            "Variabili d'ambiente mancanti: AGENTE_PORTA (serve al servizio HTTP dell'agente). "
+            "Aggiungila al file .env, per esempio AGENTE_PORTA=8767."
+        )
+    porta = leggi_porta("AGENTE_PORTA", testo)
+    if porta == config.porta_mcp:
+        raise ErroreConfigurazione("AGENTE_PORTA deve essere diversa da MCP_PORTA.")
+    if porta == config.porta_api:
+        raise ErroreConfigurazione("AGENTE_PORTA deve essere diversa da API_PORTA.")
+    return porta

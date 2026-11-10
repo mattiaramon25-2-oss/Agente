@@ -92,3 +92,16 @@ def test_porta_api_uguale_a_quella_mcp():
 def test_con_mcp_la_porta_api_e_ignorata():
     config = carica_configurazione({**COMPLETA, "VARIANTE_SCADENZE": "mcp", "API_PORTA": "non valida"})
     assert (config.variante_scadenze, config.porta_api) == ("mcp", None)
+
+
+def test_porta_agente():
+    from assistente.configurazione import leggi_porta_agente
+
+    config = Configurazione("http://x/v1", "m", 8765, variante_scadenze="fastapi", porta_api=8766)
+    assert leggi_porta_agente({"AGENTE_PORTA": " 8767 "}, config) == 8767
+    for valore, testo in [("", "AGENTE_PORTA=8767"), ("80", "tra 1024 e 65535"), ("abc", "tra 1024 e 65535"),
+                          ("8765", "diversa da MCP_PORTA"), ("8766", "diversa da API_PORTA")]:
+        with pytest.raises(ErroreConfigurazione, match=testo):
+            leggi_porta_agente({"AGENTE_PORTA": valore}, config)
+    with pytest.raises(ErroreConfigurazione, match="AGENTE_PORTA"):
+        leggi_porta_agente({}, config)
