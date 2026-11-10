@@ -80,7 +80,12 @@ def database_di_prova() -> Iterator[DatabaseProva]:
         dsn = make_conninfo(host="127.0.0.1", port=porta, user="prova", password="prova", dbname="prova", connect_timeout=5)
         yield DatabaseProva(dsn=dsn, env=env)
     finally:
-        _compose(env, "down", "-v", controlla=False)
+        pulizia = _compose(env, "down", "-v", controlla=False)
+        if pulizia.returncode != 0:
+            print(
+                f"\nATTENZIONE: la pulizia del progetto Compose {PROGETTO_PROVA} è fallita "
+                f"(codice {pulizia.returncode}): controlla container e volume a mano.\n{pulizia.stderr}"
+            )
 
 
 def svuota(dsn: str) -> None:

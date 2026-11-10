@@ -1,9 +1,8 @@
 """Contratto dell'archivio delle chat: vale per ogni implementazione."""
 import pytest
 
-from servizio_backend.archivio import ChatInesistente, ProgettoInesistente
+from servizio_backend.archivio import ArchivioPostgres, ChatInesistente, ProgettoInesistente
 from servizio_backend.testi import TITOLO_PREDEFINITO
-from servizio_backend.archivio import ArchivioPostgres
 from tests.finti_backend import ArchivioInMemoria
 from tests.postgres_prova import database_di_prova, svuota
 
@@ -194,3 +193,28 @@ def test_istruzioni_nel_contesto_turno(archivio):
     assert archivio.contesto_turno(chat["id"])[1] == "Sii breve."
     archivio.sposta_chat(chat["id"], None)
     assert archivio.contesto_turno(chat["id"])[1] == ""
+
+
+@pytest.mark.docker
+def test_postgres_turno_fallito_non_salva_nulla(database):
+    """Il turno e' una transazione: se fallisce dopo i due INSERT, il rollback annulla anche i messaggi."""
+    a = ArchivioPostgres(database.dsn)
+    a.prepara()
+    svuota(database.dsn)
+    chat = a.crea_chat(None)
+    a.salva_turno(chat["id"], "domanda iniziale", "risposta iniziale", [], [{"n": 1}])
+    prima = a.leggi_chat(chat["id"])
+    # Jsonb non sa scrivere un object(): l'errore arriva all'UPDATE, dopo i due INSERT gia' eseguiti.
+    with pytest.raises(TypeError):
+        a.salva_turno(chat["id"], "domanda zebra", "risposta zebra", [], [object()])
+    dopo = a.leggi_chat(chat["id"])
+    assert [m["testo"] for m in dopo["messaggi"]] == ["domanda iniziale", "risposta iniziale"]
+    assert dopo["titolo"] == prima["titolo"]
+    assert a.cerca("zebra") == []
+    assert a.contesto_turno(chat["id"]) == ([{"n": 1}], "")
+    # titolo ancora nullo: una chat vuota con turno fallito resta «Nuova chat»
+    vuota = a.crea_chat(None)
+    with pytest.raises(TypeError):
+        a.salva_turno(vuota["id"], "domanda", "risposta", [], [object()])
+    assert a.leggi_chat(vuota["id"])["titolo"] == TITOLO_PREDEFINITO
+    assert a.leggi_chat(vuota["id"])["messaggi"] == []

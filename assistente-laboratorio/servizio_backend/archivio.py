@@ -78,6 +78,7 @@ class Archivio(Protocol):
 
 _SCHEMA = Path(__file__).with_name("schema.sql")
 _LIMITE_RICERCA = 50
+_BARRA = "\\"  # carattere di escape della ricerca ILIKE
 
 
 def _iso(momento: datetime) -> str:
@@ -233,8 +234,7 @@ class ArchivioPostgres:
         return {"messaggio_utente_id": utente, "messaggio_assistente_id": assistente, "titolo": riga["titolo"]}
 
     def cerca(self, q: str) -> list[dict]:
-        barra = chr(92)
-        schema = q.replace(barra, barra + barra).replace("%", barra + "%").replace("_", barra + "_")
+        schema = q.replace(_BARRA, _BARRA * 2).replace("%", _BARRA + "%").replace("_", _BARRA + "_")
         with self._connessione() as c:
             righe = c.execute(
                 r"""SELECT m.chat_id, COALESCE(c.titolo, %s) AS titolo, c.progetto_id, m.id AS messaggio_id, m.ruolo, m.testo
