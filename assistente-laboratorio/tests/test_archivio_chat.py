@@ -3,14 +3,28 @@ import pytest
 
 from servizio_backend.archivio import ChatInesistente, ProgettoInesistente
 from servizio_backend.testi import TITOLO_PREDEFINITO
+from servizio_backend.archivio import ArchivioPostgres
 from tests.finti_backend import ArchivioInMemoria
+from tests.postgres_prova import database_di_prova, svuota
 
 
-@pytest.fixture(params=["memoria"])
+@pytest.fixture(scope="module")
+def database():
+    """Un solo database PostgreSQL di prova per tutto il modulo."""
+    with database_di_prova() as db:
+        yield db
+
+
+@pytest.fixture(params=["memoria", pytest.param("postgres", marks=pytest.mark.docker)])
 def archivio(request):
     if request.param == "memoria":
         a = ArchivioInMemoria()
+        a.prepara()
+        return a
+    db = request.getfixturevalue("database")
+    a = ArchivioPostgres(db.dsn)
     a.prepara()
+    svuota(db.dsn)
     return a
 
 
