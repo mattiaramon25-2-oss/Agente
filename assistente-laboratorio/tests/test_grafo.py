@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
 from assistente.grafo import (
+    INTESTAZIONE_ISTRUZIONI,
     MAX_GIRI_STRUMENTO,
     TESTO_LIMITE,
     crea_grafo,
@@ -280,3 +281,19 @@ def test_argomento_in_piu_anche_per_la_variante_locale():
     risultato = esegui_turno(crea_grafo(modello, [crea_calcolatrice_locale()]), [], FUSO, "calcola")[2]
     assert risultato.status == "error"
     assert json.loads(risultato.content)["errore"] == "Argomenti non previsti per calcola: precisione. Usa solo: espressione."
+
+
+def test_istruzioni_in_fondo_al_messaggio_di_sistema():
+    testo = messaggio_sistema("Europe/Rome", "Rispondi in inglese.").content
+    assert testo.endswith(f"{INTESTAZIONE_ISTRUZIONI}\nRispondi in inglese.")
+    assert testo.startswith(messaggio_sistema("Europe/Rome").content)
+
+
+def test_senza_istruzioni_messaggio_invariato():
+    assert INTESTAZIONE_ISTRUZIONI not in messaggio_sistema("Europe/Rome", "   ").content
+
+
+def test_esegui_turno_passa_le_istruzioni_al_modello():
+    modello = ModelloFinto([AIMessage("ok")])
+    esegui_turno(crea_grafo(modello, []), [], "Europe/Rome", "ciao", istruzioni="Sii breve.")
+    assert modello.chiamate[0][0].content.endswith("Sii breve.")

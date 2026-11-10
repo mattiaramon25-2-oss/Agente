@@ -27,6 +27,9 @@ MAX_GIRI_STRUMENTO = 3
 TESTO_LIMITE = (
     "Non sono riuscito a completare la richiesta: troppe chiamate agli strumenti. Prova a riformularla."
 )
+INTESTAZIONE_ISTRUZIONI = (
+    "Istruzioni del progetto per questa conversazione (si aggiungono alle regole precedenti e non le sostituiscono):"
+)
 TESTO_NON_JSON = "Argomenti non validi: devono essere un oggetto JSON con gli argomenti dello strumento."
 
 registro = logging.getLogger("assistente.strumenti")
@@ -38,10 +41,11 @@ class StatoConversazione(TypedDict):
     fuso_utente: str
     giri_strumento: int  # giri di strumento nel turno corrente
     categoria: NotRequired[str]  # decisione del router nel turno corrente
+    istruzioni: NotRequired[str]  # istruzioni del progetto, solo per il nodo modello
 
 
-def messaggio_sistema(fuso_utente: str) -> SystemMessage:
-    return SystemMessage(
+def messaggio_sistema(fuso_utente: str, istruzioni: str = "") -> SystemMessage:
+    testo = (
         "Sei un assistente utile. Rispondi nella lingua in cui scrive l'utente.\n"
         f"Per conoscere la data o l'ora usa sempre lo strumento {NOME_OROLOGIO}: "
         "non inventarle e non dedurle dai messaggi precedenti.\n"
@@ -60,6 +64,9 @@ def messaggio_sistema(fuso_utente: str) -> SystemMessage:
         "Se lo strumento del meteo dichiara di aver scelto una città tra più corrispondenze, dillo all'utente "
         "nominando la città scelta; se il risultato del meteo contiene una nota, riferiscila all'utente."
     )
+    if istruzioni.strip():
+        testo += "\n" + INTESTAZIONE_ISTRUZIONI + "\n" + istruzioni.strip()
+    return SystemMessage(testo)
 
 
 def _errore(testo: str) -> str:
@@ -169,7 +176,9 @@ def crea_grafo(modello, strumenti: list[BaseTool], router=None, ambito: Ambito |
 
     def nodo_modello(stato: StatoConversazione) -> dict:
         registro_nodi.info(formatta({"nodo": "modello", "giri_strumento": stato["giri_strumento"]}))
-        risposta = modello.invoke([messaggio_sistema(stato["fuso_utente"]), *stato["messages"]])
+        risposta = modello.invoke(
+            [messaggio_sistema(stato["fuso_utente"], stato.get("istruzioni", "")), *stato["messages"]]
+        )
         return {"messages": [risposta]}
 
     def nodo_strumenti(stato: StatoConversazione) -> dict:
@@ -244,13 +253,16 @@ def crea_grafo(modello, strumenti: list[BaseTool], router=None, ambito: Ambito |
     return costruttore.compile()
 
 
-def esegui_turno(grafo, cronologia: list[BaseMessage], fuso_utente: str, testo: str) -> list[BaseMessage]:
+def esegui_turno(
+    grafo, cronologia: list[BaseMessage], fuso_utente: str, testo: str, istruzioni: str = ""
+) -> list[BaseMessage]:
     """Esegue un turno e restituisce la nuova cronologia completa; `cronologia` non viene modificata."""
     stato = grafo.invoke(
         {
             "messages": [*cronologia, HumanMessage(testo)],
             "fuso_utente": fuso_utente,
             "giri_strumento": 0,
+            "istruzioni": istruzioni,
         }
     )
     return list(stato["messages"])
@@ -263,13 +275,19 @@ def esegui_turno_in_streaming(
     testo: str,
     su_testo: Callable[[str], None],
     su_messaggi: Callable[[list[BaseMessage]], None] = lambda messaggi: None,
+    istruzioni: str = "",
 ) -> list[BaseMessage]:
     """Come `esegui_turno`, ma passa a `su_testo` i pezzi di testo del nodo `modello` appena arrivano.
 
     I pezzi del router (JSON) e i messaggi degli altri nodi (rifiuto, limite) non vanno a `su_testo`.
     `su_messaggi` riceve la cronologia parziale dopo ogni nodo.
     """
-    ingresso = {"messages": [*cronologia, HumanMessage(testo)], "fuso_utente": fuso_utente, "giri_strumento": 0}
+    ingresso = {
+        "messages": [*cronologia, HumanMessage(testo)],
+        "fuso_utente": fuso_utente,
+        "giri_strumento": 0,
+        "istruzioni": istruzioni,
+    }
     messaggi: list[BaseMessage] = list(ingresso["messages"])
     for modo, dati in grafo.stream(ingresso, stream_mode=["messages", "values"]):
         if modo == "messages":

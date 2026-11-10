@@ -97,3 +97,12 @@ def test_senza_router_il_grafo_resta_quello_della_lezione_5():
 def test_router_e_ambito_vanno_insieme():
     with pytest.raises(ValueError):
         crea_grafo(ModelloFinto([]), [], RouterFinto([]), None)
+
+
+def test_router_non_vede_le_istruzioni():
+    modello, router, grafo = prepara(
+        [DecisioneRouter(categoria="conversazione", motivo="saluto")], [AIMessage("ok")]
+    )
+    esegui_turno(grafo, [], FUSO, "ciao", istruzioni="Sii breve.")
+    assert modello.chiamate[0][0].content.endswith("Sii breve.")
+    assert all("Sii breve." not in str(m.content) for m in router.chiamate[0])

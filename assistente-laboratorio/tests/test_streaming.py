@@ -66,3 +66,10 @@ def test_la_cronologia_passata_non_cambia():
     copia = list(cronologia)
     esegui(grafo_con([AIMessage("Ciao!")]), "ciao", cronologia)
     assert cronologia == copia
+
+
+def test_streaming_passa_le_istruzioni_al_modello():
+    modello = ModelloFinto([AIMessage("ok")])
+    grafo = crea_grafo(modello, [OROLOGIO])
+    esegui_turno_in_streaming(grafo, [], FUSO, "ciao", lambda pezzo: None, istruzioni="Sii breve.")
+    assert modello.chiamate[0][0].content.endswith("Sii breve.")
