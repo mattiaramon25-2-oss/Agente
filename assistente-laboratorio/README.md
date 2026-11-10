@@ -285,6 +285,24 @@ Con l'ingresso da una pipe serve l'opzione `-T`:
 > Verificato con ingresso da pipe (`avvia.ps1 -SenzaTty` e il comando sopra). L'avvio interattivo
 > `.\avvia.ps1` da tastiera va ancora confermato.
 
+### Il servizio dell'agente in Docker
+
+Il servizio HTTP dell'agente ha un servizio Compose suo, `agente`, costruito dalla stessa immagine.
+Il container avvia e spegne il suo server MCP, come la CLI. La porta `AGENTE_PORTA` è pubblicata
+**solo** su `127.0.0.1` dell'host (il servizio non ha autenticazione); dentro il container il
+servizio ascolta su `0.0.0.0` perché Compose imposta `AGENTE_HOST=0.0.0.0`.
+
+```powershell
+.\avvia-agente.ps1
+```
+
+Lo script passa il fuso di Windows (`FUSO_HOST_WINDOWS`) e lancia `docker compose up --build agente`.
+Quando compare la riga `Servizio dell'agente in ascolto su 0.0.0.0:8767 …`, il servizio risponde
+su `http://127.0.0.1:8767` con gli stessi comandi `Invoke-RestMethod` dell'avvio diretto. `Ctrl+C`
+ferma il container: Docker manda `SIGTERM`, il servizio si chiude in modo ordinato e spegne il
+server MCP (codice di uscita 0, `arresto servizio agente` nel log). Senza lo script
+(`docker compose up agente`) il fuso viene da `FUSO_ORARIO`.
+
 ## Test
 
 Test automatici (non servono né LM Studio né Docker; il modello è simulato):
@@ -320,6 +338,9 @@ Prova reale con LM Studio acceso, ogni domanda in una sessione nuova:
 - note, su un archivio temporaneo (mai quello reale): «Ricordami di consegnare il report venerdì»
   (una sola `add_note`), «Elimina la nota 99» (errore, nessuna eliminazione), riavvio e «Quali note
   ho salvato?» (la nota c'è ancora); «Elimina la nota sul report» è solo osservato e riportato;
+- servizio HTTP in Docker (con `--docker`): `docker compose up -d agente`, `/salute` dall'host con il
+  fuso di Windows, «Quanti metri sono 2,5 km?» con `converti_unita`, il rifiuto della poesia, poi
+  `docker compose stop` con uscita 0 e server MCP spento nel log;
 - servizio HTTP: «scrivimi una poesia sul mare» alla CLI e a `POST /chat` (uvicorn su una porta
   vera) deve dare lo stesso rifiuto; «Quanto fa (3+4)*2?» deve dare 14 con una chiamata a
   `calcola` in entrambe;

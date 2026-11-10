@@ -85,7 +85,7 @@ Le slide del docente (`LLM_Lez_6.pdf`, 19 slide, fuori dal repository) dividono 
 | 8 · Front-end | interfaccia di chat nel browser | conversazione completa dal browser, errori mostrati |
 | 9 · Docker Compose | quattro container: front-end, back-end, agente, database | quattro container avviati con un comando |
 
-**Stato.** Il branch `dev-lezione_6` è aperto e parte da `dev`. Non c'è ancora né specifica né codice. Si comincia dagli step da terminale; l'interfaccia grafica (step 6–9) arriverà più avanti. Quando uno step sarà fatto, i capitoli interessati riceveranno la loro parte, a partire da 04 Il grafo.
+**Stato.** Fatti lo step 1 (router, con in più lo streaming della risposta) e lo step 6 (agente come servizio HTTP), che dal 10 novembre gira anche in Docker come servizio Compose `agente` ([08, sezione 7.9](08-configurazione-avvio-docker.md#79-il-servizio-dellagente-in-docker)). Per l'interfaccia grafica restano gli step 7 (back-end), 8 (front-end) e 9 (quattro container); restano anche gli step 2–5. Quando uno step è fatto, i capitoli interessati ricevono la loro parte.
 
 ---
 

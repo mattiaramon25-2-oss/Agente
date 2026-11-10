@@ -15,6 +15,7 @@
 5. **Prima i controlli che costano poco.** L'ordine è: configurazione, log, LM Studio, fuso. Solo alla fine partono i processi figli, cioè i programmi che l'assistente avvia da sé. Un figlio è «pronto» solo quando risponde davvero, entro 10 secondi. → sezione 5
 6. **In Docker tutto sta in un container, tranne LM Studio.** Assistente, server MCP e servizio FastAPI girano insieme e si parlano su `127.0.0.1`: nessuna porta va aperta. LM Studio resta sul computer host. Lo script `avvia.ps1` passa al container il fuso di Windows. → sezione 7
 7. **Spegnere vuol dire chiedere, aspettare, imporre.** L'assistente chiede ai figli di chiudersi e aspetta 5 secondi. Solo se sono ancora vivi li uccide. Il figlio trasforma la richiesta in un'uscita normale, con codice 0 e una riga nel log. → sezione 8
+8. **Il servizio dell'agente ha un container suo** (10 novembre). Il servizio Compose `agente` usa la stessa immagine, avvia il suo server MCP e pubblica `AGENTE_PORTA` solo su `127.0.0.1` dell'host; dentro ascolta su `0.0.0.0` (`AGENTE_HOST`). Si avvia con `avvia-agente.ps1`. → sezione 7.9
 
 **Il quadro**
 
@@ -633,6 +634,7 @@ Tutti i comandi sono per PowerShell, dalla cartella `assistente-laboratorio/`, c
 | Docker, modo documentato | `docker compose build` e poi `.\avvia.ps1` | `… (host Windows)` | L'avvio interattivo da tastiera è ancora **da confermare** (README e checkpoint del passo 7). |
 | Docker con pipe tramite lo script | `avvia.ps1 -SenzaTty` | `… (host Windows)` | Usato dalla prova reale Docker. |
 | Docker senza lo script | `"Che ore sono?", "esci" \| docker compose run --rm -T assistente` | `Europe/Rome (FUSO_ORARIO)` | Se manca anche `FUSO_ORARIO`: UTC con avviso. |
+| Docker, servizio dell'agente | `.\avvia-agente.ps1` (oppure `docker compose up --build agente`) | `… (host Windows)` (senza lo script: `FUSO_ORARIO`) | HTTP su `http://127.0.0.1:8767`; Ctrl+C ferma il container in modo ordinato (vedi [7.9](#79-il-servizio-dellagente-in-docker)). |
 | Docker con varianti | `"Che tempo fa a Udine?", "esci" \| docker compose run --rm -T -e VARIANTE_SCADENZE=fastapi -e API_PORTA=8766 -e VARIANTE_CALCOLATRICE=locale assistente` | `Europe/Rome (FUSO_ORARIO)` | Varianti forzate senza cambiare il `.env` (vedi [7.7](#77-le-varianti-nel-container-con--e)). |
 
 **Come si esce.** Si scrive `esci` (maiuscole indifferenti), si preme Ctrl+C, oppure finisce l'ingresso (EOF, come a fine pipe). In tutti i casi il server viene spento (README, «Avvio diretto»).
@@ -904,6 +906,35 @@ Dal checkpoint del passo 7 (2026-11-08) e dal README: **6 prove Docker su 6** ne
 **Da non fare:** usare nello stesso momento l'assistente avviato direttamente e quello in Docker. Condividono `archivio/note.sqlite3` attraverso il volume, e su Windows i blocchi di SQLite tra host e container non sono affidabili (README, Diagnosi, voce «Le note»).
 
 ---
+
+### 7.9 Il servizio dell'agente in Docker
+
+Dal 10 novembre (specifica `docs/superpowers/specs/2026-11-10-docker-agente-design.md`) il
+`Dockerfile` copia anche `servizio_agente/` e `compose.yaml` ha un secondo servizio:
+
+| Riga di `agente` | Perché |
+|---|---|
+| `build: .` | stessa immagine della CLI: Compose la etichetta `assistente-laboratorio-agente` |
+| `command: ["python", "-m", "servizio_agente"]` | al posto della CLI parte il servizio HTTP |
+| `AGENTE_PORTA: ${AGENTE_PORTA:?…}` | obbligatoria, con un messaggio se manca nel `.env` |
+| `AGENTE_HOST: 0.0.0.0` | nel container la porta pubblicata arriva dall'interfaccia di rete, non da `127.0.0.1`: con il valore predefinito il servizio sarebbe irraggiungibile |
+| `FUSO_HOST_WINDOWS: ${FUSO_HOST_WINDOWS:-}` | lo imposta `avvia-agente.ps1`; vuoto se si usa Compose a mano |
+| `ports: "127.0.0.1:${AGENTE_PORTA}:${AGENTE_PORTA}"` | pubblicata solo sull'host locale: il servizio non ha autenticazione |
+| volumi `./logs` e `./archivio`, `extra_hosts` | come per la CLI |
+
+Il server MCP resta nel container del servizio, come nella CLI: ogni container ha il suo, sulla
+sua rete interna, quindi CLI e servizio possono girare insieme senza conflitti di porta. Si
+condividono invece `logs/` e `archivio/` sull'host.
+
+**Arresto.** `Ctrl+C` su `docker compose up` (o `docker compose stop`) manda `SIGTERM`. Uvicorn
+chiude il server HTTP, il gestore di `servizio_agente/__main__.py` trasforma il segnale in uscita
+normale e `prepara_strumenti` spegne il server MCP. Prova Docker del 10 novembre: codice di uscita
+del container 0, nel log `arresto servizio agente` e `spento server MCP codice=0`.
+
+**Prova reale** (`tests/test_reale_docker_agente.py`, con `--docker`): `docker compose up -d agente`;
+`/salute` dall'host con `fuso: Europe/Berlin` (dal fuso di Windows); «Quanti metri sono 2,5 km?» →
+«2,5 km sono 2500 metri.» con `converti_unita` via MCP; la poesia → il rifiuto del file; arresto
+ordinato come sopra. Come le altre prove Docker, sposta da parte `logs/` e `archivio/`.
 
 ## 8. Arresto ordinato e segnali
 
@@ -1206,6 +1237,13 @@ Una presentazione di circa 10 slide su questo capitolo. Ogni slide: titolo, tre 
 - Il figlio esce con codice 0 e scrive l'arresto nel log
 
 *Da mostrare:* il codice di `ferma()` in `assistente/avvio_server.py:58-76` e il diagramma della sezione 8.5.
+
+### Slide 10 bis · Il servizio dell'agente in Docker
+- Secondo servizio Compose `agente`, stessa immagine
+- Porta pubblicata solo su `127.0.0.1`, dentro `AGENTE_HOST=0.0.0.0`
+- `avvia-agente.ps1`; Ctrl+C ferma tutto con codice 0
+
+*Da mostrare:* la tabella della sezione 7.9.
 
 ### Slide 10 · Che cosa ricordare
 - Configurazione fuori dal codice, controllata per prima
