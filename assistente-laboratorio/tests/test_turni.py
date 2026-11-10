@@ -100,7 +100,8 @@ def test_salvataggio_fallito():
     cancello.set()
     eventi = list(leggi_sse(righe(turno.eventi_sse())))
     turno.attendi(5)
-    assert eventi[-1][0] == "errore" and turno.esito == "errore" and chiamate == [1]
+    assert eventi[-1][0] == "errore" and "non è stato salvato" in eventi[-1][1]["errore"]
+    assert turno.esito == "errore" and chiamate == [1]
     archivio.spento = False
     assert archivio.leggi_chat(chat_id)["messaggi"] == []
 
@@ -122,3 +123,32 @@ def test_log_senza_testi(caplog):
     assert f"richiesta endpoint=/chat/{chat_id}/messaggi chat_id={chat_id} esito=ok" in caplog.text
     assert 'strumenti=["ora_attuale"]' in caplog.text and "scollegato=false" in caplog.text and "durata=" in caplog.text
     assert "Che ore sono?" not in caplog.text and "Sono le 10." not in caplog.text
+
+
+def test_registro_libero_quando_arriva_fine():
+    archivio = ArchivioInMemoria()
+    chat_id = archivio.crea_chat(None)["id"]
+    registro = RegistroTurni()
+    assert registro.occupa(chat_id)
+    turno = Turno(chat_id, "d", AgenteFinto(EVENTI).apri_turno("d", [], ""), archivio, lambda: registro.libera(chat_id))
+    turno.avvia()
+    for nome, _ in leggi_sse(righe(turno.eventi_sse())):
+        if nome == "fine":
+            assert registro.in_corso(chat_id) is False
+            break
+    else:
+        raise AssertionError("fine non ricevuto")
+
+
+def test_eccezione_imprevista_senza_testi(caplog):
+    class Rotto(ArchivioInMemoria):
+        def salva_turno(self, *args):
+            raise ValueError("testo segreto")
+
+    archivio = Rotto()
+    chat_id = archivio.crea_chat(None)["id"]
+    turno = Turno(chat_id, "d", AgenteFinto(EVENTI).apri_turno("d", [], ""), archivio, lambda: None)
+    with caplog.at_level(logging.INFO, logger="servizio_backend"):
+        eventi = leggi(turno)
+    assert eventi[-1][0] == "errore" and "ValueError" in eventi[-1][1]["errore"]
+    assert "testo segreto" not in eventi[-1][1]["errore"] and turno.esito == "errore"

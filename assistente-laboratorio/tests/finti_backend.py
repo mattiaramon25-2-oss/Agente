@@ -210,7 +210,7 @@ class TurnoFinto:
             if self._interrompi_dopo is not None and numero >= self._interrompi_dopo:
                 raise AgenteInterrotto("Il collegamento con l'agente si è interrotto.")
             if nome == "fine" and self._cancello is not None:
-                self._cancello.wait()
+                self._cancello.wait(5)
             yield nome, dati
         if self._interrompi_dopo is not None and len(self._eventi) <= self._interrompi_dopo:
             raise AgenteInterrotto("Il collegamento con l'agente si è interrotto.")

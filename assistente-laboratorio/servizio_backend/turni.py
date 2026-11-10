@@ -51,6 +51,7 @@ class Turno:
         self._archivio = archivio
         self._al_termine = al_termine
         self._coda: queue.Queue = queue.Queue()
+        self._finale: tuple[str, dict] | None = None
         self._thread = threading.Thread(target=self._esegui, daemon=True)
 
     def avvia(self) -> None:
@@ -60,7 +61,10 @@ class Turno:
         self._thread.join(limite)
 
     def eventi_sse(self) -> Iterator[str]:
-        """Le righe SSE per il browser; se il browser si scollega il thread continua e salva."""
+        """Le righe SSE per il browser; da un solo consumatore e solo dopo `avvia()`.
+
+        Se il browser si scollega il thread continua e salva.
+        """
         try:
             while True:
                 voce = self._coda.get()
@@ -68,7 +72,7 @@ class Turno:
                     return
                 yield formatta_sse(*voce)
         except GeneratorExit:
-            self.scollegato = True
+            self.scollegato = True  # al meglio: se l'ultimo evento era già letto, il flag può restare False
             raise
 
     def _esegui(self) -> None:
@@ -76,11 +80,12 @@ class Turno:
         try:
             self._leggi_eventi()
         except AgenteInterrotto as errore:
-            self._coda.put(("errore", {"errore": str(errore)}))
+            self._finale = ("errore", {"errore": str(errore)})
         except ErroreArchivio as errore:
-            self._coda.put(("errore", {"errore": f"Il turno non è stato salvato: {errore}"}))
+            self._finale = ("errore", {"errore": f"Il turno non è stato salvato: {errore}"})
         except Exception as errore:  # il thread non deve morire in silenzio
-            self._coda.put(("errore", {"errore": f"Errore imprevisto: {errore or type(errore).__name__}."}))
+            registro.exception("richiesta endpoint=/chat/%s/messaggi esito=errore imprevisto", self.chat_id)
+            self._finale = ("errore", {"errore": f"Errore interno del back-end: {type(errore).__name__}. Il turno non è stato salvato."})
         finally:
             try:
                 self._turno_agente.chiudi()
@@ -93,6 +98,9 @@ class Turno:
                                   "esito": self.esito, "strumenti": self.strumenti, "scollegato": self.scollegato,
                                   "durata": round(time.monotonic() - inizio, 2)})
                     )
+                    if self._finale is None:
+                        self._finale = ("errore", {"errore": TURNO_INTERROTTO})
+                    self._coda.put(self._finale)
                     self._coda.put(_CHIUSURA)
 
     def _leggi_eventi(self) -> None:
@@ -100,16 +108,15 @@ class Turno:
             if nome == "testo":
                 self._coda.put(("testo", dati))
             elif nome == "strumento":
-                self.strumenti.append(dati["nome"])
                 self._coda.put(("strumento", dati))
             elif nome == "errore":
-                self._coda.put(("errore", {"errore": dati["errore"]}))
+                self._finale = ("errore", {"errore": dati["errore"]})
                 return
             elif nome == "fine":
                 salvato = self._archivio.salva_turno(
                     self.chat_id, self._domanda, dati["risposta"], dati["strumenti"], dati["cronologia"]
                 )
+                self.strumenti = [s["nome"] for s in dati["strumenti"]]
                 self.esito = "ok"
-                self._coda.put(("fine", {"risposta": dati["risposta"], "strumenti": dati["strumenti"], **salvato}))
+                self._finale = ("fine", {"risposta": dati["risposta"], "strumenti": dati["strumenti"], **salvato})
                 return
-        self._coda.put(("errore", {"errore": TURNO_INTERROTTO}))
