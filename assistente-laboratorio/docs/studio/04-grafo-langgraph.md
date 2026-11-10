@@ -116,6 +116,7 @@ Tutto il resto del progetto (server MCP, varianti, terminale, Docker) ruota into
 20. [Domande da orale](#20-domande-da-orale)
 21. [Lezione 6: il router dell'ambito](#21-lezione-6-il-router-dellambito)
 22. [La risposta in streaming](#22-la-risposta-in-streaming)
+23. [Le istruzioni del progetto](#23-le-istruzioni-del-progetto)
 - [Scaletta per le slide](#scaletta-per-le-slide)
 
 ---
@@ -1395,6 +1396,29 @@ pezzi), `tests/test_reale_streaming.py` (48 pezzi nella prova del 9 novembre).
 
 ---
 
+## 23. Le istruzioni del progetto
+
+Lezione 6, step 7 (specifica `docs/superpowers/specs/2026-11-10-backend-chat-design.md`). Un progetto del
+back-end può avere delle istruzioni valide per tutte le sue chat. L'agente le riceve come campo
+facoltativo `istruzioni` e le aggiunge **in fondo al messaggio di sistema**.
+
+| Pezzo | Dove | Che cosa fa |
+|---|---|---|
+| Stato | `assistente/grafo.py:44` | `istruzioni: NotRequired[str]`, usato solo dal nodo `modello` |
+| Intestazione | `assistente/grafo.py:30` | «Istruzioni del progetto per questa conversazione (si aggiungono alle regole precedenti e non le sostituiscono):» |
+| Messaggio di sistema | `messaggio_sistema(fuso_utente, istruzioni="")`, `assistente/grafo.py:47-69` | se `istruzioni.strip()` non è vuoto, in fondo `"\n" + intestazione + "\n" + istruzioni`; altrimenti il messaggio è identico a prima |
+| Nodo modello | `assistente/grafo.py:177-181` | passa `stato.get("istruzioni", "")` a `messaggio_sistema` |
+| Turni | `esegui_turno` (`:256`) ed `esegui_turno_in_streaming` (`:271`) | argomento facoltativo `istruzioni`; la CLI non lo passa e non cambia |
+
+**Il router non le vede.** `nodo_router` (`assistente/grafo.py:170`) non legge `istruzioni`: l'ambito resta
+deciso da `risorse/ambito.json` e il rifiuto resta il testo fisso. Le istruzioni di un progetto non possono
+allargare l'ambito dell'agente né cambiare il rifiuto: è un anti-obiettivo della specifica.
+
+**Limite.** Il servizio dell'agente accetta fino a 4000 caratteri (`servizio_agente/app.py:37`). Il
+messaggio di sistema è rigenerato a ogni chiamata al modello e non entra nella cronologia salvata.
+
+---
+
 ## Scaletta per le slide
 
 Una presentazione di circa 12 slide su questo capitolo. Ogni slide: titolo, tre punti brevi, che cosa mostrare.
@@ -1482,6 +1506,13 @@ Una presentazione di circa 12 slide su questo capitolo. Ogni slide: titolo, tre 
 - Router, rifiuto e limite restano interi
 
 *Da mostrare:* la tabella della sezione 22.
+
+### Slide 13 · Le istruzioni del progetto
+- Campo `istruzioni` in fondo al messaggio di sistema
+- Non sostituiscono le regole e il router non le vede
+- Senza istruzioni il messaggio è identico a prima
+
+*Da mostrare:* la tabella della sezione 23.
 
 ---
 

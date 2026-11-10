@@ -17,6 +17,8 @@
 7. **Spegnere vuol dire chiedere, aspettare, imporre.** L'assistente chiede ai figli di chiudersi e aspetta 5 secondi. Solo se sono ancora vivi li uccide. Il figlio trasforma la richiesta in un'uscita normale, con codice 0 e una riga nel log. → sezione 8
 8. **Il servizio dell'agente ha un container suo** (10 novembre). Il servizio Compose `agente` usa la stessa immagine, avvia il suo server MCP e pubblica `AGENTE_PORTA` solo su `127.0.0.1` dell'host; dentro ascolta su `0.0.0.0` (`AGENTE_HOST`). Si avvia con `avvia-agente.ps1`. → sezione 7.9
 
+9. **Il database delle chat** (step 7). Il servizio Compose `database` è PostgreSQL 18 con il volume con nome `dati_postgres`, porta solo su `127.0.0.1`. Le variabili `POSTGRES_*` sono scritte senza `:?`, perché Compose controlla tutto il file e le altre prove non devono cambiare. → sezione 7.10
+
 **Il quadro**
 
 ```mermaid
@@ -634,6 +636,7 @@ Tutti i comandi sono per PowerShell, dalla cartella `assistente-laboratorio/`, c
 | Docker, modo documentato | `docker compose build` e poi `.\avvia.ps1` | `… (host Windows)` | L'avvio interattivo da tastiera è ancora **da confermare** (README e checkpoint del passo 7). |
 | Docker con pipe tramite lo script | `avvia.ps1 -SenzaTty` | `… (host Windows)` | Usato dalla prova reale Docker. |
 | Docker senza lo script | `"Che ore sono?", "esci" \| docker compose run --rm -T assistente` | `Europe/Rome (FUSO_ORARIO)` | Se manca anche `FUSO_ORARIO`: UTC con avviso. |
+| Database delle chat | `docker compose up -d database`, poi `python -m servizio_backend` | — | PostgreSQL su `127.0.0.1:POSTGRES_PORTA`, back-end su `127.0.0.1:BACKEND_PORTA` (vedi [7.10](#710-il-database-delle-chat)). |
 | Docker, servizio dell'agente | `.\avvia-agente.ps1` (oppure `docker compose up --build agente`) | `… (host Windows)` (senza lo script: `FUSO_ORARIO`) | HTTP su `http://127.0.0.1:8767`; Ctrl+C ferma il container in modo ordinato (vedi [7.9](#79-il-servizio-dellagente-in-docker)). |
 | Docker con varianti | `"Che tempo fa a Udine?", "esci" \| docker compose run --rm -T -e VARIANTE_SCADENZE=fastapi -e API_PORTA=8766 -e VARIANTE_CALCOLATRICE=locale assistente` | `Europe/Rome (FUSO_ORARIO)` | Varianti forzate senza cambiare il `.env` (vedi [7.7](#77-le-varianti-nel-container-con--e)). |
 
@@ -935,6 +938,28 @@ del container 0, nel log `arresto servizio agente` e `spento server MCP codice=0
 `/salute` dall'host con `fuso: Europe/Berlin` (dal fuso di Windows); «Quanti metri sono 2,5 km?» →
 «2,5 km sono 2500 metri.» con `converti_unita` via MCP; la poesia → il rifiuto del file; arresto
 ordinato come sopra. Come le altre prove Docker, sposta da parte `logs/` e `archivio/`.
+
+### 7.10 Il database delle chat
+
+Dal 10 novembre (specifica `docs/superpowers/specs/2026-11-10-backend-chat-design.md`) `compose.yaml` ha il
+servizio `database` (righe 51-70):
+
+| Riga | Perché |
+|---|---|
+| `image: postgres:18.6-alpine` | versione fissata, come le dipendenze Python |
+| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB: ${...:-}` | **senza** `:?`: Compose controlla le variabili di tutto il file, non solo del servizio avviato. Con `:?` un `.env` senza password bloccherebbe anche `.\avvia.ps1`, `.\avvia-agente.ps1` e le prove Docker esistenti. Il controllo della password lo fa il back-end all'avvio |
+| `ports: "127.0.0.1:${POSTGRES_PORTA:-5432}:5432"` | pubblicata solo sull'host locale; `5432` se la variabile manca |
+| `dati_postgres:/var/lib/postgresql` | volume **con nome**, non una cartella del progetto (su Windows i permessi di una cartella montata creano problemi a PostgreSQL); dalla versione 18 l'immagine vuole il volume su `/var/lib/postgresql`, non su `.../data` |
+| `healthcheck` con `pg_isready -h 127.0.0.1` | controlla la connessione TCP: senza `-h` il container può risultare sano prima che la porta funzioni |
+
+Variabili del `.env` (in `.env.example` con un commento ciascuna): `BACKEND_PORTA`, `POSTGRES_USER`,
+`POSTGRES_DB`, `POSTGRES_PASSWORD` (vuota in `.env.example`: la sceglie l'utente) e `POSTGRES_PORTA`. Le
+legge sia Compose sia `servizio_backend/configurazione.py`.
+
+Il volume sopravvive a `docker compose down` e a `docker compose stop database`; `docker compose down -v`
+lo cancella, con tutte le chat. In questo step solo il database è in un container: back-end e agente
+girano con `python -m`. Le prove usano un progetto Compose a parte, con il loro volume
+([09, sezione 10.4](09-test-e-verifiche.md#104-lo-step-7-database-di-prova-e-prove-del-back-end)).
 
 ## 8. Arresto ordinato e segnali
 
@@ -1244,6 +1269,13 @@ Una presentazione di circa 10 slide su questo capitolo. Ogni slide: titolo, tre 
 - `avvia-agente.ps1`; Ctrl+C ferma tutto con codice 0
 
 *Da mostrare:* la tabella della sezione 7.9.
+
+### Slide 10 ter · Il database delle chat
+- Servizio `database`: PostgreSQL 18, volume con nome `dati_postgres`
+- Porta solo su `127.0.0.1`; password scelta dall'utente, mai nel codice
+- Variabili `POSTGRES_*` senza `:?`, per non fermare gli altri avvii
+
+*Da mostrare:* la tabella della sezione 7.10.
 
 ### Slide 10 · Che cosa ricordare
 - Configurazione fuori dal codice, controllata per prima

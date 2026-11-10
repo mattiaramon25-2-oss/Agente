@@ -22,7 +22,10 @@ con `python -m servizio_agente`. È il primo passo verso l'interfaccia grafica (
 5. **Un turno alla volta.** Un `threading.Lock` mette in fila le richieste contemporanee. → sezione 3
 6. **L'evidenza.** La stessa domanda alla CLI e all'API dà la stessa risposta: identica per il
    rifiuto (testo fisso), con lo stesso risultato e lo stesso strumento per un calcolo. → sezione 5
-7. **Anche in Docker** (10 novembre): servizio Compose `agente`, avviato con `avvia-agente.ps1`,
+7. **Streaming e istruzioni** (step 7). `POST /chat/stream` risponde con eventi SSE e il campo
+   facoltativo `istruzioni` entra nel messaggio di sistema, non nel router. Li usa il back-end delle chat
+   ([14](14-backend-delle-chat.md)). → sezione 8
+8. **Anche in Docker** (10 novembre): servizio Compose `agente`, avviato con `avvia-agente.ps1`,
    porta pubblicata solo su `127.0.0.1`. → sezione 7
 
 **Il quadro**
@@ -50,6 +53,8 @@ flowchart LR
 | Log | `richiesta endpoint=/chat esito=... durata=...` in `logs/assistente.log` | logger `assistente.servizio` |
 | Indirizzo di ascolto | `AGENTE_HOST`, predefinito `127.0.0.1`, `0.0.0.0` in Docker | `leggi_host_agente` |
 | Docker | `.\avvia-agente.ps1`, servizio Compose `agente` | `compose.yaml` |
+| Streaming | `POST /chat/stream` (SSE: `testo`, `strumento`, `fine`, `errore`); `409` subito se un turno è in corso | `servizio_agente/app.py:118-170` |
+| Istruzioni | campo `istruzioni`, fino a 4000 caratteri, in `/chat` e `/chat/stream` | `servizio_agente/app.py:37` |
 
 **Se te lo chiedono all'orale**
 
@@ -174,6 +179,27 @@ verificato `/salute` con il fuso di Windows, una conversione con `converti_unita
 l'uscita con codice 0 con il server MCP spento. Dettagli in
 [08, sezione 7.9](08-configurazione-avvio-docker.md#79-il-servizio-dellagente-in-docker).
 
+## 8. Streaming e istruzioni (step 7)
+
+Lo step 7 ha aggiunto due cose al servizio, senza cambiare `/chat`:
+
+- **`POST /chat/stream`** (`servizio_agente/app.py:118`): stessa richiesta di `/chat` (`messaggio`,
+  `cronologia`, `istruzioni`), risposta `text/event-stream`. Gli errori di validazione (`400`) e il `409` per
+  turno già in corso arrivano come JSON **prima** del flusso. Poi gli eventi `testo` (`{"pezzo"}`),
+  `strumento`, `fine` (`{"risposta", "strumenti", "cronologia"}`) ed `errore` (`{"errore", "stato"}`, con
+  `503` per LM Studio non raggiungibile e `500` per gli altri errori).
+- **Un thread e una coda.** Il turno gira in un thread (`lavora`, `:130`) che finisce anche se il client si
+  scollega; il flusso (`:161`) svuota la coda con `formatta_sse` (`assistente/sse.py:7`).
+- **Il lock.** `/chat/stream` non aspetta: `turno_in_corso.acquire(blocking=False)` (`:124`) e, se occupato,
+  `409` subito. `/chat` invece aspetta. Il lock si rilascia **prima** dell'ultimo evento (`:154`), così
+  chi riceve `fine` e manda subito il turno dopo non trova un `409` spurio.
+- **`istruzioni`.** Fino a 4000 caratteri (`:37`), vuote se mancano; vanno in fondo al messaggio di sistema
+  e il router non le vede ([04, sezione 23](04-grafo-langgraph.md#23-le-istruzioni-del-progetto)).
+
+Test: `tests/test_servizio_agente_stream.py` (stessa risposta e cronologia di `/chat`, eventi in ordine,
+rifiuto senza pezzi, errore `503`, `400` prima del flusso, `409` se occupato, lock rilasciato dopo errore e
+dopo `fine`). Il back-end che lo usa è il capitolo [14](14-backend-delle-chat.md).
+
 ---
 
 ## Scaletta per le slide
@@ -236,10 +262,17 @@ Una presentazione di circa 8 slide. Ogni slide: titolo, tre punti brevi, che cos
 
 *Da mostrare:* la sezione 7 e il blocco `agente` di `compose.yaml`.
 
+### Slide 7 ter · Streaming e istruzioni
+- `POST /chat/stream`: eventi SSE `testo`, `strumento`, `fine`, `errore`
+- Se l'agente è occupato: `409` subito, senza aspettare
+- Campo `istruzioni` nel messaggio di sistema, non nel router
+
+*Da mostrare:* la sezione 8.
+
 ### Slide 8 · Che cosa ricordare
 - Un agente, due porte d'ingresso
 - Servizio senza stato, errori in italiano
-- Prossimo passo: le chat salvate (step 7)
+- Prossimo passo (fatto nello step 7): le chat salvate dal back-end, capitolo 14
 
 *Da mostrare:* la tabella «Da sapere a memoria».
 
