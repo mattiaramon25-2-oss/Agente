@@ -6,7 +6,6 @@ L'agente è quello di `python -m assistente` (come in test_reale_servizio_agente
 il back-end usa `ArchivioPostgres` sul database del progetto Compose di prova, mai quello dell'utente.
 """
 
-import re
 import socket
 import threading
 import time
@@ -79,19 +78,25 @@ def conversazione(backend):
     chat = httpx.post(f"{backend}/chat", json={"progetto_id": progetto["id"]}, timeout=10).json()
     eventi, fine = _turno(backend, chat["id"], "Quanto fa (3+4)*2?")
     print(f"\n  eventi: {[n for n, _ in eventi]}\n  risposta: {fine['risposta']!r}\n  strumenti: {fine['strumenti']}")
-    return chat["id"], eventi, fine
+    return chat["id"], eventi, fine, progetto["id"]
 
 
 def test_turno_in_streaming_con_calcolo(conversazione):
-    _, eventi, fine = conversazione
+    _, eventi, fine, _ = conversazione
     assert len([n for n, _ in eventi if n == "testo"]) > 1
     assert "14" in fine["risposta"]
     assert "calcola" in [s["nome"] for s in fine["strumenti"]]
 
 
-def test_risposta_in_inglese_per_le_istruzioni_del_progetto(conversazione):
-    risposta = conversazione[2]["risposta"]
-    assert re.search(r"\b(the|is|equals|result)\b", risposta.lower()), f"non in inglese: {risposta!r}"
+def test_istruzioni_del_progetto_risposta_in_inglese(backend, conversazione):
+    chat = httpx.post(f"{backend}/chat", json={"progetto_id": conversazione[3]}, timeout=10).json()
+    _, fine = _turno(backend, chat["id"], "Che giorno della settimana è oggi?")
+    risposta = fine["risposta"].lower()
+    print(f"\n  giorno: {fine['risposta']!r}\n  strumenti: {[s['nome'] for s in fine['strumenti']]}")
+    inglesi = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+    italiani = ("lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato", "domenica")
+    assert any(g in risposta for g in inglesi), f"nessun giorno in inglese: {fine['risposta']!r}"
+    assert not any(g in risposta for g in italiani), f"giorno in italiano: {fine['risposta']!r}"
 
 
 def test_ricerca_trova_il_messaggio_dell_assistente(backend, conversazione):
