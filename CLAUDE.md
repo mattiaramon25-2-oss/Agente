@@ -37,12 +37,13 @@ Un'applicazione da terminale in Python che conversa con un modello locale e:
 - conserva la cronologia della conversazione per la durata della sessione (nessuna persistenza della cronologia; le note sono l'unica persistenza, voluta);  
 - offre gli strumenti della lezione 5 (orologio, convertitore, calcolatrice, scadenze, catalogo, note, meteo) tramite un server MCP che avvia, scopre con la discovery e spegne da sé; il modello li richiede con il tool calling e il programma li esegue davvero;  
 - permette di confrontare tre modi di collegare uno strumento: MCP per tutti, `@tool` locale per la calcolatrice, FastAPI con wrapper HTTP per le scadenze, scelti nel `.env` (una sola versione per nome visibile al modello);  
-- si avvia anche con Docker Compose.
+- si avvia anche con Docker Compose;  
+- dalla lezione 6 risponde anche via HTTP (servizio dell'agente) e, con gli step 7–9, da una chat nel browser.
 
 ## Confini
 
 - Implementare solo i requisiti concordati. Gli strumenti MCP della lezione 5 sono descritti nella specifica `2026-11-08-strumenti-lezione-5-design.md`; workflow, RAG e altri strumenti arriveranno nelle lezioni successive: non anticiparli.  
-- Niente interfacce grafiche, servizi cloud o framework non concordati.  
+- L'unica interfaccia grafica ammessa è la chat nel browser della lezione 6 (step 8, front-end), che parla con il back-end; linguaggio e librerie si scelgono nella sua specifica e servono la mia approvazione. La CLI da terminale resta. Niente altre interfacce grafiche, servizi cloud o framework non concordati.  
 - Lavorare solo dentro `assistente-laboratorio/`. La repository contiene altre lezioni: non leggerle per copiarne il codice e non modificarle.  
 - Un branch per passo del piano, con nome `dev-<passo>` (per esempio `dev-calcolatrice`), che parte da `dev`; niente worktree se non richiesti. Il merge in `main` avviene solo con la mia approvazione esplicita, passo per passo.
 
