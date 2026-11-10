@@ -83,3 +83,12 @@ def test_stream_409_se_occupato():
     finally:
         sblocca.set()
         primo.join()
+
+
+def test_stream_rilascia_il_lock_dopo_errore_e_dopo_fine():
+    # Non c'è un test automatico per il client che si scollega a metà: il thread del turno
+    # finisce comunque e rilascia il lock (lo garantisce il finally in `lavora`).
+    c = client([RuntimeError("guasto"), AIMessage("ok"), AIMessage("ancora")])
+    assert eventi_stream(c, {"messaggio": "uno"})[-1][0] == "errore"
+    assert eventi_stream(c, {"messaggio": "due"})[-1][0] == "fine"
+    assert c.post("/chat", json={"messaggio": "tre"}).status_code == 200

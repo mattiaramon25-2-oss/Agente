@@ -42,12 +42,34 @@ class RichiestaChat(BaseModel):
     istruzioni: str = Field(default="", max_length=4000, description="istruzioni del progetto, solo nel messaggio di sistema")
 
 
-def _errore(stato: int, messaggio: str, inizio: float, endpoint: str = ENDPOINT_CHAT) -> JSONResponse:
+def _log_errore(stato: int, messaggio: str, inizio: float, endpoint: str) -> None:
     registro.info(
         formatta({"richiesta endpoint": endpoint, "esito": "errore", "stato": stato, "messaggio": messaggio,
                   "durata": round(time.monotonic() - inizio, 2)})
     )
+
+
+def _errore(stato: int, messaggio: str, inizio: float, endpoint: str = ENDPOINT_CHAT) -> JSONResponse:
+    _log_errore(stato, messaggio, inizio, endpoint)
     return RispostaJson(status_code=stato, content={"errore": messaggio})
+
+
+def _errore_turno(eccezione: Exception) -> tuple[int, str]:
+    """Lo stato HTTP e il messaggio per un'eccezione sollevata durante il turno."""
+    if isinstance(eccezione, openai.APIConnectionError):
+        return 503, f"LM Studio non raggiungibile: {eccezione}"
+    return 500, f"Errore durante il turno: {eccezione}"
+
+
+def _leggi(richiesta: RichiestaChat, inizio: float, endpoint: str):
+    """Valida la richiesta: (testo, cronologia, None) oppure (None, None, risposta 400)."""
+    testo = richiesta.messaggio.replace("﻿", "").strip()
+    if not testo:
+        return None, None, _errore(400, "Richiesta non valida: il messaggio è vuoto.", inizio, endpoint)
+    try:
+        return testo, messages_from_dict(richiesta.cronologia), None
+    except Exception as eccezione:
+        return None, None, _errore(400, f"Richiesta non valida: cronologia non leggibile ({eccezione}).", inizio, endpoint)
 
 
 def crea_app(
@@ -65,13 +87,25 @@ def crea_app(
     )
     turno_in_corso = threading.Lock()  # un turno alla volta: LM Studio e archivio delle note non si sovrappongono
 
+    def risultato(nuova, cronologia, endpoint: str, inizio: float) -> dict:
+        """Il corpo della risposta (e di `fine`) per un turno riuscito; scrive la riga di log."""
+        ultimo = nuova[-1]
+        risposta = ultimo.text.strip() if isinstance(ultimo, AIMessage) else ""
+        strumenti = chiamate_riuscite(nuova[len(cronologia):], origini, parametri)
+        corpo = {"risposta": risposta or NESSUNA_RISPOSTA, "strumenti": strumenti, "cronologia": messages_to_dict(nuova)}
+        registro.info(
+            formatta({"richiesta endpoint": endpoint, "esito": "ok", "strumenti": [s["nome"] for s in strumenti],
+                      "durata": round(time.monotonic() - inizio, 2)})
+        )
+        return corpo
+
     @app.exception_handler(RequestValidationError)
     async def validazione_in_italiano(richiesta: Request, eccezione: RequestValidationError) -> JSONResponse:
         dettagli = []
         for errore in eccezione.errors():
             nome = ".".join(str(parte) for parte in errore.get("loc", ("?",))[1:]) or "corpo"
             dettagli.append(f"{nome}: mancante" if errore.get("type") == "missing" else f"{nome}: valore non valido")
-        return _errore(400, "Richiesta non valida: " + "; ".join(dettagli), time.monotonic())
+        return _errore(400, "Richiesta non valida: " + "; ".join(dettagli), time.monotonic(), richiesta.url.path)
 
     @app.get("/salute", summary="Stato del servizio")
     def salute() -> dict:
@@ -80,45 +114,22 @@ def crea_app(
     @app.post(ENDPOINT_CHAT, summary="Un turno di conversazione")
     def chat(richiesta: RichiestaChat):
         inizio = time.monotonic()
-        testo = richiesta.messaggio.replace("﻿", "").strip()
-        if not testo:
-            return _errore(400, "Richiesta non valida: il messaggio è vuoto.", inizio)
-        try:
-            cronologia = messages_from_dict(richiesta.cronologia)
-        except Exception as eccezione:
-            return _errore(400, f"Richiesta non valida: cronologia non leggibile ({eccezione}).", inizio)
-
+        testo, cronologia, rifiuto = _leggi(richiesta, inizio, ENDPOINT_CHAT)
+        if rifiuto:
+            return rifiuto
         with turno_in_corso:
             try:
                 nuova = esegui_turno(grafo, cronologia, fuso, testo, istruzioni=richiesta.istruzioni)
-            except openai.APIConnectionError as eccezione:
-                return _errore(503, f"LM Studio non raggiungibile: {eccezione}", inizio)
             except Exception as eccezione:
-                return _errore(500, f"Errore durante il turno: {eccezione}", inizio)
-
-        ultimo = nuova[-1]
-        risposta = ultimo.text.strip() if isinstance(ultimo, AIMessage) else ""
-        strumenti = chiamate_riuscite(nuova[len(cronologia):], origini, parametri)
-        registro.info(
-            formatta({"richiesta endpoint": ENDPOINT_CHAT, "esito": "ok", "strumenti": [s["nome"] for s in strumenti],
-                      "durata": round(time.monotonic() - inizio, 2)})
-        )
-        return {
-            "risposta": risposta or NESSUNA_RISPOSTA,
-            "strumenti": strumenti,
-            "cronologia": messages_to_dict(nuova),
-        }
+                return _errore(*_errore_turno(eccezione), inizio)
+        return risultato(nuova, cronologia, ENDPOINT_CHAT, inizio)
 
     @app.post(ENDPOINT_STREAM, summary="Un turno di conversazione in streaming (SSE)")
     def chat_stream(richiesta: RichiestaChat):
         inizio = time.monotonic()
-        testo = richiesta.messaggio.replace("﻿", "").strip()
-        if not testo:
-            return _errore(400, "Richiesta non valida: il messaggio è vuoto.", inizio, ENDPOINT_STREAM)
-        try:
-            cronologia = messages_from_dict(richiesta.cronologia)
-        except Exception as eccezione:
-            return _errore(400, f"Richiesta non valida: cronologia non leggibile ({eccezione}).", inizio, ENDPOINT_STREAM)
+        testo, cronologia, rifiuto = _leggi(richiesta, inizio, ENDPOINT_STREAM)
+        if rifiuto:
+            return rifiuto
         if not turno_in_corso.acquire(blocking=False):
             return _errore(409, MESSAGGIO_OCCUPATO, inizio, ENDPOINT_STREAM)
 
@@ -136,36 +147,23 @@ def crea_app(
                     coda.put(("strumento", chiamata))
                 mandate = len(riuscite)
 
+            esito = None
             try:
                 try:
                     nuova = esegui_turno_in_streaming(
                         grafo, cronologia, fuso, testo, lambda pezzo: coda.put(("testo", {"pezzo": pezzo})),
                         su_messaggi, istruzioni=richiesta.istruzioni,
                     )
-                except openai.APIConnectionError as eccezione:
-                    stato, messaggio = 503, f"LM Studio non raggiungibile: {eccezione}"
+                    esito = ("fine", risultato(nuova, cronologia, ENDPOINT_STREAM, inizio))
                 except Exception as eccezione:
-                    stato, messaggio = 500, f"Errore durante il turno: {eccezione}"
-                else:
-                    ultimo = nuova[-1]
-                    risposta = ultimo.text.strip() if isinstance(ultimo, AIMessage) else ""
-                    strumenti = chiamate_riuscite(nuova[len(cronologia):], origini, parametri)
-                    registro.info(
-                        formatta({"richiesta endpoint": ENDPOINT_STREAM, "esito": "ok",
-                                  "strumenti": [s["nome"] for s in strumenti],
-                                  "durata": round(time.monotonic() - inizio, 2)})
-                    )
-                    coda.put(("fine", {"risposta": risposta or NESSUNA_RISPOSTA, "strumenti": strumenti,
-                                       "cronologia": messages_to_dict(nuova)}))
-                    return
-                registro.info(
-                    formatta({"richiesta endpoint": ENDPOINT_STREAM, "esito": "errore", "stato": stato,
-                              "messaggio": messaggio, "durata": round(time.monotonic() - inizio, 2)})
-                )
-                coda.put(("errore", {"errore": messaggio, "stato": stato}))
+                    stato, messaggio = _errore_turno(eccezione)
+                    _log_errore(stato, messaggio, inizio, ENDPOINT_STREAM)
+                    esito = ("errore", {"errore": messaggio, "stato": stato})
             finally:
+                turno_in_corso.release()  # il turno è finito: prima dell'ultimo evento, niente 409 al turno successivo
+                if esito:
+                    coda.put(esito)
                 coda.put(fine_flusso)
-                turno_in_corso.release()
 
         threading.Thread(target=lavora, daemon=True).start()
 
