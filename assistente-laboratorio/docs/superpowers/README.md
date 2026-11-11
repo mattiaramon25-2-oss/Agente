@@ -78,5 +78,8 @@ Router, revisore e riassunto della cronologia, poi resource e prompt MCP, infine
 | Specifica | [2026-11-10-docker-agente-design.md](specs/2026-11-10-docker-agente-design.md) | il servizio dell'agente come secondo servizio Compose, porta solo su 127.0.0.1 |
 | Piano | [2026-11-10-docker-agente.md](plans/2026-11-10-docker-agente.md) | i cinque task, con la verifica completa (automatici, Docker, LM Studio) |
 | Checkpoint | [2026-11-10-docker-agente.md](checkpoint/2026-11-10-docker-agente.md) | servizio `agente` in Docker: prove Docker 7 su 7, prova manuale con `avvia-agente.ps1` |
+| Specifica | [2026-11-10-backend-chat-design.md](specs/2026-11-10-backend-chat-design.md) | step 7: back-end delle chat con PostgreSQL, progetti con istruzioni, ricerca, turno in streaming SSE |
+| Piano | [2026-11-10-backend-chat.md](plans/2026-11-10-backend-chat.md) | i dodici task dello step 7 |
+| Checkpoint | [2026-11-10-backend.md](checkpoint/2026-11-10-backend.md) | step 7 fatto: chat ancora presenti dopo il riavvio, prove con LM Studio e Docker |
 
 Specifica e piani degli step arriveranno qui, con lo stesso schema: `specs/AAAA-MM-GG-<argomento>-design.md`, `plans/AAAA-MM-GG-<argomento>.md`, `checkpoint/AAAA-MM-GG-<passo>.md`.

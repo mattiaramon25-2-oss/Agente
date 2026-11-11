@@ -46,3 +46,25 @@ services:
       - ./archivio:/app/archivio
     extra_hosts:
       - "host.docker.internal:host-gateway"
+
+  # Lezione 6, step 7: il database delle chat. Avvio: docker compose up -d database
+  database:
+    image: postgres:18.6-alpine
+    environment:
+      # Senza :? perché Compose controlla tutto il file: .\avvia.ps1 e .\avvia-agente.ps1 non devono fermarsi.
+      POSTGRES_USER: ${POSTGRES_USER:-}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
+      POSTGRES_DB: ${POSTGRES_DB:-}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORTA:-5432}:5432"
+    volumes:
+      # Dalla versione 18 l'immagine vuole il volume su /var/lib/postgresql (non su .../data).
+      - dati_postgres:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  dati_postgres:

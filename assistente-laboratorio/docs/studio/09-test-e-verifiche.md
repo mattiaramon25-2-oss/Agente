@@ -33,6 +33,7 @@ flowchart LR
 | Salto automatico se manca l'opzione | `pytest_collection_modifyitems` | `tests/conftest.py:9-16` |
 | Il modello finto | `ModelloFinto`: risposte preparate, restituite in ordine | `tests/finti.py:13-25` |
 | Giri massimi con gli strumenti in un turno | `MAX_GIRI_STRUMENTO = 3` | `assistente/grafo.py:20` |
+| Esito dello step 7, 2026-11-10 | `python -m pytest`: 618 passati, 64 saltati; `--docker -m docker`: 23 passati; `--lmstudio --docker tests/test_reale_backend.py`: 4 passati | → sezione 10.4 |
 | Ambiente comune delle prove reali | `ambiente_reale()`, con archivio delle note temporaneo | `tests/reale.py:32-63` |
 
 **Se te lo chiedono all'orale**
@@ -845,6 +846,33 @@ in un fallimento leggibile. `test_processi.py` lo verifica con un figlio che avv
 dorme 60 secondi: con un limite di 2 secondi l'esecuzione termina in meno di 20.
 
 ---
+
+### 10.4 Lo step 7: database di prova e prove del back-end
+
+Il back-end ha aggiunto test di tre famiglie (esiti del 10 novembre 2026: `python -m pytest` 618 passati e
+64 saltati; `--docker -m docker` 23 passati e 4 saltati, perché `tests/test_reale_backend.py` ha il
+marcatore `lmstudio` **e** `docker` e chiede entrambe le opzioni; `--lmstudio -m lmstudio` 36 passati e 1
+fallito, `test_reale_meteo.py::test_il_modello_usa_il_meteo` per «nessuna risposta entro 8 secondi» del
+servizio meteo esterno, rieseguito da solo 2 passati; `--lmstudio --docker tests/test_reale_backend.py` 4
+passati).
+
+| Famiglia | File | Che cosa prova |
+|---|---|---|
+| Contratto dell'archivio | `tests/test_archivio_chat.py` | gli stessi test girano su `ArchivioInMemoria` (`tests/finti_backend.py`) e su `ArchivioPostgres` (parametro `postgres`, marcatore `docker`): le due implementazioni hanno lo stesso comportamento |
+| Back-end con agente finto | `tests/test_servizio_backend.py`, `tests/test_turni.py`, `tests/test_client_agente.py`, `tests/test_servizio_agente_stream.py` | rotte, codici, `409`, salvataggio solo dopo `fine`, niente dopo `errore`, salvataggio anche con client scollegato, log senza testi |
+| Database spento | `tests/test_archivio_postgres_spento.py` | `DatabaseNonRaggiungibile` senza avviare nessun container |
+| Evidenza | `tests/test_reale_docker_backend.py` (`--docker`) | chat, messaggi e progetto identici dopo il riavvio di back-end e database |
+| Prova reale | `tests/test_reale_backend.py` (`--lmstudio --docker`) | agente vero, back-end e database di prova |
+
+**Il database di prova è separato** (`tests/postgres_prova.py`). `database_di_prova()` avvia il servizio
+`database` in un progetto Compose a parte (`-p assistente-laboratorio-prova`), con porta libera, password
+di prova e volume suo, e alla fine fa `down -v` solo su quel progetto. Restituisce un `DatabaseProva`
+(`dsn` e `env`, perché `ferma` e `riavvia` servono lo stesso progetto). Il container e il volume
+dell'utente non vengono né fermati né letti: le prove funzionano anche con il suo database acceso.
+
+**La lingua delle istruzioni.** Il risultato di «(3+4)*2» è «14», che non ha lingua: la prova con le
+istruzioni «rispondi sempre in inglese» chiede il giorno della settimana e verifica che compaia un nome
+inglese e nessuno italiano. È una prova su un modello piccolo: se fallisce, è un esito da riportare.
 
 ## 11. Perché una risposta simulata non dimostra che il modello usa lo strumento
 

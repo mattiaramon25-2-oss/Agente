@@ -38,7 +38,8 @@ Ogni chiamata eseguita con successo compare nel terminale con la sua origine, pe
 
 Struttura: `logica/` contiene la logica pura degli strumenti, scritta una volta sola e riusata da
 tutte le varianti; `server_mcp/` la registrazione MCP; `servizio_api/` il servizio FastAPI delle
-scadenze; `assistente/` l'agente (grafo, collegamento al modello, client MCP, varianti, avvio dei
+scadenze; `servizio_agente/` l'agente come servizio HTTP; `servizio_backend/` il back-end delle chat
+(progetti, chat e ricerca in PostgreSQL); `assistente/` l'agente (grafo, collegamento al modello, client MCP, varianti, avvio dei
 processi, terminale); `risorse/` i dati versionati (catalogo, festività); `archivio/` le note e
 `logs/` i log, entrambi fuori da Git.
 
@@ -84,6 +85,7 @@ chiamata non arriva né al server né al servizio, e compare solo in `logs/assis
 - Python 3.14
 - LM Studio sullo stesso computer, con il server attivo (porta predefinita 1234) e un modello
   scaricato. Provato con `google/gemma-4-e2b`.
+- Docker Desktop, solo per il database del back-end delle chat e per le prove con `--docker`.
 
 ## Configurazione
 
@@ -108,6 +110,10 @@ Poi aprire `.env` e controllare i valori:
 | `VARIANTE_SCADENZE` | sì | `mcp` oppure `fastapi`: quale versione di `calcola_scadenza` vede il modello |
 | `API_PORTA` | solo con `fastapi` | porta locale del servizio FastAPI, diversa da `MCP_PORTA`, per esempio `8766` |
 | `AGENTE_PORTA` | solo per il servizio HTTP | porta locale di `python -m servizio_agente`, diversa da `MCP_PORTA` e `API_PORTA`, per esempio `8767` |
+| `BACKEND_PORTA` | solo per il back-end delle chat | porta locale di `python -m servizio_backend`, diversa da `MCP_PORTA`, `API_PORTA` e `AGENTE_PORTA`, per esempio `8768` |
+| `POSTGRES_USER`, `POSTGRES_DB` | solo per il back-end delle chat | utente e nome del database, per esempio `assistente`; li leggono il container e il back-end |
+| `POSTGRES_PASSWORD` | solo per il back-end delle chat | password del database, scelta da te: in `.env.example` è vuota e resta solo nel tuo `.env` |
+| `POSTGRES_PORTA` | no | porta di PostgreSQL sull'host, solo su `127.0.0.1`; predefinita `5432` |
 | `FUSO_ORARIO` | no | fuso IANA di riserva se il rilevamento automatico non riesce |
 
 Per vedere gli identificativi disponibili:
@@ -200,6 +206,11 @@ python -m servizio_agente
   continuarne una si rimanda la `cronologia` ricevuta.
 - Errori sempre `{"errore": "..."}` in italiano: `400` richiesta non valida, `503` LM Studio non
   raggiungibile, `500` altro errore. Un turno alla volta.
+- `POST /chat/stream`: stessa richiesta di `/chat`, risposta in streaming (Server-Sent Events) con gli
+  eventi `testo`, `strumento`, `fine` ed `errore`. Se un altro turno è in corso risponde subito `409`
+  invece di aspettare. Lo usa il back-end delle chat.
+- Campo facoltativo `istruzioni` (fino a 4000 caratteri) in `/chat` e `/chat/stream`: si aggiungono in
+  fondo al messaggio di sistema e non sostituiscono le regole dell'agente; il router non le vede.
 
 Esempio da PowerShell, con un seguito che usa la cronologia:
 
@@ -237,7 +248,9 @@ con Docker è montata sull'host):
   della libreria MCP; ogni aggiunta o eliminazione di una nota riuscita lascia anche una riga
   `modifica note operazione=aggiunta|eliminazione id=…`;
 - `logs/servizio_api.log` (solo con `VARIANTE_SCADENZE=fastapi`): avvio e arresto del servizio e
-  ogni richiesta a `/scadenza` con argomenti ed esito.
+  ogni richiesta a `/scadenza` con argomenti ed esito;
+- `logs/servizio_backend.log` (solo con `python -m servizio_backend`): avvio e arresto, una riga per ogni
+  richiesta (metodo, percorso senza query string, esito, stato, durata) e una per ogni turno con `chat_id`, strumenti usati, `esito` e se il browser si è scollegato; mai il testo dei messaggi.
 
 Il `call_id` del modello non arriva al server (l'identificativo del protocollo è un altro): le due
 tracce si confrontano per strumento, argomenti e ora. Una risposta plausibile senza la riga
@@ -303,6 +316,116 @@ ferma il container: Docker manda `SIGTERM`, il servizio si chiude in modo ordina
 server MCP (codice di uscita 0, `arresto servizio agente` nel log). Senza lo script
 (`docker compose up agente`) il fuso viene da `FUSO_ORARIO`.
 
+## Il back-end delle chat
+
+Lezione 6, step 7. Il back-end (`servizio_backend/`) è il servizio che la chat nel browser (step 8)
+userà: salva progetti, chat e messaggi in PostgreSQL e chiama l'agente via HTTP. Il browser non parla
+mai direttamente con l'agente. L'agente resta senza stato: la cronologia gliela passa il back-end a
+ogni turno.
+
+Servono tre pezzi, in tre terminali PowerShell, dalla cartella `assistente-laboratorio/` (con
+l'ambiente attivato):
+
+```powershell
+docker compose up -d database
+python -m servizio_agente
+python -m servizio_backend
+```
+
+1. `docker compose up -d database` avvia PostgreSQL 18 in un container, con il volume con nome
+   `dati_postgres`. Il volume sopravvive a `docker compose down` e si cancella solo con
+   `docker compose down -v`. La porta è pubblicata solo su `127.0.0.1:POSTGRES_PORTA`.
+2. `python -m servizio_agente` è il servizio dell'agente (porta `AGENTE_PORTA`).
+3. `python -m servizio_backend` legge il `.env`, si collega al database, crea le tabelle se mancano,
+   controlla l'agente (se non risponde avvisa e parte lo stesso) e ascolta su
+   `127.0.0.1:BACKEND_PORTA`. Si ferma con `Ctrl+C` (provato solo l'arresto con `CTRL_BREAK` nella prova Docker; `Ctrl+C` in una console reale non è stato provato a mano). La documentazione interattiva è su `/docs`.
+
+Nel `.env` servono `BACKEND_PORTA`, `POSTGRES_USER`, `POSTGRES_DB` e `POSTGRES_PASSWORD` (la scegli
+tu), più `AGENTE_PORTA`; `POSTGRES_PORTA` è facoltativa. Il log è in `logs/servizio_backend.log`: avvio,
+arresto, una riga per ogni richiesta (`richiesta metodo=GET endpoint=/progetti esito=ok stato=200
+durata=0.01`: solo il percorso, mai la query string; per il turno in streaming la durata arriva all'inizio
+della risposta), una riga per ogni turno con la durata completa (`richiesta endpoint=/chat/1/messaggi chat_id=1 esito=ok
+strumenti=["calcola"] scollegato=false durata=83.6`) e un avviso per database spento o errore imprevisto;
+mai il testo dei messaggi né le istruzioni.
+
+| Metodo e percorso | Che cosa fa |
+|---|---|
+| `GET /salute` | `{"stato": "ok", "database": "ok", "agente": "ok" oppure "non raggiungibile"}`; `503` se il database non risponde |
+| `GET /progetti`, `POST /progetti` | elenco dei progetti (per nome); crea un progetto con `nome` (1–100 caratteri) e `istruzioni` facoltative (fino a 4000) |
+| `GET /progetti/{id}`, `PATCH /progetti/{id}`, `DELETE /progetti/{id}` | legge, cambia nome o istruzioni, cancella il progetto con le sue chat (`409` se una chat ha un turno in corso) |
+| `GET /chat`, `POST /chat` | elenco delle chat dalla più recente (filtro `?progetto=<id>` o `?progetto=nessuno`); crea una chat vuota, con `progetto_id` facoltativo |
+| `GET /chat/{id}`, `PATCH /chat/{id}`, `DELETE /chat/{id}` | la chat con i suoi messaggi; la sposta in un progetto (`progetto_id`, anche `null`); la cancella (`409` se ha un turno in corso) |
+| `POST /chat/{id}/messaggi` | un turno in streaming (Server-Sent Events), vedi sotto |
+| `GET /ricerca?q=testo` | cerca `q` (almeno 2 caratteri) nelle domande e nelle risposte, senza distinguere maiuscole e minuscole; al massimo 50 risultati, dai più recenti, con un estratto |
+
+Errori sempre `{"errore": "..."}` in italiano; gli errori di validazione sono `400`, non `422`.
+
+**Il turno in streaming.** Prima del flusso il back-end risponde con JSON normale: `404` chat
+inesistente, `400` messaggio vuoto, `409` risposta già in corso nella stessa chat, `503` agente non
+raggiungibile o occupato con un altro turno. Poi risponde `200` con `Content-Type: text/event-stream`
+e gli eventi `testo` (`{"pezzo": ...}`), `strumento` (`{"nome", "origine", "argomenti"}`), `fine` ed
+`errore`. L'evento `fine` arriva **dopo** il salvataggio e porta la `risposta` definitiva (il client
+sostituisce con questa i pezzi ricevuti), gli `strumenti`, gli id dei due messaggi e il `titolo`. Il
+turno si salva in una sola transazione e solo a risposta completa: dopo un `errore` o un'interruzione
+non si salva nulla, nemmeno la domanda. Se il browser si scollega a metà, il back-end continua a
+leggere l'agente e salva comunque il turno. Il titolo della chat sono le prime parole della prima
+domanda (al massimo 60 caratteri, «…» se accorciate; finché manca è «Nuova chat»). Le note salvate
+con `add_note` stanno nell'archivio SQLite e non si cancellano con la chat.
+
+Esempi eseguiti il 10 novembre 2026 con `google/gemma-4-e2b` (porte del `.env`: agente `8767`, back-end
+`8768`). Con PowerShell 5.1 il corpo con le lettere accentate va passato come byte UTF-8.
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8768/salute
+# stato ok, database ok, agente ok
+
+Invoke-RestMethod -Method Post http://127.0.0.1:8768/progetti -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes('{"nome": "Prova manuale", "istruzioni": "Rispondi in modo breve."}'))
+Invoke-RestMethod -Method Post http://127.0.0.1:8768/chat -ContentType "application/json" -Body (@{progetto_id = 1} | ConvertTo-Json)
+```
+
+Lo streaming non si vede con `Invoke-RestMethod`, che aspetta la fine: si usa `curl.exe -N`, con il
+corpo in un file (così PowerShell non tocca le virgolette):
+
+```powershell
+Set-Content -Path "$env:TEMP\domanda.json" -Value '{"messaggio": "Quanto fa (3+4)*2?"}' -Encoding ascii
+curl.exe -s -N -X POST "http://127.0.0.1:8768/chat/1/messaggi" -H "Content-Type: application/json" --data-binary "@$env:TEMP\domanda.json"
+```
+
+Gli eventi arrivano uno alla volta:
+
+```text
+event: strumento
+data: {"nome": "calcola", "origine": "mcp", "argomenti": {"espressione": "(3+4)*2"}}
+
+event: testo
+data: {"pezzo": "1"}
+
+event: testo
+data: {"pezzo": "4"}
+
+event: fine
+data: {"risposta": "14", "strumenti": [...], "messaggio_utente_id": 1, "messaggio_assistente_id": 2, "titolo": "Quanto fa (3+4)*2?"}
+```
+
+Poi si può cercare e rileggere:
+
+```powershell
+Invoke-RestMethod "http://127.0.0.1:8768/ricerca?q=14"
+Invoke-RestMethod http://127.0.0.1:8768/progetti
+Invoke-RestMethod http://127.0.0.1:8768/chat
+Invoke-RestMethod http://127.0.0.1:8768/chat/1
+```
+
+**Le chat ci sono ancora dopo il riavvio.** Verificato a mano: dopo `docker compose stop database`,
+`docker compose up -d database` e un nuovo `python -m servizio_backend`, `GET /progetti`, `GET /chat` e
+`GET /chat/1` restituiscono il progetto «Prova manuale» con una chat e i suoi due messaggi (la domanda e
+la risposta «14» con `calcola`).
+
+Né il back-end né l'agente hanno un'autenticazione: per questo ascoltano solo su `127.0.0.1`, e anche
+PostgreSQL è pubblicato solo lì. Per fermare il database senza perdere le chat basta
+`docker compose stop database`; `docker compose down -v` invece **cancella il volume e quindi tutte le
+chat**.
+
 ## Test
 
 Test automatici (non servono né LM Studio né Docker; il modello è simulato):
@@ -353,6 +476,12 @@ Prova reale con LM Studio acceso, ogni domanda in una sessione nuova:
 - meteo (serve la rete): «Che tempo fa a Udine?» (una `get_weather` riuscita e la temperatura
   restituita nella risposta); più un errore controllato (città `Xqzvbnmlkj`, «Città non trovata»).
 
+- back-end delle chat (con `--lmstudio` **e** `--docker`, perché servono LM Studio e PostgreSQL): agente
+  vero, back-end e database di prova. «Quanto fa (3+4)*2?» arriva in più pezzi, la risposta salvata
+  contiene 14 e `calcola` tra gli strumenti; con le istruzioni «rispondi sempre in inglese» il giorno
+  della settimana è in inglese e non in italiano; la ricerca di «14» trova il messaggio dell'assistente;
+  «scrivimi una poesia sul mare» dà il rifiuto fisso, anche dentro il progetto.
+
 Le prove reali leggono le variabili dal `.env`; calcolatrice e scadenze vengono forzate a
 ciascuna variante dal test stesso.
 
@@ -375,6 +504,21 @@ mentre gira la prova Docker.
 ```powershell
 python -m pytest --docker -m docker -v -s
 ```
+
+Prova reale del back-end (LM Studio, Docker Desktop e il `.env` con le variabili del back-end; il database
+è quello di prova, vedi sotto):
+
+```powershell
+python -m pytest --lmstudio --docker tests/test_reale_backend.py -v -s
+```
+
+Il database delle prove è separato da quello dell'utente: le prove lo avviano in un progetto Compose a
+parte (`docker compose -p assistente-laboratorio-prova`), con volume, porta libera e password di prova, e
+alla fine cancellano solo quel container e quel volume. Il tuo database e le tue chat non vengono né
+fermati né letti, anche se è acceso. L'evidenza dello step 7 (`tests/test_reale_docker_backend.py`, con
+`--docker`) crea un progetto e una chat con un agente finto, ferma back-end e database di prova, li
+riavvia e controlla che progetto, chat e messaggi siano identici. Le prove con `--docker` spostano da parte
+`logs/` come descritto sopra.
 
 Il fuso dell'utente è rilevato una volta sola all'avvio, in quest'ordine:
 
@@ -432,6 +576,23 @@ infine il modello. Un errore di un livello basso non si risolve cambiando il mes
 
   L'assistente considera pronto il servizio solo quando `/openapi.json` descrive `/scadenza`,
   non al primo HTTP 200.
+- **Il back-end delle chat**:
+
+  | Sintomo | Cosa controllare |
+  |---|---|
+  | `Variabili d'ambiente mancanti: … POSTGRES_PASSWORD` | la password non è nel `.env`: sceglila e scrivila; va impostata **prima** di creare il volume del database (vedi sotto) |
+  | `docker compose up -d database` fallisce con «variabile obbligatoria» | Compose interpola tutto il file: nel `.env` servono anche `LMSTUDIO_BASE_URL_DOCKER`, `MCP_PORTA`, `VARIANTE_CALCOLATRICE`, `VARIANTE_SCADENZE` e `AGENTE_PORTA`, anche se il database non li usa |
+  | `Il database PostgreSQL non risponde su 127.0.0.1:… (motivo)` all'avvio | il motivo tra parentesi dice che cosa è andato storto (anche nel log). Se è il container spento: `docker compose up -d database` e `docker compose ps` (deve essere `healthy`); controllare `POSTGRES_PORTA`; se il container non parte, `docker compose logs database` ne dice il motivo, per esempio la password mancante (comportamento dell'immagine ufficiale, non provato nel progetto) |
+  | `503` «Il database non risponde: riprova tra poco.» durante l'uso | il container si è fermato: `docker compose up -d database`, il back-end non va riavviato |
+  | `password authentication failed` nel motivo dell'avvio, o nel messaggio | la password nel `.env` è diversa da quella con cui il volume è stato creato: PostgreSQL la legge solo alla prima creazione (comportamento generale, non provato nel progetto). Rimettere quella vecchia, oppure `docker compose down -v` (**cancella tutte le chat**) e ripartire |
+  | `GET /salute` con `"agente": "non raggiungibile"`, o `503` «L'agente non risponde su …» | avviare `python -m servizio_agente`; `AGENTE_PORTA` deve essere la stessa nei due programmi |
+  | `503` «L'agente sta già rispondendo a un'altra chat: riprova tra poco.» | l'agente fa un turno alla volta: aspettare la fine dell'altro |
+  | `409` «C'è già una risposta in corso in questa chat.» | un turno è già in corso nella stessa chat |
+  | `La porta … (BACKEND_PORTA) è occupata` | un altro programma usa la porta: chiuderlo o cambiare `BACKEND_PORTA` nel `.env` |
+  | evento `errore` «Il turno non è stato salvato» | il database non ha risposto al momento di salvare: la chat resta com'era, si può rimandare la domanda |
+
+  `docker compose down` ferma e rimuove il container ma **non** il volume `dati_postgres`: le chat restano.
+  `docker compose down -v` cancella anche il volume e quindi **tutte le chat e i progetti**.
 - **Il meteo**: richiede l'accesso a Internet dal computer o dal container in cui gira il server.
   `Servizio meteo non disponibile` o `nessuna risposta entro 4 secondi` (per una fase della richiesta)
   o `entro 8 secondi` (per l'intero strumento, risoluzione del nome compresa) indicano un problema di
