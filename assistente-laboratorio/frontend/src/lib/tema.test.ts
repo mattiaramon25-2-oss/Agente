@@ -42,7 +42,7 @@ describe('scelta del tema', () => {
     expect(() => salvaScelta('chiaro')).not.toThrow();
   });
 
-  it('localStorage non definito dà automatico', () => {
+  it('localStorage non definito dÃ  automatico', () => {
     vi.stubGlobal('localStorage', undefined);
     try {
       expect(leggiScelta()).toBe('automatico');

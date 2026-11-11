@@ -33,7 +33,7 @@ describe('rendiMarkdown', () => {
     expect(html).toContain('rel="noopener noreferrer"');
   });
 
-  it('nessuna immagine, né in Markdown né in HTML', () => {
+  it('nessuna immagine, nÃ© in Markdown nÃ© in HTML', () => {
     expect(rendiMarkdown('![x](https://evil/?q=1)')).not.toContain('<img');
     expect(rendiMarkdown('<img src="https://evil/?q=1">')).not.toContain('<img');
   });
