@@ -1,4 +1,6 @@
 // Lettore incrementale del flusso SSE: riceve i byte a pezzi e restituisce gli eventi completi.
+// Se il campo data non è JSON valido, aggiungi() lancia un'eccezione: chi chiama
+// la tratta come flusso interrotto.
 
 export type EventoSse = { evento: string; dati: unknown };
 
