@@ -297,3 +297,67 @@ def test_cancellazione_prenota_la_chat_e_poi_la_libera():
         primo.join(10)
     assert client.delete(f"/progetti/{pid}").status_code == 204
     assert client.get(f"/chat/{a}").status_code == 404
+
+
+def righe_richiesta(caplog):
+    return [r.getMessage() for r in caplog.records if r.name == "servizio_backend" and r.getMessage().startswith("richiesta metodo=")]
+
+
+def test_una_riga_di_log_per_richiesta(caplog):
+    caplog.set_level("INFO", logger="servizio_backend")
+    client, _, _ = prepara()
+    client.get("/progetti")
+    client.get("/chat/99")
+    client.get("/ricerca?q=segretissimo")
+    righe = righe_richiesta(caplog)
+    assert len(righe) == 3
+    assert "metodo=GET endpoint=/progetti esito=ok stato=200 durata=" in righe[0]
+    assert "endpoint=/chat/99 esito=errore stato=404" in righe[1]
+    assert "endpoint=/ricerca" in righe[2] and "segretissimo" not in righe[2] and "q=" not in righe[2]
+    assert all(r.split("durata=")[1].replace(".", "", 1).isdigit() for r in righe)
+
+
+def test_il_409_prima_dello_stream_e_registrato(caplog):
+    caplog.set_level("INFO", logger="servizio_backend")
+    cancello = threading.Event()
+    client, _, agente = prepara(cancello=cancello)
+    cid = client.post("/chat", json={}).json()["id"]
+    primo = threading.Thread(target=lambda: turno(client, cid))
+    primo.start()
+    try:
+        for _ in range(100):
+            if agente.chiamate:
+                break
+            time.sleep(0.05)
+        assert client.post(f"/chat/{cid}/messaggi", json={"messaggio": "ancora"}).status_code == 409
+    finally:
+        cancello.set()
+        primo.join(10)
+    assert any("metodo=POST" in r and "esito=errore stato=409" in r for r in righe_richiesta(caplog))
+
+
+def test_eccezione_imprevista_prima_dello_stream_libera_il_registro():
+    client, _, agente = prepara()
+    client = TestClient(client.app, raise_server_exceptions=False)
+    cid = client.post("/chat", json={}).json()["id"]
+    originale = agente.apri_turno
+
+    def esplode(*argomenti):
+        raise RuntimeError("guasto")
+
+    agente.apri_turno = esplode
+    risposta = client.post(f"/chat/{cid}/messaggi", json={"messaggio": "x"})
+    assert risposta.status_code == 500
+    assert risposta.json() == {"errore": "Errore interno del back-end: RuntimeError."}
+    agente.apri_turno = originale
+    assert turno(client, cid)[1][-1][0] == "fine"
+
+
+def test_chat_inesistente_404_e_registro_libero():
+    client, archivio, _ = prepara()
+    assert client.post("/chat/77/messaggi", json={"messaggio": "x"}).status_code == 404
+    cid = client.post("/chat", json={}).json()["id"]
+    archivio.spento = True
+    assert client.post(f"/chat/{cid}/messaggi", json={"messaggio": "x"}).status_code == 503
+    archivio.spento = False
+    assert turno(client, cid)[1][-1][0] == "fine"

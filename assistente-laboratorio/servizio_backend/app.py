@@ -5,6 +5,7 @@ e il log non contiene mai il testo dei messaggi né le istruzioni.
 """
 
 import logging
+import time
 from typing import Annotated
 
 from fastapi import FastAPI, Path, Query, Request
@@ -67,6 +68,22 @@ def crea_app(archivio: Archivio, agente) -> FastAPI:
         default_response_class=RispostaJson,
     )
     turni = RegistroTurni()
+
+    @app.middleware("http")
+    async def riga_di_log(richiesta: Request, chiama_dopo):
+        # Una riga per richiesta; solo il percorso, mai la query string (la ricerca contiene testo dell'utente).
+        inizio = time.perf_counter()
+        stato = 500
+        try:
+            risposta = await chiama_dopo(richiesta)
+            stato = risposta.status_code
+            return risposta
+        finally:
+            registro.info(
+                "richiesta metodo=%s endpoint=%s esito=%s stato=%d durata=%.2f",
+                richiesta.method, richiesta.url.path, "errore" if stato >= 400 else "ok", stato,
+                time.perf_counter() - inizio,
+            )
 
     @app.exception_handler(RequestValidationError)
     async def validazione_in_italiano(richiesta: Request, eccezione: RequestValidationError) -> JSONResponse:
@@ -177,11 +194,16 @@ def crea_app(archivio: Archivio, agente) -> FastAPI:
         testo = corpo.messaggio.replace("\ufeff", "").strip()
         if not testo:
             return _errore(400, "Richiesta non valida: il messaggio è vuoto.")
-        contesto = archivio.contesto_turno(id)
-        if contesto is None:
-            return _non_trovato("Chat", id)
         if not turni.occupa(id):
             return _errore(409, MESSAGGIO_CHAT_OCCUPATA)
+        try:
+            contesto = archivio.contesto_turno(id)
+        except BaseException:
+            turni.libera(id)
+            raise
+        if contesto is None:
+            turni.libera(id)
+            return _non_trovato("Chat", id)
         try:
             cronologia, istruzioni = contesto
             try:
