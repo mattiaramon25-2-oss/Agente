@@ -250,7 +250,7 @@ con Docker è montata sull'host):
 - `logs/servizio_api.log` (solo con `VARIANTE_SCADENZE=fastapi`): avvio e arresto del servizio e
   ogni richiesta a `/scadenza` con argomenti ed esito;
 - `logs/servizio_backend.log` (solo con `python -m servizio_backend`): avvio e arresto, una riga per ogni
-  turno con `chat_id`, strumenti usati, `esito` e se il browser si è scollegato; mai il testo dei messaggi.
+  richiesta (metodo, percorso senza query string, esito, stato, durata) e una per ogni turno con `chat_id`, strumenti usati, `esito` e se il browser si è scollegato; mai il testo dei messaggi.
 
 Il `call_id` del modello non arriva al server (l'identificativo del protocollo è un altro): le due
 tracce si confrontano per strumento, argomenti e ora. Una risposta plausibile senza la riga
@@ -338,11 +338,13 @@ python -m servizio_backend
 2. `python -m servizio_agente` è il servizio dell'agente (porta `AGENTE_PORTA`).
 3. `python -m servizio_backend` legge il `.env`, si collega al database, crea le tabelle se mancano,
    controlla l'agente (se non risponde avvisa e parte lo stesso) e ascolta su
-   `127.0.0.1:BACKEND_PORTA`. `Ctrl+C` lo ferma. La documentazione interattiva è su `/docs`.
+   `127.0.0.1:BACKEND_PORTA`. Si ferma con `Ctrl+C` (provato solo l'arresto con `CTRL_BREAK` nella prova Docker; `Ctrl+C` in una console reale non è stato provato a mano). La documentazione interattiva è su `/docs`.
 
 Nel `.env` servono `BACKEND_PORTA`, `POSTGRES_USER`, `POSTGRES_DB` e `POSTGRES_PASSWORD` (la scegli
 tu), più `AGENTE_PORTA`; `POSTGRES_PORTA` è facoltativa. Il log è in `logs/servizio_backend.log`: avvio,
-arresto, una riga per ogni turno (`richiesta endpoint=/chat/1/messaggi chat_id=1 esito=ok
+arresto, una riga per ogni richiesta (`richiesta metodo=GET endpoint=/progetti esito=ok stato=200
+durata=0.01`: solo il percorso, mai la query string; per il turno in streaming la durata arriva all'inizio
+della risposta), una riga per ogni turno con la durata completa (`richiesta endpoint=/chat/1/messaggi chat_id=1 esito=ok
 strumenti=["calcola"] scollegato=false durata=83.6`) e un avviso per database spento o errore imprevisto;
 mai il testo dei messaggi né le istruzioni.
 
@@ -579,9 +581,10 @@ infine il modello. Un errore di un livello basso non si risolve cambiando il mes
   | Sintomo | Cosa controllare |
   |---|---|
   | `Variabili d'ambiente mancanti: … POSTGRES_PASSWORD` | la password non è nel `.env`: sceglila e scrivila; va impostata **prima** di creare il volume del database (vedi sotto) |
-  | `Il database PostgreSQL non risponde su 127.0.0.1:…` all'avvio | il container è spento: `docker compose up -d database` e `docker compose ps` (deve essere `healthy`); controllare `POSTGRES_PORTA`; se il container non parte, `docker compose logs database` ne dice il motivo, per esempio la password mancante (comportamento dell'immagine ufficiale, non provato nel progetto) |
+  | `docker compose up -d database` fallisce con «variabile obbligatoria» | Compose interpola tutto il file: nel `.env` servono anche `LMSTUDIO_BASE_URL_DOCKER`, `MCP_PORTA`, `VARIANTE_CALCOLATRICE`, `VARIANTE_SCADENZE` e `AGENTE_PORTA`, anche se il database non li usa |
+  | `Il database PostgreSQL non risponde su 127.0.0.1:… (motivo)` all'avvio | il motivo tra parentesi dice che cosa è andato storto (anche nel log). Se è il container spento: `docker compose up -d database` e `docker compose ps` (deve essere `healthy`); controllare `POSTGRES_PORTA`; se il container non parte, `docker compose logs database` ne dice il motivo, per esempio la password mancante (comportamento dell'immagine ufficiale, non provato nel progetto) |
   | `503` «Il database non risponde: riprova tra poco.» durante l'uso | il container si è fermato: `docker compose up -d database`, il back-end non va riavviato |
-  | `password authentication failed` nel messaggio | la password nel `.env` è diversa da quella con cui il volume è stato creato: PostgreSQL la legge solo alla prima creazione (comportamento generale, non provato nel progetto). Rimettere quella vecchia, oppure `docker compose down -v` (**cancella tutte le chat**) e ripartire |
+  | `password authentication failed` nel motivo dell'avvio, o nel messaggio | la password nel `.env` è diversa da quella con cui il volume è stato creato: PostgreSQL la legge solo alla prima creazione (comportamento generale, non provato nel progetto). Rimettere quella vecchia, oppure `docker compose down -v` (**cancella tutte le chat**) e ripartire |
   | `GET /salute` con `"agente": "non raggiungibile"`, o `503` «L'agente non risponde su …» | avviare `python -m servizio_agente`; `AGENTE_PORTA` deve essere la stessa nei due programmi |
   | `503` «L'agente sta già rispondendo a un'altra chat: riprova tra poco.» | l'agente fa un turno alla volta: aspettare la fine dell'altro |
   | `409` «C'è già una risposta in corso in questa chat.» | un turno è già in corso nella stessa chat |

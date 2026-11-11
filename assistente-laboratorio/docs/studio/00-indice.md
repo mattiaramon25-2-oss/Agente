@@ -51,7 +51,7 @@ Ogni capitolo ha tre livelli. Non serve leggerli tutti e tre ogni volta.
 - Dieci strumenti, con la logica scritta una volta sola in `logica/`.
 - Tre modi di collegare uno strumento: MCP per tutti, `@tool` locale per la calcolatrice, FastAPI con wrapper HTTP per le scadenze.
 - Le note persistenti in SQLite e il meteo da Open-Meteo.
-- I log su tre file e la diagnosi per livelli.
+- I log su tre file (poi quattro con il back-end delle chat) e la diagnosi per livelli.
 - Una revisione finale con 9 correzioni, unita in `main` il 9 novembre.
 
 **Da studiare.**
@@ -103,7 +103,7 @@ Le slide del docente (`LLM_Lez_6.pdf`, 19 slide, fuori dal repository) dividono 
 | 07 | [I dieci strumenti uno per uno](07-gli-strumenti.md) | che cosa fa ogni strumento, i suoi errori e i suoi esempi |
 | 08 | [Configurazione, avvio e Docker](08-configurazione-avvio-docker.md) | il file `.env`, `python -m assistente`, `compose.yaml`, `avvia.ps1` e il fuso orario |
 | 09 | [Test e verifiche](09-test-e-verifiche.md) | test automatici con modello finto, prove reali separate (`--lmstudio`, `--docker`) |
-| 10 | [Log, diagnosi e limiti noti](10-log-e-diagnosi.md) | i tre file di log, la diagnosi per livelli, che cosa il codice non può impedire |
+| 10 | [Log, diagnosi e limiti noti](10-log-e-diagnosi.md) | i file di log (tre, più `servizio_backend.log`), la diagnosi per livelli, che cosa il codice non può impedire |
 | 11 | [Storia del progetto e decisioni](11-storia-del-progetto.md) | dalla base del 2 novembre alla revisione unita il 9 novembre, con le decisioni prese |
 | 12 | [Glossario e domande di ripasso](12-glossario-e-domande.md) | i termini tecnici e le domande tipiche dell'orale |
 | 13 | [L'agente come servizio HTTP](13-agente-come-servizio.md) | lezione 6, step 6: `python -m servizio_agente`, `/salute` e `/chat`, stessa risposta della CLI; con lo step 7 anche `/chat/stream` e `istruzioni` |
@@ -153,13 +153,13 @@ flowchart LR
 | Server pronto | solo quando la discovery (`tools/list`) riesce, non un semplice HTTP 200; attesa massima 10 s | `assistente/avvio_server.py:25`, `:155-170` |
 | Tempi massimi | MCP 10 s, FastAPI 5 s, meteo 4 s per fase e 8 s in tutto, LM Studio 120 s | `client_mcp.py:16`, `wrapper_scadenze.py:19`, `logica/meteo.py:17-20`, `modello.py:84` |
 | Esiti nel log | `ok`, `errore_tool`, `errore_collegamento`, `strumento_sconosciuto`, `limite` | `assistente/grafo.py:66-74` (primi tre), `:154`, `:198`; README «Log» |
-| Log | `logs/assistente.log`, `logs/server_mcp.log`, `logs/servizio_api.log` (solo con `fastapi`) | `assistente/registro.py:9-11` |
+| Log | `logs/assistente.log`, `logs/server_mcp.log`, `logs/servizio_api.log` (solo con `fastapi`), `logs/servizio_backend.log` (solo con il back-end) | `assistente/registro.py:9-11` |
 | Persistenza | cronologia solo in memoria; note in `archivio/note.sqlite3` | `logica/note.py:19` |
 | Fuso, in ordine | `FUSO_HOST_WINDOWS` (da `avvia.ps1`), poi il fuso del computer (solo fuori da Docker), poi `FUSO_ORARIO`, poi `UTC` con avviso | `assistente/fuso.py:36-53` |
 | Chiave API | `"lm-studio"`: è un segnaposto, non una credenziale | `assistente/modello.py:15` |
 | Risposte di prova | `(3+4)*2` dà 14; 23/12/2026 più 3 giorni lavorativi dà 29/12/2026; `DLL-01` dura 120 ore | README «Test» |
 | Back-end delle chat | tre tabelle (`progetti`, `chat`, `messaggi`); turno salvato in una transazione solo dopo `fine`; `409` se la chat ha già un turno; tutto su `127.0.0.1` | `servizio_backend/schema.sql:3-27`, `archivio.py:218-234`, `turni.py:20-122` |
-| Test | 503 raccolti, di cui 36 prove reali (30 `lmstudio`, 6 `docker`) saltate se non le chiedi; il 09/11/2026: 467 passati e 36 saltati | `python -m pytest` |
+| Test | suite predefinita il 10/11/2026: 618 passati e 64 saltati (prove reali, saltate se non le chiedi); vedi capitolo 09 §10.4 | `python -m pytest` |
 
 **Prova lampo.** Eseguita davvero con il modello finto di `tests/finti.py`, senza LM Studio. Lo script costruisce il grafo con `crea_grafo` (`assistente/grafo.py:141`), passando `ModelloFinto` con due risposte preparate e `orologio_finto` fermo al 2026-11-08 20:13 UTC. Poi esegue un turno con `esegui_turno` (`assistente/grafo.py:214`). Questa è la cronologia restituita:
 

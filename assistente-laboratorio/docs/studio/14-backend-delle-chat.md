@@ -44,9 +44,9 @@ flowchart LR
 | Avvio | `docker compose up -d database`, poi `python -m servizio_agente` e `python -m servizio_backend` | `compose.yaml:51`, `servizio_backend/__main__.py:39` |
 | Tabelle | `progetti`, `chat`, `messaggi`, create all'avvio con `IF NOT EXISTS` | `servizio_backend/schema.sql:3,11,20` |
 | Salvataggio del turno | una transazione: due messaggi, cronologia, `aggiornata`, titolo | `servizio_backend/archivio.py:218-234` |
-| Un turno per chat | `RegistroTurni.occupa` / `libera`; `409` se occupata | `servizio_backend/turni.py:20-40`, `app.py:183-184` |
-| Tempi verso l'agente | 5 s per collegarsi, 180 s di lettura tra due eventi | `servizio_backend/client_agente.py:9` |
-| Limiti | `nome` 1–100, `istruzioni` fino a 4000, `q` almeno 2, ricerca al massimo 50, titolo 60 + «…» | `servizio_backend/app.py:30-35,206`, `archivio.py:80`, `testi.py` |
+| Un turno per chat | `RegistroTurni.occupa` / `libera`; `409` se occupata | `servizio_backend/turni.py:20-40`, `app.py:197-198` |
+| Tempi verso l'agente | 5 s per collegarsi, 180 s di lettura tra due eventi | `servizio_backend/client_agente.py:10` |
+| Limiti | `nome` 1–100, `istruzioni` fino a 4000, `q` almeno 2, ricerca al massimo 50, titolo 60 + «…» | `servizio_backend/app.py:30-35,228`, `archivio.py:80`, `testi.py` |
 | Variabili | `BACKEND_PORTA`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `POSTGRES_PORTA` (predefinita 5432) | `servizio_backend/configurazione.py:10` |
 | Ascolto | solo `127.0.0.1`, anche PostgreSQL | `servizio_backend/__main__.py`, `compose.yaml` |
 | Log | `logs/servizio_backend.log`, mai i testi dei messaggi | `assistente/registro.py:12` |
@@ -116,10 +116,12 @@ per un utente solo, e un database riavviato non lascia connessioni morte.
 
 ## 3. Il turno in un thread
 
-`POST /chat/{id}/messaggi` (`servizio_backend/app.py:175`) fa tre controlli prima di cominciare, con JSON
-normale: messaggio vuoto `400`, chat inesistente `404`, turno già in corso sulla stessa chat `409`
-(`RegistroTurni.occupa`, `turni.py:27`). Poi `agente.apri_turno` (`client_agente.py:53`): se l'agente è
-spento, occupato o rifiuta, `503` con il motivo.
+`POST /chat/{id}/messaggi` (`servizio_backend/app.py:192`) fa tre controlli prima di cominciare, con JSON
+normale: messaggio vuoto `400`, turno già in corso sulla stessa chat `409` (`RegistroTurni.occupa`,
+`turni.py:27`), chat inesistente `404`. La chat si prenota prima di leggere il contesto, così un turno non può
+partire su una chat che sta per essere cancellata; se il contesto manca o l'archivio dà errore, la chat si
+libera. Poi `agente.apri_turno` (`client_agente.py:56`): se l'agente è spento, occupato o rifiuta, `503` con il
+motivo.
 
 Quando tutto è a posto nasce un `Turno` (`turni.py:43`) che avvia un thread (`_esegui`, `turni.py:78`):
 
@@ -150,7 +152,7 @@ chat non esiste solleva `ChatInesistente` e il blocco `with` fa il rollback: non
 È chiamato solo quando arriva l'evento `fine` dell'agente (`turni.py:115`). Dopo `errore` o interruzione non
 si salva nulla, nemmeno la domanda. La riga di log del turno ha `esito=ok` o `esito=errore`.
 
-**Cancellare durante un turno.** `DELETE /chat/{id}` (`app.py:164`) e `DELETE /progetti/{id}` (`app.py:115`)
+**Cancellare durante un turno.** `DELETE /chat/{id}` (`app.py:181`) e `DELETE /progetti/{id}` (`app.py:132`)
 **prenotano** la chat nel registro dei turni prima di cancellare: se un turno è in corso rispondono `409`.
 Così un turno che ha già avuto effetti trova sempre la sua chat quando deve salvarsi. Per il progetto si
 prenotano tutte le sue chat, così nessun turno può cominciare durante la cancellazione.
@@ -167,7 +169,7 @@ Se invece è l'**agente** a interrompersi, non si salva niente.
 ## 6. SSE: gli eventi
 
 `formatta_sse` (`assistente/sse.py:7`) scrive `event: nome` e `data: json` su una riga (gli a capo diventano
-`\n`), seguiti da una riga vuota; `leggi_sse` (`:12`) fa il contrario e ignora i commenti. Gli eventi del
+`\n`), seguiti da una riga vuota; `leggi_sse` (`:19`) fa il contrario e ignora i commenti. U+2028, U+2029 e U+0085 escono come escape JSON (` `…): i lettori di righe li tratterebbero come a capo e spezzerebbero l'evento. Un evento malformato nel flusso dell'agente diventa `AgenteInterrotto` (`client_agente.py:34`). Gli eventi del
 back-end verso il browser:
 
 | Evento | Dati | Quando |
@@ -188,7 +190,7 @@ vede lo streaming (aspetta la fine): si usa `curl.exe -N` (README, sezione «Il 
 **Dal lato dell'agente.** `POST /chat/stream` (`servizio_agente/app.py:118`): stessa richiesta di `/chat`,
 gli stessi eventi, con `fine` che porta anche la `cronologia`. Non aspetta il lock: se un altro turno è in
 corso risponde subito `409` (`:124-125`), che il client traduce in «L'agente sta già rispondendo a un'altra
-chat: riprova tra poco.» (`client_agente.py:65`). Così il flusso non resta muto in coda e il limite di
+chat: riprova tra poco.» (`client_agente.py:68`). Così il flusso non resta muto in coda e il limite di
 lettura di 180 s non scatta per un motivo che non è un guasto.
 
 ## 7. Istruzioni del progetto
@@ -201,19 +203,23 @@ resta il testo fisso. Dettagli in [04, sezione 23](04-grafo-langgraph.md#23-le-i
 
 ## 8. Errori, configurazione e log
 
-- Errori sempre `{"errore": "..."}` in italiano; i `422` di FastAPI diventano `400` (`app.py:71`).
-  Database non raggiungibile → `503` «Il database non risponde: riprova tra poco.» (`app.py:75`).
-- **Rete di sicurezza.** Un gestore per `Exception` (`app.py:85`) trasforma gli errori imprevisti in
+- Errori sempre `{"errore": "..."}` in italiano; i `422` di FastAPI diventano `400` (`app.py:88`).
+  Database non raggiungibile → `503` «Il database non risponde: riprova tra poco.» (`app.py:92`).
+- **Rete di sicurezza.** Un gestore per `Exception` (`app.py:102`) trasforma gli errori imprevisti in
   JSON `500`, e un percorso senza questo gestore darebbe una pagina di testo non conforme al vincolo
   «errori sempre in JSON». Decisione presa dopo la revisione del Task 8, insieme a: id limitati a
   `2**31 - 1` (sono `INTEGER`), nome del progetto ripulito dagli spazi.
 - `carica_configurazione_backend` (`configurazione.py:22`) elenca tutte le variabili mancanti insieme;
   `BACKEND_PORTA` deve essere diversa da `AGENTE_PORTA`, `MCP_PORTA` e `API_PORTA`.
-- Avvio (`__main__.py:39`): configurazione, log, porta libera, database (`controlla` e `prepara`, con un
-  errore che indica `docker compose up -d database`), poi controlla l'agente e, se non risponde, **avvisa
+- Avvio (`__main__.py:39`): configurazione, log, porta libera, database (`controlla` e `prepara`; se non risponde,
+  l'errore riporta il motivo di psycopg, per esempio `password authentication failed`, e suggerisce
+  `docker compose up -d database` e il controllo del `.env`; il motivo va anche nel log, mai il dsn), poi controlla l'agente e, se non risponde, **avvisa
   senza fermarsi** (`/salute` lo riporta). `SIGBREAK` e `SIGTERM` diventano un arresto ordinato
   (`__main__.py:28-37`).
-- Log in `logs/servizio_backend.log`: avvio, arresto e una riga per turno
+- Log in `logs/servizio_backend.log`: avvio, arresto, **una riga per ogni richiesta** (middleware `riga_di_log`,
+  `app.py:72`: `richiesta metodo=GET endpoint=/progetti esito=ok stato=200 durata=0.01`, solo il percorso, mai la
+  query string; per il turno in streaming la durata arriva all'inizio della risposta) e **una riga per turno** con la
+  durata completa
   (`richiesta endpoint=/chat/1/messaggi chat_id=1 esito=ok strumenti=["calcola"] scollegato=false durata=83.6`).
   Mai i testi dei messaggi né le istruzioni; un test lo controlla (`tests/test_turni.py::test_log_senza_testi`).
 

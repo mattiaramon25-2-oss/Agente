@@ -1406,7 +1406,7 @@ facoltativo `istruzioni` e le aggiunge **in fondo al messaggio di sistema**.
 |---|---|---|
 | Stato | `assistente/grafo.py:44` | `istruzioni: NotRequired[str]`, usato solo dal nodo `modello` |
 | Intestazione | `assistente/grafo.py:30` | «Istruzioni del progetto per questa conversazione (si aggiungono alle regole precedenti e non le sostituiscono):» |
-| Messaggio di sistema | `messaggio_sistema(fuso_utente, istruzioni="")`, `assistente/grafo.py:47-69` | se `istruzioni.strip()` non è vuoto, in fondo `"\n" + intestazione + "\n" + istruzioni`; altrimenti il messaggio è identico a prima |
+| Messaggio di sistema | `messaggio_sistema(fuso_utente, istruzioni="")`, `assistente/grafo.py:47-69` | se `istruzioni.strip()` non è vuoto, in fondo `"\n" + intestazione + "\n" + istruzioni.strip()`; altrimenti il messaggio è identico a prima |
 | Nodo modello | `assistente/grafo.py:177-181` | passa `stato.get("istruzioni", "")` a `messaggio_sistema` |
 | Turni | `esegui_turno` (`:256`) ed `esegui_turno_in_streaming` (`:271`) | argomento facoltativo `istruzioni`; la CLI non lo passa e non cambia |
 

@@ -16,7 +16,6 @@
 6. **In Docker tutto sta in un container, tranne LM Studio.** Assistente, server MCP e servizio FastAPI girano insieme e si parlano su `127.0.0.1`: nessuna porta va aperta. LM Studio resta sul computer host. Lo script `avvia.ps1` passa al container il fuso di Windows. → sezione 7
 7. **Spegnere vuol dire chiedere, aspettare, imporre.** L'assistente chiede ai figli di chiudersi e aspetta 5 secondi. Solo se sono ancora vivi li uccide. Il figlio trasforma la richiesta in un'uscita normale, con codice 0 e una riga nel log. → sezione 8
 8. **Il servizio dell'agente ha un container suo** (10 novembre). Il servizio Compose `agente` usa la stessa immagine, avvia il suo server MCP e pubblica `AGENTE_PORTA` solo su `127.0.0.1` dell'host; dentro ascolta su `0.0.0.0` (`AGENTE_HOST`). Si avvia con `avvia-agente.ps1`. → sezione 7.9
-
 9. **Il database delle chat** (step 7). Il servizio Compose `database` è PostgreSQL 18 con il volume con nome `dati_postgres`, porta solo su `127.0.0.1`. Le variabili `POSTGRES_*` sono scritte senza `:?`, perché Compose controlla tutto il file e le altre prove non devono cambiare. → sezione 7.10
 
 **Il quadro**

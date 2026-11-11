@@ -31,7 +31,7 @@ flowchart LR
 
 | Cosa | Valore | Dove |
 |---|---|---|
-| I tre file di log | `logs/assistente.log`, `logs/server_mcp.log`, `logs/servizio_api.log` | `assistente/registro.py:8-11` |
+| I file di log | `logs/assistente.log`, `logs/server_mcp.log`, `logs/servizio_api.log` (più `logs/servizio_backend.log` dal back-end delle chat, capitolo 14 §8) | `assistente/registro.py:8-11` |
 | Riga di una chiamata | sette campi, da `origine` a `tool_message.call_id` | `assistente/grafo.py:106-119` |
 | Scelta tra `ok`, `errore_tool`, `errore_collegamento` | chiave `errore` e campo `tipo` del JSON restituito | `assistente/grafo.py:66-74` |
 | Il terminale stampa | solo i `ToolMessage` con `status` diverso da `error` | `assistente/terminale.py:32` |
@@ -77,6 +77,7 @@ Ci sono fino a tre processi, e ciascuno scrive il **proprio** file nella cartell
 | `logs/assistente.log` | il processo dell'assistente (grafo, avvio, varianti) | sempre, dopo una configurazione valida | `configura_registro()` aggiunge un `FileHandler` al logger `assistente` (`assistente/registro.py:26-38`) |
 | `logs/server_mcp.log` | il processo del server MCP | sempre: il server parte a ogni avvio | l'assistente avvia il server con stdout e stderr rediretti nel file (`assistente/avvio_server.py:101-113`) |
 | `logs/servizio_api.log` | il processo del servizio FastAPI | solo con `VARIANTE_SCADENZE=fastapi` | stesso meccanismo, con `avvia_servizio_api` (`assistente/avvio_server.py:183-205`) |
+| `logs/servizio_backend.log` | il back-end delle chat (lezione 6) | solo con `python -m servizio_backend` | non fa parte di questo capitolo: vedi il capitolo 14 §8 |
 
 Caratteristiche comuni:
 
