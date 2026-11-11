@@ -1,5 +1,6 @@
 """Client HTTP del servizio dell'agente: apre un turno in streaming e legge gli eventi SSE."""
 
+import json
 from typing import Iterator
 
 import httpx
@@ -30,6 +31,8 @@ class TurnoAgente:
             yield from leggi_sse(self._risposta.iter_lines())
         except httpx.HTTPError as errore:
             raise AgenteInterrotto(f"Il collegamento con l'agente si è interrotto: {errore or type(errore).__name__}.") from errore
+        except json.JSONDecodeError as errore:
+            raise AgenteInterrotto("L'agente ha inviato un evento malformato.") from errore
         finally:
             self.chiudi()
 

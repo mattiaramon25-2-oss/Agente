@@ -14,3 +14,15 @@ def test_sse_ignora_commenti():
 def test_sse_righe_con_a_capo_evento_predefinito_ed_evento_incompleto():
     righe = ['data: {"a": 1}\n', "\n", "event: fine\n", 'data: {"b": 2}\n']
     assert list(leggi_sse(righe)) == [("message", {"a": 1})]
+
+
+def test_sse_separatori_unicode_non_spezzano_l_evento():
+    import httpx
+
+    dati = {"risposta": "a\u2028b\u2029c\x85d è"}
+    testo = formatta_sse("fine", dati)
+    assert "\u2028" not in testo and "\u2029" not in testo and "\x85" not in testo
+    assert "è" in testo
+    assert list(leggi_sse(testo.splitlines())) == [("fine", dati)]
+    risposta = httpx.Response(200, content=testo.encode("utf-8"))
+    assert list(leggi_sse(risposta.iter_lines())) == [("fine", dati)]

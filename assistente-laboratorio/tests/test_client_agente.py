@@ -83,3 +83,12 @@ def test_chiudi_e_idempotente_anche_con_consumo_parziale():
     eventi.close()
     turno.chiudi()
     turno.chiudi()
+
+
+def test_evento_malformato_e_un_flusso_interrotto():
+    def gestore(richiesta):
+        return httpx.Response(200, content=b"event: fine\ndata: {rotto\n\n")
+
+    turno = con_trasporto(gestore).apri_turno("ciao", [], "")
+    with pytest.raises(AgenteInterrotto):
+        list(turno.eventi())
