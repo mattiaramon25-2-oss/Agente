@@ -36,7 +36,7 @@ Un'applicazione da terminale in Python che conversa con un modello locale e:
 
 - organizza il flusso in un grafo LangGraph esplicito (stato, nodi, instradamento riconoscibili);  
 - usa un modello servito da LM Studio, che resta sul computer host;  
-- conserva la cronologia della conversazione per la durata della sessione (nessuna persistenza della cronologia; le note sono l'unica persistenza, voluta);  
+- nella CLI conserva la cronologia della conversazione per la durata della sessione (nessuna persistenza della cronologia; le note sono l'unica persistenza, voluta); dalla lezione 6, step 7, il back-end salva chat, messaggi e cronologia in PostgreSQL;  
 - offre gli strumenti della lezione 5 (orologio, convertitore, calcolatrice, scadenze, catalogo, note, meteo) tramite un server MCP che avvia, scopre con la discovery e spegne da sé; il modello li richiede con il tool calling e il programma li esegue davvero;  
 - permette di confrontare tre modi di collegare uno strumento: MCP per tutti, `@tool` locale per la calcolatrice, FastAPI con wrapper HTTP per le scadenze, scelti nel `.env` (una sola versione per nome visibile al modello);  
 - si avvia anche con Docker Compose;  
