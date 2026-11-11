@@ -33,7 +33,7 @@ flowchart LR
 | Salto automatico se manca l'opzione | `pytest_collection_modifyitems` | `tests/conftest.py:9-16` |
 | Il modello finto | `ModelloFinto`: risposte preparate, restituite in ordine | `tests/finti.py:13-25` |
 | Giri massimi con gli strumenti in un turno | `MAX_GIRI_STRUMENTO = 3` | `assistente/grafo.py:20` |
-| Esito dello step 7, 2026-11-10 | `python -m pytest`: 618 passati, 64 saltati; `--docker -m docker`: 23 passati; `--lmstudio --docker tests/test_reale_backend.py`: 4 passati | → sezione 10.4 |
+| Esito dello step 7, 2026-11-10 | `python -m pytest`: 625 passati, 64 saltati (dopo la revisione finale); `--docker -m docker`: 23 passati; `--lmstudio --docker tests/test_reale_backend.py`: 4 passati | → sezione 10.4 |
 | Ambiente comune delle prove reali | `ambiente_reale()`, con archivio delle note temporaneo | `tests/reale.py:32-63` |
 
 **Se te lo chiedono all'orale**
@@ -849,7 +849,7 @@ dorme 60 secondi: con un limite di 2 secondi l'esecuzione termina in meno di 20.
 
 ### 10.4 Lo step 7: database di prova e prove del back-end
 
-Il back-end ha aggiunto test di tre famiglie (esiti del 10 novembre 2026: `python -m pytest` 618 passati e
+Il back-end ha aggiunto test di tre famiglie (esiti del 10 novembre 2026: `python -m pytest` 618 passati, 625 dopo le correzioni della revisione finale, e
 64 saltati; `--docker -m docker` 23 passati e 4 saltati, perché `tests/test_reale_backend.py` ha il
 marcatore `lmstudio` **e** `docker` e chiede entrambe le opzioni; `--lmstudio -m lmstudio` 36 passati e 1
 fallito, `test_reale_meteo.py::test_il_modello_usa_il_meteo` per «nessuna risposta entro 8 secondi» del

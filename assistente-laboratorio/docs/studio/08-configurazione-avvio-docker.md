@@ -498,7 +498,7 @@ sequenceDiagram
 | 1 | Flussi in UTF-8 | `console.py` | — | — |
 | 2 | Lettura del `.env` | `python-dotenv` | file assente: qui nessun errore, se ne accorge il passo 3 | — |
 | 3 | Configurazione | `configurazione.py` | variabile mancante o non valida | `Errore: Variabili d'ambiente mancanti: …`, codice 1 |
-| 4 | Log su file | `registro.py:26-38` | — (crea `logs/` se manca) | — |
+| 4 | Log su file | `registro.py:27-39` | — (crea `logs/` se manca) | — |
 | 5 | Verifica di LM Studio | `modello.py:42-76` | LM Studio spento, URL sbagliato, modello assente | `Errore: Impossibile raggiungere LM Studio…` oppure `Errore: Il modello '…' non è disponibile…`, codice 1 |
 | 6 | Fuso | `fuso.py` | non fallisce mai: al peggio usa UTC con avviso | — |
 | 7 | Server MCP | `avvio.py:34-36` → `avvio_server.py:153-170` | porta occupata, processo che non parte, catalogo vuoto | `Errore: Porta 8765 già in uso: chiudi il programma che la usa o cambia MCP_PORTA nel .env.`, `Errore: Il server MCP non è partito (porta …). Ultime righe di …`, `Errore: Il server MCP non espone nessuno strumento.`, codice 1 |

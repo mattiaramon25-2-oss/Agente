@@ -215,7 +215,7 @@ Il glossario contiene 132 voci. Nella colonna «Dove» c'è il primo posto da ap
 
 | Termine | Definizione | Dove |
 |---|---|---|
-| Idempotente | Che si può ripetere senza effetti in più. `configura_registro` non aggiunge un secondo gestore se il file è già collegato. | `assistente/registro.py:26-32` |
+| Idempotente | Che si può ripetere senza effetti in più. `configura_registro` non aggiunge un secondo gestore se il file è già collegato. | `assistente/registro.py:27-33` |
 | `Inexact` | Flag del contesto `Decimal`, che diventa vero se un passaggio ha dovuto arrotondare. Allora il risultato viene dato come float a 15 cifre, mai come intero. | `logica/calcolatrice.py:104`, `logica/numeri.py:30-34` |
 | Instradamento | Scelta del nodo successivo. `instrada_dopo_modello` restituisce `END`, `"strumenti"` o `"limite"`. | `assistente/grafo.py:132-138` |
 | `invalid_tool_calls` | Richieste di strumento con argomenti che non sono JSON valido. Il grafo le chiude con un `ToolMessage` di errore, così la cronologia resta valida. | `assistente/grafo.py:61-63`, `:122-129` |
@@ -240,7 +240,7 @@ Il glossario contiene 132 voci. Nella colonna «Dove» c'è il primo posto da ap
 | LLM | *Large Language Model*: modello di linguaggio. Qui gira in locale in LM Studio, per esempio `google/gemma-4-e2b`. | `.env.example:5` |
 | LM Studio | Programma che scarica e serve modelli in locale con un'API compatibile con OpenAI (porta predefinita 1234). Resta sull'host, non va containerizzato. | `assistente/modello.py`, README «Requisiti» |
 | `localcontext` | Contesto `Decimal` temporaneo. Si usa per alzare la precisione a 400 cifre solo dentro il calcolo. | `logica/calcolatrice.py:95-104` |
-| Log | Tre file in `logs/`: `assistente.log`, `server_mcp.log` e `servizio_api.log`, con righe `chiave=valore`. | `assistente/registro.py:8-11` |
+| Log | Quattro file in `logs/`: `assistente.log`, `server_mcp.log`, `servizio_api.log` e `servizio_backend.log` (back-end delle chat), con righe `chiave=valore`. | `assistente/registro.py:8-12` |
 
 ### M
 
@@ -389,7 +389,7 @@ calcola("2,5 * 2")          → ERRORE: Usa il punto come separatore decimale, p
  "nota": "Calcolo indicativo: non ha valore legale."}
 ```
 
-**Riga di log** prodotta da `formatta` (`assistente/registro.py:14-23`):
+**Riga di log** prodotta da `formatta` (`assistente/registro.py:15-24`):
 
 ```text
 origine=mcp tool=calcola call_id=c1 argomenti={"espressione":"(3+4)*2"} esito=ok risultato={"risultato":14}
@@ -926,7 +926,7 @@ Una riga `chiave=valore` con:
 - `risultato` e `tool_message.call_id`.
 
 È la prova che lo strumento è stato usato davvero. Una risposta plausibile senza questa riga non dimostra niente.
-→ `assistente/grafo.py:106-119`, `assistente/registro.py:14-23`
+→ `assistente/grafo.py:106-119`, `assistente/registro.py:15-24`
 </details>
 
 <details>

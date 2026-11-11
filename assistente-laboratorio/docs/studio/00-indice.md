@@ -153,13 +153,13 @@ flowchart LR
 | Server pronto | solo quando la discovery (`tools/list`) riesce, non un semplice HTTP 200; attesa massima 10 s | `assistente/avvio_server.py:25`, `:155-170` |
 | Tempi massimi | MCP 10 s, FastAPI 5 s, meteo 4 s per fase e 8 s in tutto, LM Studio 120 s | `client_mcp.py:16`, `wrapper_scadenze.py:19`, `logica/meteo.py:17-20`, `modello.py:84` |
 | Esiti nel log | `ok`, `errore_tool`, `errore_collegamento`, `strumento_sconosciuto`, `limite` | `assistente/grafo.py:66-74` (primi tre), `:154`, `:198`; README «Log» |
-| Log | `logs/assistente.log`, `logs/server_mcp.log`, `logs/servizio_api.log` (solo con `fastapi`), `logs/servizio_backend.log` (solo con il back-end) | `assistente/registro.py:9-11` |
+| Log | `logs/assistente.log`, `logs/server_mcp.log`, `logs/servizio_api.log` (solo con `fastapi`), `logs/servizio_backend.log` (solo con il back-end) | `assistente/registro.py:9-12` |
 | Persistenza | cronologia solo in memoria; note in `archivio/note.sqlite3` | `logica/note.py:19` |
 | Fuso, in ordine | `FUSO_HOST_WINDOWS` (da `avvia.ps1`), poi il fuso del computer (solo fuori da Docker), poi `FUSO_ORARIO`, poi `UTC` con avviso | `assistente/fuso.py:36-53` |
 | Chiave API | `"lm-studio"`: è un segnaposto, non una credenziale | `assistente/modello.py:15` |
 | Risposte di prova | `(3+4)*2` dà 14; 23/12/2026 più 3 giorni lavorativi dà 29/12/2026; `DLL-01` dura 120 ore | README «Test» |
 | Back-end delle chat | tre tabelle (`progetti`, `chat`, `messaggi`); turno salvato in una transazione solo dopo `fine`; `409` se la chat ha già un turno; tutto su `127.0.0.1` | `servizio_backend/schema.sql:3-27`, `archivio.py:218-234`, `turni.py:20-122` |
-| Test | suite predefinita il 10/11/2026: 618 passati e 64 saltati (prove reali, saltate se non le chiedi); vedi capitolo 09 §10.4 | `python -m pytest` |
+| Test | suite predefinita l'11/11/2026: 625 passati e 64 saltati (prove reali, saltate se non le chiedi); vedi capitolo 09 §10.4 | `python -m pytest` |
 
 **Prova lampo.** Eseguita davvero con il modello finto di `tests/finti.py`, senza LM Studio. Lo script costruisce il grafo con `crea_grafo` (`assistente/grafo.py:141`), passando `ModelloFinto` con due risposte preparate e `orologio_finto` fermo al 2026-11-08 20:13 UTC. Poi esegue un turno con `esegui_turno` (`assistente/grafo.py:214`). Questa è la cronologia restituita:
 

@@ -537,7 +537,7 @@ Approfondimento nel [documento 09](09-test-e-verifiche.md).
 | `risorse/` | `catalogo_corsi.json` | lo sviluppatore (versionato) | `logica/catalogo.py` nel server MCP | **all'avvio del server** (`server_mcp/server.py:126`); dopo una modifica bisogna riavviare |
 | `risorse/` | `festivita_italia.json` | lo sviluppatore (versionato) | `logica/scadenze.py`, nel server MCP o nel servizio FastAPI | alla **prima** chiamata di `calcola_scadenza` (`@cache`, `logica/scadenze.py:39-46`) |
 | `archivio/` | `note.sqlite3` | `logica/note.py` (nel server MCP) | `logica/note.py` | creato alla prima operazione sulle note; sopravvive alla sessione e al container (volume) |
-| `logs/` | `assistente.log` | logger `assistente` (`assistente/registro.py:26-38`) | lo studente, i test reali | in coda, una riga per evento |
+| `logs/` | `assistente.log` | logger `assistente` (`assistente/registro.py:27-39`) | lo studente, i test reali | in coda, una riga per evento |
 | `logs/` | `server_mcp.log` | stdout/stderr del processo server (redirezione di `Popen`) | lo studente; le ultime righe finiscono nell'errore di avvio | in coda |
 | `logs/` | `servizio_api.log` | stdout/stderr del processo servizio | come sopra | solo con la variante `fastapi` |
 

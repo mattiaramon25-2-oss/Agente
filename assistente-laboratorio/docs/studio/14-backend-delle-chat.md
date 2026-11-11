@@ -50,7 +50,7 @@ flowchart LR
 | Variabili | `BACKEND_PORTA`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `POSTGRES_PORTA` (predefinita 5432) | `servizio_backend/configurazione.py:10` |
 | Ascolto | solo `127.0.0.1`, anche PostgreSQL | `servizio_backend/__main__.py`, `compose.yaml` |
 | Log | `logs/servizio_backend.log`, mai i testi dei messaggi | `assistente/registro.py:12` |
-| Prove | 618 passati e 64 saltati; `--docker` 23 passati; `--lmstudio --docker tests/test_reale_backend.py` 4 passati | → sezione 9 |
+| Prove | 625 passati e 64 saltati (dopo le correzioni della revisione finale); `--docker` 23 passati; `--lmstudio --docker tests/test_reale_backend.py` 4 passati | → sezione 9 |
 
 **Se te lo chiedono all'orale**
 
@@ -169,7 +169,7 @@ Se invece è l'**agente** a interrompersi, non si salva niente.
 ## 6. SSE: gli eventi
 
 `formatta_sse` (`assistente/sse.py:7`) scrive `event: nome` e `data: json` su una riga (gli a capo diventano
-`\n`), seguiti da una riga vuota; `leggi_sse` (`:19`) fa il contrario e ignora i commenti. U+2028, U+2029 e U+0085 escono come escape JSON (` `…): i lettori di righe li tratterebbero come a capo e spezzerebbero l'evento. Un evento malformato nel flusso dell'agente diventa `AgenteInterrotto` (`client_agente.py:34`). Gli eventi del
+`\n`), seguiti da una riga vuota; `leggi_sse` (`:19`) fa il contrario e ignora i commenti. U+2028, U+2029 e U+0085 escono come escape JSON (`\u2028`, `\u2029`, `\u0085`): i lettori di righe li tratterebbero come a capo e spezzerebbero l'evento. Un evento malformato nel flusso dell'agente diventa `AgenteInterrotto` (`client_agente.py:34`). Gli eventi del
 back-end verso il browser:
 
 | Evento | Dati | Quando |
@@ -229,7 +229,7 @@ Esiti della verifica finale (10 novembre 2026, `google/gemma-4-e2b`):
 
 | Comando | Esito |
 |---|---|
-| `python -m pytest` | 618 passati, 64 saltati |
+| `python -m pytest` | 625 passati, 64 saltati (618 prima delle correzioni della revisione finale) |
 | `python -m pytest --docker -m docker` | 23 passati (4 saltati: `test_reale_backend.py`, che chiede anche `--lmstudio`) |
 | `python -m pytest --lmstudio -m lmstudio` | 36 passati e 1 fallito: `test_reale_meteo.py::test_il_modello_usa_il_meteo`, «nessuna risposta entro 8 secondi» (servizio meteo esterno); rieseguito da solo: 2 passati |
 | `python -m pytest --lmstudio --docker tests/test_reale_backend.py` | 4 passati |
