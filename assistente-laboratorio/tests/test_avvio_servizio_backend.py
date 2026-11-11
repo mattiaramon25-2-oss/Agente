@@ -89,3 +89,17 @@ def test_porta_occupata(ambiente, capsys):
         assert avvio.main() == 1
     assert "BACKEND_PORTA" in capsys.readouterr().err
     assert ambiente["stato"]["uvicorn"] is None
+
+
+def test_database_con_password_errata_mostra_il_motivo(ambiente, capsys):
+    def controlla():
+        raise avvio.DatabaseNonRaggiungibile(
+            'il database PostgreSQL non risponde (password authentication failed for user "x")'
+        )
+
+    ambiente["archivio"].controlla = controlla
+    assert avvio.main() == 1
+    err = capsys.readouterr().err
+    assert "password authentication failed" in err
+    assert "POSTGRES_PASSWORD" in err and "127.0.0.1:55432" in err
+    assert "postgresql://" not in err

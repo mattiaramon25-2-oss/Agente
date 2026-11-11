@@ -48,11 +48,13 @@ def main() -> int:
         try:
             archivio.controlla()
             archivio.prepara()
-        except DatabaseNonRaggiungibile:
+        except DatabaseNonRaggiungibile as errore:
+            registro.error("avvio fallito: database non raggiungibile: %s", errore)
             raise ErroreAvvio(
-                f"Il database PostgreSQL non risponde su 127.0.0.1:{config.porta_postgres}: "
-                "avvialo con docker compose up -d database."
-            ) from None
+                f"Il database PostgreSQL non risponde su 127.0.0.1:{config.porta_postgres} ({errore}): "
+                "avvialo con docker compose up -d database; se è acceso, "
+                "controlla POSTGRES_USER, POSTGRES_PASSWORD e POSTGRES_DB nel file .env."
+            ) from errore
         agente = ClientAgente(config.url_agente)
         if not agente.salute():
             print(
