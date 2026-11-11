@@ -62,15 +62,15 @@ describe('LettoreSse', () => {
 
   it('U+2028 come escape JSON di 6 caratteri resta nella stringa', () => {
     const lettore = new LettoreSse();
-    // Nel sorgente '\u2028' è il testo   (backslash, u, 2028), cioè l'escape JSON.
-    const eventi = lettore.aggiungi(codifica('event: testo\ndata: {"r":"a\u2028b"}\n\n'));
-    expect(eventi).toEqual([{ evento: 'testo', dati: { r: 'a b' } }]);
+    // Nel sorgente la sequenza di 6 caratteri backslash-u-2-0-2-8 è l'escape JSON.
+    const eventi = lettore.aggiungi(codifica('event: testo\ndata: {"r":"a\\u2028b"}\n\n'));
+    expect(eventi).toEqual([{ evento: 'testo', dati: { r: 'a\u2028b' } }]);
   });
 
   it('U+2028 come carattere diretto resta nella stringa', () => {
     const lettore = new LettoreSse();
     const eventi = lettore.aggiungi(codifica('event: testo\ndata: {"r":"a b"}\n\n'));
-    expect(eventi).toEqual([{ evento: 'testo', dati: { r: 'a b' } }]);
+    expect(eventi).toEqual([{ evento: 'testo', dati: { r: 'a\u2028b' } }]);
   });
 
   it('\r\n diviso tra due pezzi', () => {
