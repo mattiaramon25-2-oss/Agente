@@ -42,6 +42,16 @@ describe('scelta del tema', () => {
     expect(() => salvaScelta('chiaro')).not.toThrow();
   });
 
+  it('localStorage non definito dà automatico', () => {
+    vi.stubGlobal('localStorage', undefined);
+    try {
+      expect(leggiScelta()).toBe('automatico');
+      expect(() => salvaScelta('chiaro')).not.toThrow();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('applicaTema imposta data-tema', () => {
     applicaTema('scuro');
     expect(document.documentElement.dataset.tema).toBe('scuro');
