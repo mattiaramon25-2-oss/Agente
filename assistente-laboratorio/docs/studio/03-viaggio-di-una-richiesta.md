@@ -185,7 +185,7 @@ sequenceDiagram
 ```
 
 Righe che l'avvio lascia in `logs/assistente.log` (formato `%(asctime)s %(message)s` con data
-`%Y-%m-%d %H:%M:%S`, `registro.py:35`). Il testo è quello del codice; orari e `pid` sono indicativi,
+`%Y-%m-%d %H:%M:%S`, `registro.py:36`). Il testo è quello del codice; orari e `pid` sono indicativi,
 perché nell'esperimento non c'è un processo separato:
 
 ```text
@@ -263,7 +263,7 @@ riga del terminale (`terminale.py:32`) e, indirettamente, per il campo `esito` d
 ### Come si legge una riga di `assistente.log`
 
 Ogni chiamata a uno strumento produce una riga scritta da `_registra` (`grafo.py:106-119`) con il
-formato `chiave=valore` di `formatta` (`registro.py:14-23`): le stringhe così come sono (con gli a
+formato `chiave=valore` di `formatta` (`registro.py:15-24`): le stringhe così come sono (con gli a
 capo trasformati in spazi), gli altri valori come JSON compatto.
 
 | Campo | Da dove viene | Valori possibili |

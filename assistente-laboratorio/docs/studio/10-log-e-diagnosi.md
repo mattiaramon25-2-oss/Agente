@@ -31,7 +31,7 @@ flowchart LR
 
 | Cosa | Valore | Dove |
 |---|---|---|
-| I file di log | `logs/assistente.log`, `logs/server_mcp.log`, `logs/servizio_api.log` (più `logs/servizio_backend.log` dal back-end delle chat, capitolo 14 §8) | `assistente/registro.py:8-11` |
+| I file di log | `logs/assistente.log`, `logs/server_mcp.log`, `logs/servizio_api.log` (più `logs/servizio_backend.log` dal back-end delle chat, capitolo 14 §8) | `assistente/registro.py:8-12` |
 | Riga di una chiamata | sette campi, da `origine` a `tool_message.call_id` | `assistente/grafo.py:106-119` |
 | Scelta tra `ok`, `errore_tool`, `errore_collegamento` | chiave `errore` e campo `tipo` del JSON restituito | `assistente/grafo.py:66-74` |
 | Il terminale stampa | solo i `ToolMessage` con `status` diverso da `error` | `assistente/terminale.py:32` |
@@ -70,21 +70,21 @@ Il viaggio completo di una chiamata è in [03](03-viaggio-di-una-richiesta.md). 
 
 Il `CLAUDE.md` lo dice in modo netto: *una risposta simulata non dimostra che il modello locale sappia usare lo strumento*. La stessa regola vale per le risposte vere. Se l'assistente scrive «Sono le 04:13 a Tokyo», l'ora potrebbe essere inventata. La prova è una riga di log che dice: questo strumento è stato chiamato, con questi argomenti, e ha restituito questo risultato.
 
-Ci sono fino a tre processi, e ciascuno scrive il **proprio** file nella cartella `logs/` (i percorsi sono costanti in `assistente/registro.py:8-11`):
+Ci sono fino a tre processi, e ciascuno scrive il **proprio** file nella cartella `logs/` (i percorsi sono costanti in `assistente/registro.py:8-12`):
 
 | File | Chi lo scrive | Quando esiste | Come nasce |
 |---|---|---|---|
-| `logs/assistente.log` | il processo dell'assistente (grafo, avvio, varianti) | sempre, dopo una configurazione valida | `configura_registro()` aggiunge un `FileHandler` al logger `assistente` (`assistente/registro.py:26-38`) |
+| `logs/assistente.log` | il processo dell'assistente (grafo, avvio, varianti) | sempre, dopo una configurazione valida | `configura_registro()` aggiunge un `FileHandler` al logger `assistente` (`assistente/registro.py:27-39`) |
 | `logs/server_mcp.log` | il processo del server MCP | sempre: il server parte a ogni avvio | l'assistente avvia il server con stdout e stderr rediretti nel file (`assistente/avvio_server.py:101-113`) |
 | `logs/servizio_api.log` | il processo del servizio FastAPI | solo con `VARIANTE_SCADENZE=fastapi` | stesso meccanismo, con `avvia_servizio_api` (`assistente/avvio_server.py:183-205`) |
 | `logs/servizio_backend.log` | il back-end delle chat (lezione 6) | solo con `python -m servizio_backend` | non fa parte di questo capitolo: vedi il capitolo 14 §8 |
 
 Caratteristiche comuni:
 
-- **Le righe si aggiungono in coda** (`mode="a"`, `assistente/registro.py:34`; `open(percorso_log, "a", …)`, `assistente/avvio_server.py:102`). I file crescono di sessione in sessione e non c'è rotazione: è una scelta dichiarata nella specifica del convertitore (`docs/superpowers/specs/2026-11-03-convertitore-unita-mcp-design.md`, §5.6: «Nessuna rotazione»).
+- **Le righe si aggiungono in coda** (`mode="a"`, `assistente/registro.py:35`; `open(percorso_log, "a", …)`, `assistente/avvio_server.py:102`). I file crescono di sessione in sessione e non c'è rotazione: è una scelta dichiarata nella specifica del convertitore (`docs/superpowers/specs/2026-11-03-convertitore-unita-mcp-design.md`, §5.6: «Nessuna rotazione»).
 - **Codifica UTF-8.** L'assistente la imposta sul `FileHandler`; ai processi figli passa `PYTHONUTF8=1` (`assistente/avvio_server.py:111`).
 - **La cartella è fuori da Git** (`.gitignore`) e fuori dall'immagine Docker (`.dockerignore`). Con Docker viene montata dall'host (`compose.yaml`: `./logs:/app/logs`), così i log restano anche dopo `--rm`.
-- **Nel terminale della chat non finisce niente.** Il logger `assistente` ha `propagate = False` (`assistente/registro.py:38`), e le librerie client `mcp`, `httpx` e `httpcore` sono portate al livello `ERROR` (`assistente/client_mcp.py:22-23`).
+- **Nel terminale della chat non finisce niente.** Il logger `assistente` ha `propagate = False` (`assistente/registro.py:39`), e le librerie client `mcp`, `httpx` e `httpcore` sono portate al livello `ERROR` (`assistente/client_mcp.py:22-23`).
 
 ```mermaid
 flowchart LR
@@ -113,11 +113,11 @@ La conseguenza da ricordare: **una chiamata `calcola` in variante `locale` compa
 ### 2.1 Formato
 
 ```python
-# assistente/registro.py:35
+# assistente/registro.py:36
 logging.Formatter("%(asctime)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
 ```
 
-Ogni riga ha **data e ora al secondo**, senza millisecondi né livello, seguite dal messaggio. Le righe delle chiamate usano `formatta()` (`assistente/registro.py:14-23`), che produce coppie `chiave=valore` separate da spazi, con due regole:
+Ogni riga ha **data e ora al secondo**, senza millisecondi né livello, seguite dal messaggio. Le righe delle chiamate usano `formatta()` (`assistente/registro.py:15-24`), che produce coppie `chiave=valore` separate da spazi, con due regole:
 
 - una **stringa** viene scritta così com'è, con gli a capo (`\r`, `\n`) sostituiti da spazi: una chiamata resta sempre su una riga;
 - **gli altri valori** (dizionari, numeri, `None`) diventano JSON compatto, senza spazi e con gli accenti leggibili (`ensure_ascii=False`, `separators=(",", ":")`).
@@ -128,7 +128,7 @@ Il test `tests/test_registro.py` lo verifica con questo risultato atteso:
 tool=x argomenti={"valore":2.5,"da":"°C"} risultato=a b
 ```
 
-`configura_registro` è **idempotente**: se il gestore per quel file esiste già, non ne aggiunge un secondo, così le righe non si duplicano (`assistente/registro.py:30-32`).
+`configura_registro` è **idempotente**: se il gestore per quel file esiste già, non ne aggiunge un secondo, così le righe non si duplicano (`assistente/registro.py:31-33`).
 
 ### 2.2 Quando si comincia a scrivere
 

@@ -916,7 +916,7 @@ def _registra(origine, chiamata, esito, contenuto, messaggio: ToolMessage) -> No
 ### Dove finisce la riga
 
 - Il logger si chiama `assistente.strumenti`: è un figlio del logger `assistente`.
-- `configura_registro` (`assistente/registro.py:26-38`), chiamata all'avvio da `__main__.py:25`,
+- `configura_registro` (`assistente/registro.py:27-39`), chiamata all'avvio da `__main__.py:25`,
   aggancia al logger `assistente` un `FileHandler` su `logs/assistente.log` (in coda, UTF-8), con il
   formato `%(asctime)s %(message)s` e `propagate = False`: le righe vanno nel file e **non** nel
   terminale della chat.
@@ -924,7 +924,7 @@ def _registra(origine, chiamata, esito, contenuto, messaggio: ToolMessage) -> No
 
 ### Il formato `chiave=valore`
 
-`formatta` (`assistente/registro.py:14-23`) scrive le stringhe così come sono (togliendo gli a capo) e
+`formatta` (`assistente/registro.py:15-24`) scrive le stringhe così come sono (togliendo gli a capo) e
 gli altri valori come JSON compatto. Per questo `argomenti`, che è un dizionario, appare come
 `{"fuso":"Asia/Tokyo"}`, mentre per una chiamata malformata, dove gli argomenti sono una stringa,
 appare senza virgolette: `argomenti={fuso: Europe/Rome`.
