@@ -8,6 +8,7 @@ import {
   type FineTurno,
   type GestoriTurno,
   type Progetto,
+  type RisultatoRicerca,
 } from './api';
 import { StatoApp } from './stato.svelte';
 
@@ -110,7 +111,7 @@ describe('StatoApp', () => {
     const stato = new StatoApp(api);
     stato.bozza = 'Ciao';
     await stato.invia();
-    expect(stato.erroreTurno).toBe('Agente spento.');
+    expect(stato.erroreTurno?.testo).toBe('Agente spento.');
     expect(stato.chatAperta?.id).toBe(5);
     expect(stato.bozza).toBe('Ciao');
     await stato.invia();
@@ -159,7 +160,7 @@ describe('StatoApp', () => {
     stato.bozza = 'Domanda';
     await stato.invia();
     expect(stato.turno).toBeNull();
-    expect(stato.erroreTurno).toBe('Modello assente.');
+    expect(stato.erroreTurno?.testo).toBe('Modello assente.');
     expect(stato.bozza).toBe('Domanda');
     expect(stato.backendSpento).toBe(false);
     expect(stato.chatAperta?.messaggi).toHaveLength(0);
@@ -175,7 +176,7 @@ describe('StatoApp', () => {
     stato.bozza = 'Ciao';
     await stato.invia();
     expect(stato.backendSpento).toBe(true);
-    expect(stato.erroreTurno).toBe(TESTO_BACKEND_SPENTO);
+    expect(stato.erroreTurno?.testo).toBe(TESTO_BACKEND_SPENTO);
     expect(stato.bozza).toBe('Ciao');
     await stato.controllaBackend();
     expect(stato.backendSpento).toBe(false);
@@ -237,7 +238,8 @@ describe('StatoApp', () => {
     expect(api.cerca).not.toHaveBeenCalled();
     expect(stato.ricerca).toBeNull();
     await stato.cerca('ab');
-    expect(api.cerca).toHaveBeenCalledWith('ab');
+    await stato.cerca(' ab ');
+    expect(api.cerca).toHaveBeenLastCalledWith('ab');
     expect(stato.ricerca).toEqual({ q: 'ab', risultati: [] });
     await stato.cerca('');
     expect(stato.ricerca).toBeNull();
@@ -255,5 +257,165 @@ describe('StatoApp', () => {
     expect(stato.vista).toEqual({ tipo: 'progetto', progettoId: 4 });
     expect(stato.progettoAperto?.nome).toBe('Tesi');
     expect(stato.chatDelProgetto).toEqual([chat]);
+  });
+
+  describe('turno legato alla sua chat', () => {
+    function conDue(over: Partial<ApiBackend> = {}) {
+      let sblocca!: () => void;
+      const api = apiFinta({
+        inviaMessaggio: vi.fn(async () => {
+          await new Promise<void>((r) => (sblocca = r));
+          return fine();
+        }),
+        ...over,
+      });
+      return { api, stato: new StatoApp(api), sblocca: () => sblocca() };
+    }
+
+    it("apro un'altra chat durante il turno: non si toccano i suoi messaggi", async () => {
+      const { stato, sblocca } = conDue();
+      await stato.apriChat(1);
+      stato.bozza = 'Ciao';
+      const p = stato.invia();
+      await vi.waitFor(() => expect(stato.turno?.chatId).toBe(1));
+      expect(stato.turnoVisibile).not.toBeNull();
+      await stato.apriChat(2);
+      expect(stato.turnoVisibile).toBeNull();
+      sblocca();
+      await p;
+      expect(stato.chatAperta?.id).toBe(2);
+      expect(stato.chatAperta?.messaggi).toHaveLength(0);
+      expect(stato.turno).toBeNull();
+    });
+
+    it('riaprendo la chat prima di fine il turno si vede e i messaggi arrivano', async () => {
+      const { stato, sblocca } = conDue();
+      await stato.apriChat(1);
+      stato.bozza = 'Ciao';
+      const p = stato.invia();
+      await vi.waitFor(() => expect(stato.turno).not.toBeNull());
+      await stato.apriChat(2);
+      await stato.apriChat(1);
+      expect(stato.turnoVisibile?.domanda).toBe('Ciao');
+      sblocca();
+      await p;
+      expect(stato.chatAperta?.id).toBe(1);
+      expect(stato.chatAperta?.messaggi).toHaveLength(2);
+    });
+
+    it("chat nuova: se l'utente se ne va prima di creaChat non viene riportato indietro", async () => {
+      let creata!: (c: Chat) => void;
+      const { api, stato, sblocca } = conDue({
+        creaChat: vi.fn(() => new Promise<Chat>((r) => (creata = r))),
+      });
+      stato.nuovaChat();
+      stato.bozza = 'Ciao';
+      const p = stato.invia();
+      expect(stato.turnoVisibile).not.toBeNull();
+      await stato.apriChat(2);
+      expect(stato.turnoVisibile).toBeNull();
+      creata(chatVuota(9));
+      await vi.waitFor(() => expect(api.inviaMessaggio).toHaveBeenCalled());
+      expect(stato.vista).toEqual({ tipo: 'chat', chatId: 2, progettoId: null });
+      expect(stato.chatAperta?.id).toBe(2);
+      expect(stato.turno?.chatId).toBe(9);
+      sblocca();
+      await p;
+      expect(stato.chatAperta?.messaggi).toHaveLength(0);
+    });
+
+    it('errore dopo aver lasciato la chat: avviso e bozza corrente intatta', async () => {
+      const { stato } = conDue({
+        inviaMessaggio: vi.fn(async () => {
+          await Promise.resolve();
+          throw new ErroreApi('Modello assente.', null);
+        }),
+      });
+      await stato.apriChat(1);
+      stato.bozza = 'Ciao';
+      const p = stato.invia();
+      await stato.apriChat(2);
+      stato.bozza = 'altro testo';
+      await p;
+      expect(stato.bozza).toBe('altro testo');
+      expect(stato.erroreTurnoVisibile).toBeNull();
+      expect(stato.avvisi.map((a) => a.testo)).toEqual(['Il messaggio non è stato inviato: Modello assente.']);
+    });
+  });
+
+  it('eliminaProgetto con il progetto aperto riporta a una chat vuota', async () => {
+    const api = apiFinta({ elencaProgetti: vi.fn(async () => [progetto(4)]) });
+    const stato = new StatoApp(api);
+    await stato.carica();
+    await stato.apriProgetto(4);
+    await stato.eliminaProgetto(4);
+    expect(api.cancellaProgetto).toHaveBeenCalledWith(4);
+    expect(stato.progettoAperto).toBeNull();
+    expect(stato.vista).toEqual({ tipo: 'chat', chatId: null, progettoId: null });
+  });
+
+  it('eliminaProgetto con una chat del progetto aperta azzera la chat', async () => {
+    const api = apiFinta({ leggiChat: vi.fn(async (id: number) => chatVuota(id, 4)) });
+    const stato = new StatoApp(api);
+    await stato.apriChat(7);
+    await stato.eliminaProgetto(4);
+    expect(stato.chatAperta).toBeNull();
+    expect(stato.vista).toEqual({ tipo: 'chat', chatId: null, progettoId: null });
+  });
+
+  it('spostaChat aggiorna la chat aperta e la vista', async () => {
+    const api = apiFinta();
+    const stato = new StatoApp(api);
+    await stato.apriChat(7);
+    await stato.spostaChat(7, 3);
+    expect(api.spostaChat).toHaveBeenCalledWith(7, 3);
+    expect(stato.chatAperta?.progetto_id).toBe(3);
+    expect(stato.vista).toEqual({ tipo: 'chat', chatId: 7, progettoId: 3 });
+  });
+
+  it('salvaProgetto aggiorna elenco e progetto aperto', async () => {
+    const api = apiFinta({
+      elencaProgetti: vi.fn(async () => [progetto(4, 'Vecchio')]),
+      aggiornaProgetto: vi.fn(async (id: number) => ({ ...progetto(id, 'Nuovo'), istruzioni: 'x' })),
+    });
+    const stato = new StatoApp(api);
+    await stato.carica();
+    await stato.apriProgetto(4);
+    await stato.salvaProgetto(4, { nome: 'Nuovo', istruzioni: 'x' });
+    expect(api.aggiornaProgetto).toHaveBeenCalledWith(4, { nome: 'Nuovo', istruzioni: 'x' });
+    expect(stato.progetti[0].nome).toBe('Nuovo');
+    expect(stato.progettoAperto?.istruzioni).toBe('x');
+  });
+
+  it('una ricerca vecchia non sovrascrive quella nuova', async () => {
+    const sblocchi: Array<() => void> = [];
+    const api = apiFinta({
+      cerca: vi.fn(
+        (q: string) =>
+          new Promise<RisultatoRicerca[]>((r) =>
+            sblocchi.push(() => r([{ chat_id: 1, titolo: q, progetto_id: null, messaggio_id: 1, ruolo: 'utente', estratto: q }])),
+          ),
+      ),
+    });
+    const stato = new StatoApp(api);
+    const uno = stato.cerca('ab');
+    const due = stato.cerca('abc');
+    sblocchi[1]();
+    await due;
+    sblocchi[0]();
+    await uno;
+    expect(stato.ricerca?.q).toBe('abc');
+  });
+
+  it('controllaBackend spegne la striscia anche con un errore del back-end raggiungibile', async () => {
+    const api = apiFinta({
+      salute: vi.fn(async () => {
+        throw new ErroreApi('Database giù.', 500);
+      }),
+    });
+    const stato = new StatoApp(api);
+    stato.backendSpento = true;
+    await stato.controllaBackend();
+    expect(stato.backendSpento).toBe(false);
   });
 });
