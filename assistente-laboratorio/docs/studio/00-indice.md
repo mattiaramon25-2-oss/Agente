@@ -1,8 +1,8 @@
 # Indice e percorso di studio
 
-L'**assistente del laboratorio** è un programma da terminale, scritto in Python. Conversa con un modello che gira sul tuo computer, servito da LM Studio (provato con `google/gemma-4-e2b`). Il flusso di ogni turno è un grafo LangGraph con tre nodi: `modello`, `strumenti` e `limite`.
+L'**assistente del laboratorio** è nato come programma da terminale, scritto in Python, e oggi è anche un servizio HTTP, un back-end che salva le chat in PostgreSQL e una chat nel browser installabile come app. Conversa con un modello che gira sul tuo computer, servito da LM Studio (provato con `google/gemma-4-e2b`). Il flusso di ogni turno è un grafo LangGraph con cinque nodi: `router` e `rifiuto` (decidono se la domanda rientra nell'ambito), poi `modello`, `strumenti` e `limite`.
 
-Il modello può usare dieci strumenti: ora, conversioni, calcoli, scadenze, catalogo dei corsi, note e meteo. Gli strumenti stanno in un server MCP che l'assistente avvia, interroga e spegne da solo. La conversazione vive solo in memoria; tra una sessione e l'altra restano soltanto le note, salvate in SQLite.
+Il modello può usare dieci strumenti: ora, conversioni, calcoli, scadenze, catalogo dei corsi, note e meteo. Gli strumenti stanno in un server MCP che l'assistente avvia, interroga e spegne da solo. Nel terminale la conversazione vive solo in memoria e tra una sessione e l'altra restano soltanto le note, salvate in SQLite. Nella chat nel browser, invece, progetti, chat e messaggi restano in PostgreSQL.
 
 ---
 
@@ -69,23 +69,23 @@ Ogni capitolo ha tre livelli. Non serve leggerli tutti e tre ogni volta.
 | [10 Log e diagnosi](10-log-e-diagnosi.md) | tutto |
 | [11 Storia del progetto](11-storia-del-progetto.md) | sezioni 4–7 |
 
-### Lezione 6 · Evolvere l'agente (in corso)
+### Lezione 6 · Evolvere l'agente (in corso: step 1, 6, 7 e 8 uniti in `main`)
 
 Le slide del docente (`LLM_Lez_6.pdf`, 19 slide, fuori dal repository) dividono la lezione in nove step. Ognuno parte dal precedente funzionante e va verificato con un'evidenza.
 
 | Step | Che cosa | Evidenza minima (slide 19) |
 |---|---|---|
-| 1 · Router (fatto, branch `dev-router`: [04, sezione 21](04-grafo-langgraph.md#21-lezione-6-il-router-dellambito)) | un nodo LLM decide se la domanda rientra nell'ambito dell'agente | domanda fuori ambito rifiutata senza passare dall'agente |
+| 1 · Router (fatto, in `main` dal 9 novembre: [04, sezione 21](04-grafo-langgraph.md#21-lezione-6-il-router-dellambito)) | un nodo LLM decide se la domanda rientra nell'ambito dell'agente | domanda fuori ambito rifiutata senza passare dall'agente |
 | 2 · Revisore | un nodo LLM controlla che la risposta sia coerente con la domanda | risposta incompleta corretta dopo la revisione, entro il limite |
 | 3 · Riassunto | un nodo LLM comprime la cronologia oltre una soglia | informazione del primo turno ancora usata dopo la compressione |
 | 4 · Resource | preferenze dell'utente lette dal server MCP a inizio sessione | preferenze applicate cambiando il file, non il codice |
 | 5 · Prompt | comandi `/prompts` e `/prompt` nella CLI | comandi funzionanti, con argomenti validati |
-| 6 · Agente come servizio (fatto, branch `dev-grafica-gui`: [13](13-agente-come-servizio.md)) | l'agente risponde anche via HTTP | stessa risposta dalla CLI e dall'API |
-| 7 · Back-end (fatto, branch `dev-backend`: [14](14-backend-delle-chat.md)) | API per le chat, salvate in PostgreSQL | chat ancora presenti dopo il riavvio |
-| 8 · Front-end (fatto, branch `dev-frontend`: [15](15-chat-nel-browser.md)) | interfaccia di chat nel browser, installabile come app | conversazione completa dal browser, errori mostrati |
+| 6 · Agente come servizio (fatto, in `main` dal 10 novembre: [13](13-agente-come-servizio.md)) | l'agente risponde anche via HTTP | stessa risposta dalla CLI e dall'API |
+| 7 · Back-end (fatto, in `main` dall'11 novembre: [14](14-backend-delle-chat.md)) | API per le chat, salvate in PostgreSQL | chat ancora presenti dopo il riavvio |
+| 8 · Front-end (fatto, in `main` dal 12 novembre: [15](15-chat-nel-browser.md)) | interfaccia di chat nel browser, installabile come app | conversazione completa dal browser, errori mostrati |
 | 9 · Docker Compose | quattro container: front-end, back-end, agente, database | quattro container avviati con un comando |
 
-**Stato.** Fatti lo step 1 (router, con in più lo streaming della risposta), lo step 6 (agente come servizio HTTP), che dal 10 novembre gira anche in Docker come servizio Compose `agente` ([08, sezione 7.9](08-configurazione-avvio-docker.md#79-il-servizio-dellagente-in-docker)), lo step 7 (back-end delle chat con PostgreSQL, sul branch `dev-backend`; database in [08, sezione 7.10](08-configurazione-avvio-docker.md#710-il-database-delle-chat)) e lo step 8 (la chat nel browser, sul branch `dev-frontend`, in attesa di approvazione per l'unione in `main`; servizio `frontend` in [08, sezione 7.11](08-configurazione-avvio-docker.md#711-il-servizio-frontend-la-chat-nel-browser)). Per l'interfaccia grafica resta lo step 9 (quattro container); restano anche gli step 2–5. Quando uno step è fatto, i capitoli interessati ricevono la loro parte.
+**Stato.** Gli step 1, 6, 7 e 8 sono fatti e **uniti in `main`** (12 novembre 2026, ultima unione `f00512f`): il router con in più lo streaming della risposta (9 novembre); l'agente come servizio HTTP, che dal 10 novembre gira anche in Docker come servizio Compose `agente` ([08, sezione 7.9](08-configurazione-avvio-docker.md#79-il-servizio-dellagente-in-docker)); il back-end delle chat con PostgreSQL (database in [08, sezione 7.10](08-configurazione-avvio-docker.md#710-il-database-delle-chat)); la chat nel browser, installabile come app (servizio `frontend` in [08, sezione 7.11](08-configurazione-avvio-docker.md#711-il-servizio-frontend-la-chat-nel-browser)). La storia di questi giorni è nel [capitolo 11, fase 5](11-storia-del-progetto.md#8-fase-5--la-lezione-6-dallagente-alla-chat-nel-browser-912-novembre). Restano lo step 9 (quattro container con un solo comando) e gli step 2–5 (revisore, riassunto, resource, prompt). Quando uno step è fatto, i capitoli interessati ricevono la loro parte.
 
 ---
 
@@ -94,8 +94,8 @@ Le slide del docente (`LLM_Lez_6.pdf`, 19 slide, fuori dal repository) dividono 
 | # | Documento | In una riga |
 |---|---|---|
 | 00 | [Indice e percorso di studio](00-indice.md) | questa pagina |
-| 01 | [Panoramica e concetti di base](01-panoramica-e-concetti.md) | che cos'è il progetto e i concetti che servono: LLM locale, tool calling, agente, MCP |
-| 02 | [Architettura](02-architettura.md) | le cartelle `logica/`, `server_mcp/`, `servizio_api/`, `assistente/`, `risorse/` e chi fa che cosa |
+| 01 | [Panoramica e concetti di base](01-panoramica-e-concetti.md) | che cos'è il progetto e i concetti che servono: LLM locale, tool calling, agente, MCP; in fondo, quelli della lezione 6 |
+| 02 | [Architettura](02-architettura.md) | le cartelle (anche `servizio_agente/`, `servizio_backend/`, `frontend/`), i processi di oggi e chi fa che cosa |
 | 03 | [Il viaggio di una richiesta](03-viaggio-di-una-richiesta.md) | dalla riga scritta nel terminale alla risposta, passando per modello, strumento e log |
 | 04 | [Il grafo LangGraph](04-grafo-langgraph.md) | stato, nodi, instradamento, limite di 3 giri, controlli sugli argomenti |
 | 05 | [MCP in pratica](05-mcp-in-pratica.md) | server FastMCP, client, ponte sincrono, avvio e arresto dei processi |
@@ -104,7 +104,7 @@ Le slide del docente (`LLM_Lez_6.pdf`, 19 slide, fuori dal repository) dividono 
 | 08 | [Configurazione, avvio e Docker](08-configurazione-avvio-docker.md) | il file `.env`, `python -m assistente`, `compose.yaml`, `avvia.ps1` e il fuso orario |
 | 09 | [Test e verifiche](09-test-e-verifiche.md) | test automatici con modello finto, prove reali separate (`--lmstudio`, `--docker`) |
 | 10 | [Log, diagnosi e limiti noti](10-log-e-diagnosi.md) | i file di log (tre, più `servizio_backend.log`), la diagnosi per livelli, che cosa il codice non può impedire |
-| 11 | [Storia del progetto e decisioni](11-storia-del-progetto.md) | dalla base del 2 novembre alla revisione unita il 9 novembre, con le decisioni prese |
+| 11 | [Storia del progetto e decisioni](11-storia-del-progetto.md) | dalla base del 2 novembre alla chat nel browser del 12 novembre, con le decisioni prese |
 | 12 | [Glossario e domande di ripasso](12-glossario-e-domande.md) | i termini tecnici e le domande tipiche dell'orale |
 | 13 | [L'agente come servizio HTTP](13-agente-come-servizio.md) | lezione 6, step 6: `python -m servizio_agente`, `/salute` e `/chat`, stessa risposta della CLI; con lo step 7 anche `/chat/stream` e `istruzioni` |
 | 14 | [Il back-end delle chat](14-backend-delle-chat.md) | lezione 6, step 7: progetti, chat e ricerca in PostgreSQL, turno in streaming SSE salvato a risposta completa |
@@ -145,23 +145,23 @@ flowchart LR
 
 | Tema | Valore | Dove |
 |---|---|---|
-| Nodi del grafo | `modello`, `strumenti`, `limite`; dopo `modello` decide `instrada_dopo_modello` | `assistente/grafo.py:132`, `:203-211` |
-| Stato | `messages` (con `add_messages`), `fuso_utente`, `giri_strumento` | `assistente/grafo.py:29-32` |
-| Limite di giri | `MAX_GIRI_STRUMENTO = 3` per turno, poi un testo fisso di scuse | `assistente/grafo.py:20-23` |
-| Server MCP | FastMCP, trasporto HTTP (Streamable HTTP), `http://127.0.0.1:<MCP_PORTA>/mcp` | `server_mcp/__main__.py:40-43`, `assistente/avvio_server.py:143` |
-| Dieci strumenti | `ora_corrente`, `converti_unita`, `calcola`, `calcola_scadenza`, `search_catalog`, `get_item`, `add_note`, `list_notes`, `delete_note`, `get_weather` | `server_mcp/server.py:128-192` |
+| Nodi del grafo | `modello`, `strumenti`, `limite`, più `router` e `rifiuto` quando c'è il router (sempre, con `crea_agente`); dopo `router` decide `instrada_dopo_router`, dopo `modello` `instrada_dopo_modello` | `assistente/grafo.py:239-252`, `:156`, `:147` |
+| Stato | `messages` (con `add_messages`), `fuso_utente`, `giri_strumento`, più `categoria` e `istruzioni` (facoltativi) | `assistente/grafo.py:39-44` |
+| Limite di giri | `MAX_GIRI_STRUMENTO = 3` per turno, poi un testo fisso di scuse | `assistente/grafo.py:24-27` |
+| Server MCP | FastMCP, trasporto HTTP (Streamable HTTP), `http://127.0.0.1:<MCP_PORTA>/mcp` | `server_mcp/__main__.py:39-44`, `assistente/avvio_server.py:143` |
+| Dieci strumenti | `ora_corrente`, `converti_unita`, `calcola`, `calcola_scadenza`, `search_catalog`, `get_item`, `add_note`, `list_notes`, `delete_note`, `get_weather` | `server_mcp/server.py:128-193` |
 | Varianti | `VARIANTE_CALCOLATRICE` = `mcp`/`locale`; `VARIANTE_SCADENZE` = `mcp`/`fastapi`; una sola versione per nome | `assistente/configurazione.py:7-8`, `assistente/varianti.py:17-43` |
-| Server pronto | solo quando la discovery (`tools/list`) riesce, non un semplice HTTP 200; attesa massima 10 s | `assistente/avvio_server.py:25`, `:155-170` |
+| Server pronto | solo quando la discovery (`tools/list`) riesce, non un semplice HTTP 200; attesa massima 10 s | `assistente/avvio_server.py:25`, `:154-169` |
 | Tempi massimi | MCP 10 s, FastAPI 5 s, meteo 4 s per fase e 8 s in tutto, LM Studio 120 s | `client_mcp.py:16`, `wrapper_scadenze.py:19`, `logica/meteo.py:17-20`, `modello.py:84` |
-| Esiti nel log | `ok`, `errore_tool`, `errore_collegamento`, `strumento_sconosciuto`, `limite` | `assistente/grafo.py:66-74` (primi tre), `:154`, `:198`; README «Log» |
-| Log | `logs/assistente.log`, `logs/server_mcp.log`, `logs/servizio_api.log` (solo con `fastapi`), `logs/servizio_backend.log` (solo con il back-end) | `assistente/registro.py:9-12` |
-| Persistenza | cronologia solo in memoria; note in `archivio/note.sqlite3` | `logica/note.py:19` |
+| Esiti nel log | `ok`, `errore_tool`, `errore_collegamento`, `strumento_sconosciuto`, `limite` | `assistente/grafo.py:81-89` (primi tre), `:189` (`strumento_sconosciuto`), `:233` (`limite`); README «Log» |
+| Log | `logs/assistente.log` (scritto anche dal servizio dell'agente), `logs/server_mcp.log`, `logs/servizio_api.log` (solo con `fastapi`), `logs/servizio_backend.log` (solo con il back-end) | `assistente/registro.py:9-13` |
+| Persistenza | nel terminale la cronologia è solo in memoria e le note stanno in `archivio/note.sqlite3`; nella chat nel browser progetti, chat e messaggi stanno in PostgreSQL (volume Docker `dati_postgres`) | `logica/note.py:19`, `servizio_backend/schema.sql:3-27`, `compose.yaml:62` |
 | Fuso, in ordine | `FUSO_HOST_WINDOWS` (da `avvia.ps1`), poi il fuso del computer (solo fuori da Docker), poi `FUSO_ORARIO`, poi `UTC` con avviso | `assistente/fuso.py:36-53` |
 | Chiave API | `"lm-studio"`: è un segnaposto, non una credenziale | `assistente/modello.py:15` |
 | Risposte di prova | `(3+4)*2` dà 14; 23/12/2026 più 3 giorni lavorativi dà 29/12/2026; `DLL-01` dura 120 ore | README «Test» |
 | Back-end delle chat | tre tabelle (`progetti`, `chat`, `messaggi`); turno salvato in una transazione solo dopo `fine`; `409` se la chat ha già un turno; tutto su `127.0.0.1` | `servizio_backend/schema.sql:3-27`, `archivio.py:218-234`, `turni.py:20-122` |
-| Chat nel browser | cartella `frontend/` (Svelte 5, Vite); nginx nel container `frontend` su `127.0.0.1:8780` (`FRONTEND_PORTA`) inoltra `/api` al back-end; il testo del modello passa solo da `rendiMarkdown` | `compose.yaml:71-81`, `frontend/nginx/default.conf.template:14-22`, `frontend/src/lib/markdown.ts:33` |
-| Test | suite predefinita il 12/11/2026: 625 passati e 73 saltati (prove reali, saltate se non le chiedi); front-end `npm test` 85 passati; vedi capitolo 09 §10.5 | `python -m pytest`, `npm test` |
+| Chat nel browser | cartella `frontend/` (Svelte 5, Vite); nginx nel container `frontend` su `127.0.0.1:8780` (`FRONTEND_PORTA`) inoltra `/api` al back-end; il testo del modello passa solo da `rendiMarkdown` | `compose.yaml:71-81`, `frontend/nginx/default.conf.template:14-22`, `frontend/src/lib/markdown.ts:38` |
+| Test | suite predefinita il 12/11/2026: 625 passati e 74 saltati (prove reali, saltate se non le chiedi); front-end `npm test` 108 passati; prove nel browser e di Compose (`--docker`) 9 passati; vedi capitolo 09 §10.5 | `python -m pytest`, `npm test` |
 
 **Prova lampo.** Eseguita davvero con il modello finto di `tests/finti.py`, senza LM Studio. Lo script costruisce il grafo con `crea_grafo` (`assistente/grafo.py:141`), passando `ModelloFinto` con due risposte preparate e `orologio_finto` fermo al 2026-11-08 20:13 UTC. Poi esegue un turno con `esegui_turno` (`assistente/grafo.py:214`). Questa è la cronologia restituita:
 
@@ -192,6 +192,6 @@ Attenzione: è una risposta simulata. Mostra come funziona il grafo, ma non dimo
 | `README.md` | comandi verificati, variabili del `.env`, log, diagnosi | per eseguire davvero qualcosa |
 | `../CLAUDE.md` | obiettivo, confini, scelte tecniche, regole Git e di metodo | per spiegare *perché* il progetto è fatto così e che cosa non fa |
 | [`docs/superpowers/`](../superpowers/README.md) | specifiche, piani e checkpoint, con un indice per lezione | per i contratti degli strumenti, l'ordine di costruzione e gli esiti reali delle prove |
-| `git log` | 85 commit in `main` al 09/11/2026, in Conventional Commits italiani; 8 sono unioni `chore: unisci …` (passi 1–7 e revisione) | per ricostruire la storia (11); `git show <hash>` per vedere una singola modifica |
+| `git log` | 172 commit in `main` al 12/11/2026, in Conventional Commits italiani; 16 sono unioni `chore: unisci …` (passi 1–7, revisione e lezione 6) | per ricostruire la storia (11); `git show <hash>` per vedere una singola modifica |
 
-**Regola pratica.** In caso di dubbio conta il codice attuale: questi documenti lo spiegano, ma non lo sostituiscono. Anche i checkpoint fotografano un momento preciso. Il checkpoint del passo 7 riporta 419 test passati e 36 saltati; poi sono arrivate le nove correzioni della revisione, unite in `main` il 09/11/2026 (`846b02a`), e oggi i test raccolti sono 503.
+**Regola pratica.** In caso di dubbio conta il codice attuale: questi documenti lo spiegano, ma non lo sostituiscono. Anche i checkpoint fotografano un momento preciso. Il checkpoint del passo 7 riporta 419 test passati e 36 saltati; poi sono arrivate le nove correzioni della revisione, unite in `main` il 09/11/2026 (`846b02a`), e oggi i test raccolti sono 699 (625 passati e 74 saltati il 12/11/2026), più 108 del front-end.

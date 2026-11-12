@@ -8,13 +8,14 @@
 
 **Le idee chiave**
 
-1. **Un assistente da terminale con un modello locale.** Il programma conversa con un modello servito da LM Studio, sullo stesso computer. Niente cloud: i dati restano sul PC e non serve una chiave segreta. → sezioni 1 e 3
+1. **Un assistente con un modello locale, nato da terminale.** Il programma conversa con un modello servito da LM Studio, sullo stesso computer. Niente cloud: i dati restano sul PC e non serve una chiave segreta. → sezioni 1 e 3. Dalla lezione 6 ha anche un servizio HTTP, un back-end con PostgreSQL e una chat nel browser (sezione 13).
 2. **Il modello propone, il programma esegue.** Il modello non esegue niente. Risponde con una richiesta: nome dello strumento e argomenti. Il programma la controlla, la esegue e gli rimanda il risultato. Questo meccanismo si chiama *tool calling*. → sezione 4
 3. **Ogni richiesta riceve una risposta con lo stesso identificativo.** Il risultato torna al modello in un `ToolMessage`, che porta il `tool_call_id` della richiesta. Il programma chiude ogni richiesta, anche quando non la esegue: altrimenti la cronologia non è valida. → sezione 5
-4. **Il flusso è un grafo che si vede.** LangGraph descrive il turno con tre nodi: `modello`, `strumenti` e `limite`. Dopo tre giri di strumenti, se il modello ne chiede ancora, scatta `limite`. Così il modello non può chiedere strumenti all'infinito. → sezione 6
+4. **Il flusso è un grafo che si vede.** LangGraph descrive il turno con tre nodi: `modello`, `strumenti` e `limite`. Dalla lezione 6 ce ne sono due davanti: `router` e `rifiuto`, per le domande fuori ambito (sezione 13). Dopo tre giri di strumenti, se il modello ne chiede ancora, scatta `limite`. Così il modello non può chiedere strumenti all'infinito. → sezione 6
 5. **MCP mette gli strumenti in un server condiviso.** I dieci strumenti stanno in un server MCP. L'assistente lo avvia, gli chiede l'elenco degli strumenti (la *discovery*) e lo spegne all'uscita. Anche altri programmi potrebbero usarlo. → sezione 7
 6. **Con uno standard i collegamenti si sommano, non si moltiplicano.** Tre app e dieci servizi, senza standard, fanno 30 collegamenti. Con MCP ne bastano 13. Però MCP ha un costo: un processo, una porta, un nuovo tipo di errore. → sezione 8
 7. **Tre strade, una sola logica.** La calcolatrice può essere anche una funzione locale. Le scadenze possono passare anche da un servizio FastAPI, con un wrapper scritto a mano. Cambia solo la strada: il calcolo è sempre quello di `logica/`. → sezioni 9 e 10
+8. **Dalla lezione 6 l'agente ha più ingressi.** Un servizio HTTP senza stato, gli eventi SSE per mandare la risposta a pezzi, un database PostgreSQL per ricordare le chat e una PWA (una pagina web installabile come app) come interfaccia. → sezione 13 e capitoli [13](13-agente-come-servizio.md), [14](14-backend-delle-chat.md), [15](15-chat-nel-browser.md)
 
 **Il quadro**
 
@@ -34,8 +35,8 @@ flowchart LR
 
 | Cosa | Valore | Dove |
 |---|---|---|
-| Nodi del grafo | `modello`, `strumenti`, `limite` | `assistente/grafo.py:203-211` |
-| Giri di strumento per turno | al massimo 3 (`MAX_GIRI_STRUMENTO`) | `assistente/grafo.py:20` |
+| Nodi del grafo | `modello`, `strumenti`, `limite`, più `router` e `rifiuto` davanti all'agente | `assistente/grafo.py:239-252` |
+| Giri di strumento per turno | al massimo 3 (`MAX_GIRI_STRUMENTO`) | `assistente/grafo.py:24` |
 | Nome del server MCP | «Strumenti laboratorio», 10 strumenti | `server_mcp/server.py:31` |
 | Indirizzo del server MCP | `http://127.0.0.1:<MCP_PORTA>/mcp` | `assistente/avvio_server.py:142-143` |
 | Chiave per LM Studio | `"lm-studio"`, solo un segnaposto | `assistente/modello.py:14-15` |
@@ -69,6 +70,7 @@ Indice del documento:
 10. [Wrapper](#10-wrapper)
 11. [Che cosa il progetto NON fa](#11-che-cosa-il-progetto-non-fa)
 12. [Riepilogo e domande di autoverifica](#12-riepilogo-e-domande-di-autoverifica)
+13. [La lezione 6: router, servizio, database e chat nel browser](#13-la-lezione-6-router-servizio-database-e-chat-nel-browser)
 
 - [Scaletta per le slide](#scaletta-per-le-slide)
 
@@ -78,16 +80,16 @@ Indice del documento:
 
 ### 1.1 Che cos'è
 
-L'**assistente del laboratorio** è un'applicazione **da terminale**, scritta in Python 3.14. Conversa con un **modello linguistico locale** servito da **LM Studio**, sullo stesso computer. È stato provato con il modello `google/gemma-4-e2b` (README, «Requisiti»), un modello piccolo: la specifica della lezione 5 lo indica come «2B», cioè dell'ordine di 2 miliardi di parametri (§13, «Rischio da dichiarare»).
+L'**assistente del laboratorio** è nato come applicazione **da terminale**, scritta in Python 3.14 (dalla lezione 6 ha anche un servizio HTTP e una chat nel browser: sezione 13). Conversa con un **modello linguistico locale** servito da **LM Studio**, sullo stesso computer. È stato provato con il modello `google/gemma-4-e2b` (README, «Requisiti»), un modello piccolo: la specifica della lezione 5 lo indica come «2B», cioè dell'ordine di 2 miliardi di parametri (§13, «Rischio da dichiarare»).
 
 Il programma ha quattro caratteristiche principali:
 
-- **organizza la conversazione in un grafo LangGraph esplicito.** Il grafo ha tre nodi: `modello`, `strumenti` e `limite` (`assistente/grafo.py:203-211`);
+- **organizza la conversazione in un grafo LangGraph esplicito.** Il grafo ha tre nodi: `modello`, `strumenti` e `limite` (`assistente/grafo.py:239-241`); dalla lezione 6 si aggiungono `router` e `rifiuto` (`assistente/grafo.py:245-246`);
 - **dà al modello dieci strumenti.** Il modello li può *chiedere*, e il programma li *esegue davvero*: è il **tool calling**;
 - **gli strumenti stanno in un server MCP.** Si chiama «Strumenti laboratorio» ed è scritto con FastMCP (`server_mcp/server.py:31`). L'assistente lo avvia da solo, ne scopre il catalogo e lo spegne all'uscita;
 - **si avvia in due modi:** direttamente con `python -m assistente`, oppure con Docker Compose (`.\avvia.ps1`).
 
-La **cronologia** della conversazione resta in memoria e si perde alla chiusura. L'unica informazione che sopravvive tra una sessione e l'altra sono le **note** dello strumento `add_note`, salvate in `archivio/note.sqlite3`. È un'eccezione voluta, scritta in `../CLAUDE.md` («Obiettivo»).
+Nel terminale la **cronologia** della conversazione resta in memoria e si perde alla chiusura (la chat nel browser, invece, la salva in PostgreSQL: sezione 13). L'unica informazione che sopravvive tra una sessione e l'altra sono le **note** dello strumento `add_note`, salvate in `archivio/note.sqlite3`. È un'eccezione voluta, scritta in `../CLAUDE.md` («Obiettivo»).
 
 ### 1.2 Il contesto: corso e lezione
 
@@ -735,8 +737,8 @@ I **non obiettivi** sono decisioni esplicite, non dimenticanze. Le specifiche li
 |---|---|---|
 | Rete e accesso | server e servizio raggiungibili da altri computer (ascoltano solo su `127.0.0.1`); nessuna autenticazione | spec. lezione 5 §3; spec. convertitore §3 |
 | Sessioni | nessuna architettura client/server per più utenti, nessuna sessione multipla | spec. di base §3 |
-| Persistenza | la cronologia non sopravvive alla chiusura (le note sono l'unica eccezione, voluta) | spec. di base §3; `../CLAUDE.md` |
-| Interfaccia | nessuna interfaccia grafica o web; nessun servizio cloud | spec. di base §3; `../CLAUDE.md` |
+| Persistenza | nel terminale la cronologia non sopravvive alla chiusura (le note sono l'unica eccezione, voluta); dalla lezione 6 il back-end delle chat salva progetti, chat e messaggi in PostgreSQL | spec. di base §3; `../CLAUDE.md`; spec. back-end |
+| Interfaccia | l'unica interfaccia grafica ammessa è la chat nel browser della lezione 6, che parla con il back-end; nessun'altra interfaccia, nessun servizio cloud | `../CLAUDE.md` («Confini»); spec. di base §3 (superata in questo punto) |
 | Esecuzione | grafo e interfaccia **non** asincroni | spec. lezione 5 §3 |
 | LM Studio | non va containerizzato: resta sull'host | spec. di base §3; `../CLAUDE.md` |
 | Fuso | nessuna geolocalizzazione: si usa il fuso del computer, non la posizione | spec. di base §3 |
@@ -802,13 +804,35 @@ Prova a rispondere a voce, poi controlla nelle sezioni indicate.
 
 ---
 
+## 13. La lezione 6: router, servizio, database e chat nel browser
+
+Con la lezione 6 (dal 9 al 12 novembre) il progetto cresce in cinque concetti. Ognuno ha il suo capitolo; qui c'è solo l'idea, da zero.
+
+| Concetto | In una frase, collegata al progetto | Dove approfondire |
+|---|---|---|
+| Router dell'ambito | un nodo LLM davanti all'agente decide se la domanda è «conversazione» o «fuori ambito»; nel secondo caso il nodo `rifiuto` risponde con un testo fisso, senza chiamare l'agente | [04, sezione 21](04-grafo-langgraph.md#21-lezione-6-il-router-dellambito) |
+| Servizio HTTP **senza stato** | lo stesso agente della CLI risponde a `POST /chat`; non ricorda niente tra una richiesta e l'altra, perché la cronologia la rimanda chi chiama | [13](13-agente-come-servizio.md) |
+| **SSE** (Server-Sent Events) | un modo di mandare eventi dal server al browser su una sola richiesta HTTP rimasta aperta: qui `testo`, `strumento`, `fine`, `errore`; così la risposta compare a pezzi | [14, sezione 6](14-backend-delle-chat.md) e [15, sezione 3](15-chat-nel-browser.md) |
+| **Database** (PostgreSQL) | il back-end salva progetti, chat e messaggi in tre tabelle, in un container Docker con un volume; il turno si salva solo a risposta completa | [14](14-backend-delle-chat.md) |
+| **PWA** | una pagina web con un manifest e un service worker minimo, che Edge o Chrome installano come un'app, con finestra e icona proprie | [15, sezione 1](15-chat-nel-browser.md) |
+
+Come si incastrano: il browser parla con nginx, nginx con il back-end, il back-end con l'agente (in SSE) e con PostgreSQL (in SQL). Il disegno è in [02, sezione 1.5 ter](02-architettura.md).
+
+Tre domande di autoverifica:
+
+1. Perché il servizio dell'agente è senza stato, e chi tiene la cronologia delle chat nel browser?
+2. Perché la risposta arriva a pezzi con SSE e non tutta insieme? Che cosa succederebbe con il buffering di nginx acceso?
+3. Perché una PWA invece di un'app nativa? (Risposta breve: lo ha scelto l'utente, per avere finestra e icona da app senza cambiare `CLAUDE.md` e lo step 9.)
+
+---
+
 **Prosegui con:** [02 — Architettura](02-architettura.md) per le cartelle e le responsabilità, poi [03 — Il viaggio di una richiesta](03-viaggio-di-una-richiesta.md). Per i termini: [12 — Glossario e domande](12-glossario-e-domande.md).
 
 ---
 
 ## Scaletta per le slide
 
-Una presentazione di circa 10 slide su questo capitolo. Ogni slide: titolo, tre punti brevi, che cosa mostrare.
+Una presentazione di circa 11 slide su questo capitolo. Ogni slide: titolo, tre punti brevi, che cosa mostrare.
 
 ### Slide 1 · L'assistente del laboratorio
 - Un'app da terminale che conversa con un modello locale
@@ -873,7 +897,14 @@ Una presentazione di circa 10 slide su questo capitolo. Ogni slide: titolo, tre 
 
 *Da mostrare:* la tabella dei percorsi nella sezione 10.3.
 
-### Slide 10 · Che cosa ricordare
+### Slide 10 · Dalla lezione 6: servizio, database e browser
+- Un router davanti all'agente rifiuta le domande fuori ambito
+- Servizio HTTP senza stato, risposta a pezzi con SSE, chat salvate in PostgreSQL
+- Chat nel browser installabile come app (PWA)
+
+*Da mostrare:* la tabella della sezione 13 e il diagramma di [02, sezione 1.5 ter](02-architettura.md).
+
+### Slide 11 · Che cosa ricordare
 - Il modello propone, il programma esegue
 - Una risposta giusta non prova l'uso dello strumento
 - MCP conviene quando lo strumento va condiviso

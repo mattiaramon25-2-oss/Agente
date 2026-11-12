@@ -61,6 +61,8 @@ Nove correzioni sul branch `dev-revisione`, unite in `main` il 9 novembre (`846b
 
 ## Lezione 6 · Evolvere l'agente (in corso)
 
+**Stato (12 novembre 2026).** Gli step 1, 6, 7 e 8 sono fatti e uniti in `main` (ultima unione `f00512f`); restano lo step 9 (quattro container con un solo comando) e gli step 2–5 (revisore, riassunto, resource, prompt).
+
 Router, revisore e riassunto della cronologia, poi resource e prompt MCP, infine l'agente come servizio con interfaccia web. Il riepilogo dei nove step è in [`docs/studio/00-indice.md`](../studio/00-indice.md).
 
 | Tipo | Documento | In una riga |
@@ -84,5 +86,6 @@ Router, revisore e riassunto della cronologia, poi resource e prompt MCP, infine
 | Specifica | [2026-11-11-frontend-chat-design.md](specs/2026-11-11-frontend-chat-design.md) | step 8: chat nel browser in Svelte 5, installabile come app, con nginx che inoltra `/api` |
 | Piano | [2026-11-11-frontend-chat.md](plans/2026-11-11-frontend-chat.md) | gli undici task dello step 8 |
 | Checkpoint | [2026-11-11-frontend.md](checkpoint/2026-11-11-frontend.md) | step 8 fatto: conversazione completa dal browser, errori mostrati, prove con Playwright e LM Studio |
+| Checkpoint | [2026-11-12-lezione-6-pausa.md](checkpoint/2026-11-12-lezione-6-pausa.md) | pausa dopo gli step 1, 6, 7 e 8 uniti in `main`: che cosa resta e che cosa non è verificato |
 
 Specifica e piani degli step successivi arriveranno qui, con lo stesso schema: `specs/AAAA-MM-GG-<argomento>-design.md`, `plans/AAAA-MM-GG-<argomento>.md`, `checkpoint/AAAA-MM-GG-<passo>.md`.
