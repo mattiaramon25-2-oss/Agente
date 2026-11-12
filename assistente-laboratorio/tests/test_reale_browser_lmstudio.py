@@ -20,6 +20,7 @@ from tests.reale import ambiente_reale
 
 pytestmark = [pytest.mark.lmstudio, pytest.mark.docker]
 
+# 300 s: il modello gira in modalità «thinking», un turno può durare 1-2 minuti (il solo router circa 50 s).
 ATTESA_STRUMENTO = 300000
 ATTESA_RISPOSTA = 300000
 DOMANDA = "Quanto fa (3+4)*2?"
@@ -57,33 +58,37 @@ def test_calcolo_dal_browser_con_testo_a_pezzi(url_chat):
             assert "calcola" in riga.inner_text()
             print("\n  riga strumento:", riga.inner_text())
 
-            # Istantanee del testo dell'assistente finché il messaggio è in corso (aria-busy).
+            # Istantanee del solo corpo della risposta (.markdown, senza la riga dello strumento),
+            # prese finché il messaggio è in corso (aria-busy): niente corpo = nessuna istantanea.
             istantanee: list[str] = []
+            finale = ""
             fine = time.monotonic() + ATTESA_RISPOSTA / 1000
             terminato = False
             while time.monotonic() < fine:
                 stato = pagina.evaluate(
                     """() => {
                         const m = [...document.querySelectorAll('[data-test="messaggio-assistente"]')].pop();
-                        return m ? {testo: m.textContent, inCorso: m.getAttribute('aria-busy') === 'true'} : null;
+                        if (!m) return null;
+                        const corpo = m.querySelector('.markdown');
+                        return {testo: corpo ? corpo.textContent.trim() : '', inCorso: m.getAttribute('aria-busy') === 'true'};
                     }"""
                 )
                 if stato:
-                    testo = stato["testo"].strip()
-                    if testo and (not istantanee or istantanee[-1] != testo):
-                        istantanee.append(testo)
-                    if not stato["inCorso"] and testo:
+                    if stato["inCorso"]:
+                        if stato["testo"] and (not istantanee or istantanee[-1] != stato["testo"]):
+                            istantanee.append(stato["testo"])
+                    elif stato["testo"]:
+                        finale = stato["testo"]
                         terminato = True
                         break
                 time.sleep(0.1)
             assert terminato, f"il turno non è finito entro il tempo: {istantanee}"
 
-            print(f"  istantanee distinte del testo: {len(istantanee)}")
-            for i in (0, len(istantanee) // 2, -1):
+            print(f"  istantanee distinte del corpo durante il turno: {len(istantanee)}")
+            for i in sorted({0, len(istantanee) // 2, len(istantanee) - 1}) if istantanee else []:
                 print(f"    [{i}] {istantanee[i]!r}")
-            risposta = pagina.get_by_test_id("messaggio-assistente").last.inner_text()
-            print("  risposta finale:", risposta)
-            assert "14" in risposta
+            print("  testo finale:", finale)
+            assert "14" in finale
             assert len(istantanee) >= 2, f"il testo non è comparso a pezzi: {istantanee}"
         finally:
             browser.close()
