@@ -4,7 +4,7 @@
 
 ## Scheda in 5 minuti
 
-**Di che cosa parla.** Gli altri capitoli spiegano com'è fatto il progetto; questo racconta come ci si è arrivati. Segue le fasi dal 2 al 9 novembre, con le scelte fatte e i difetti corretti. All'orale serve a raccontare la cronologia senza confondere le fasi.
+**Di che cosa parla.** Gli altri capitoli spiegano com'è fatto il progetto; questo racconta come ci si è arrivati. Segue le fasi dal 2 al 12 novembre, con le scelte fatte e i difetti corretti. All'orale serve a raccontare la cronologia senza confondere le fasi.
 
 **Le idee chiave**
 
@@ -12,9 +12,10 @@
 2. **Lezione 4: l'assistente di base, 2 novembre.** È una chat da terminale con un grafo LangGraph esplicito e un solo strumento, l'orologio. Il modello gira in LM Studio e l'avvio funziona anche con Docker. Il numero della lezione si deduce dalle slide della lezione 6. → sezione 3
 3. **Lezione 5, primo passo: il convertitore via MCP, 3 novembre.** Lo strumento esce dal programma e va in un server separato. L'assistente lo trova da solo con la discovery, cioè chiedendo al server l'elenco degli strumenti. Quel giorno si completa solo la logica di conversione. → sezione 4
 4. **Lezione 5: la specifica dell'8 novembre.** L'utente vuole un solo server MCP per tutti gli strumenti, orologio compreso: dieci nomi in tutto. Vuole anche confrontare tre modi di collegare uno strumento. Ogni scelta che l'utente non ha chiesto è segnata «scelta mia». → sezione 5
-5. **Lezione 5: sette passi, un branch ciascuno.** Ogni passo ha test, prove reali, revisione, checkpoint e un merge approvato dall'utente. Le prove reali mostrano un limite: con dieci strumenti il modello da 2B a volte dichiara un'azione senza farla. → sezioni 6 e 9
+5. **Lezione 5: sette passi, un branch ciascuno.** Ogni passo ha test, prove reali, revisione, checkpoint e un merge approvato dall'utente. Le prove reali mostrano un limite: con dieci strumenti il modello da 2B a volte dichiara un'azione senza farla. → sezioni 6 e 10
 6. **Lezione 5: la revisione finale, poi l'unione.** Nella notte tra l'8 e il 9 novembre nove correzioni toccano tutto il progetto. Il 9 novembre, rilanciati i test, la revisione entra in `main`. → sezione 7
-7. **Lezione 6: appena iniziata.** Esiste solo il branch `dev-lezione_6`. Router, revisore e riassunto della cronologia sono ancora da specificare. → sezione 7.11
+7. **Lezione 6: dall'agente alla chat nel browser, 9–12 novembre.** Quattro step uniti in `main` in quattro giorni: il router che rifiuta le domande fuori ambito (con lo streaming della risposta), l'agente come servizio HTTP, il back-end con PostgreSQL e la chat nel browser installabile come app. Ogni step ha la sua prova: rifiuto senza passare dall'agente, stessa risposta da CLI e API, chat ancora presenti dopo il riavvio, conversazione completa dal browser. → sezione 8
+8. **Che cosa resta.** Lo step 9 (quattro container con un solo comando) e gli step 2–5 (revisore, riassunto, resource, prompt); due prove con LM Studio che a volte falliscono per colpa del modello. → sezione 11
 
 **Il quadro**
 
@@ -24,7 +25,10 @@ flowchart LR
     B --> C["8 nov · lezione 5<br/>specifica e sette passi"]
     C --> D["8-9 nov · lezione 5<br/>revisione finale"]
     D --> E["9 nov<br/>merge in main"]
-    E --> F["lezione 6<br/>dev-lezione_6, nessun codice"]
+    E --> F["9 nov · lezione 6<br/>step 1 router e streaming"]
+    F --> G["10 nov · lezione 6<br/>step 6 agente come servizio, in Docker"]
+    G --> H["11 nov · lezione 6<br/>step 7 back-end con PostgreSQL"]
+    H --> I["12 nov · lezione 6<br/>step 8 chat nel browser"]
 ```
 
 **Da sapere a memoria**
@@ -36,13 +40,16 @@ flowchart LR
 | Specifica della lezione 5 | 8 nov., dieci strumenti, tre varianti, sette passi | `docs/superpowers/specs/2026-11-08-strumenti-lezione-5-design.md` |
 | Merge dei sette passi | 8 nov., dalle 14:35 alle 20:58 | da `a6eb059` a `e3c3a73` |
 | Revisione finale | 9 commit `fix(...)`, uniti in `main` il 9 nov. | da `7871ef7` a `9aa287a`, merge `846b02a` |
-| Test | 503 raccolti; il 9 nov. 467 passati e 36 saltati | `python -m pytest` |
+| Test | 503 raccolti; il 9 nov. 467 passati e 36 saltati. Il 12 nov. 699 raccolti: 625 passati e 74 saltati, più 108 del front-end (`npm test`) | `python -m pytest` |
+| Merge della lezione 6 | 9–12 nov., otto unioni in `main` | da `bd8b891` a `f00512f` |
 
 **Se te lo chiedono all'orale**
 
 - *Perché i passi 2–7 partono da `main` e non da `dev`?* Perché `dev` non conteneva il passo 1, unito solo in `main`. Partire da `dev` avrebbe perso lavoro già approvato; poi `dev` è stato riallineato.
 - *Quale decisione dell'utente ha ribaltato una specifica?* L'orologio nel server MCP, insieme a tutti gli altri strumenti. La specifica del convertitore lo voleva locale.
 - *Che cosa non può impedire il codice?* Che il modello dica «Ho salvato la nota» senza chiamare `add_note`. Però lo rende visibile: mancano la riga nel terminale e le righe nei log.
+- *Perché il back-end salva il turno solo a risposta completa?* Un turno fallito non deve lasciare una domanda senza risposta, come nella CLI. E se il browser si scollega, il turno ormai eseguito (magari con una nota salvata) si salva comunque.
+- *Perché una PWA e non un'app nativa?* L'utente voleva un'app, ma una chat nel browser installabile dà la finestra e l'icona di un'app senza cambiare `CLAUDE.md` e lo step 9.
 
 Per i dettagli continua con il resto del capitolo: le idee rimandano alle sezioni con «→ sezione N».
 
@@ -50,11 +57,11 @@ Per i dettagli continua con il resto del capitolo: le idee rimandano alle sezion
 
 Gli altri documenti spiegano **com'è fatto** il progetto. Questo spiega **come ci si è arrivati e perché**. All'orale servono soprattutto tre cose:
 
-1. raccontare la cronologia senza confondere le fasi: assistente di base, convertitore, lezione 5 in sette passi, revisione finale;
+1. raccontare la cronologia senza confondere le fasi: assistente di base, convertitore, lezione 5 in sette passi, revisione finale, lezione 6;
 2. motivare le scelte, distinguendo quelle **decise dall'utente** da quelle **proposte dall'esecutore** (nei documenti sono segnate *«scelta mia»*);
 3. raccontare i difetti trovati dalle revisioni: che cosa succedeva, perché, come è stato corretto.
 
-> **Fonti e metodo.** La cronologia viene da `git log` e `git show` (solo lettura), dalle tre specifiche in `docs/superpowers/specs/`, dai nove piani in `docs/superpowers/plans/` e dagli otto checkpoint in `docs/superpowers/checkpoint/`. Ogni correzione descritta qui è stata confrontata con il codice attuale, e i riferimenti `percorso:riga` puntano a quel codice.
+> **Fonti e metodo.** La cronologia viene da `git log` e `git show` (solo lettura), dalle specifiche in `docs/superpowers/specs/`, dai piani in `docs/superpowers/plans/` e dai checkpoint in `docs/superpowers/checkpoint/`. La fase 5 (lezione 6) è ricostruita dai sei checkpoint dal 9 al 12 novembre e dalle loro specifiche; i suoi esiti sono quelli registrati lì, non rieseguiti. Ogni correzione descritta qui è stata confrontata con il codice attuale, e i riferimenti `percorso:riga` puntano a quel codice.
 >
 > Gli esempi «prima/dopo» sono **reali**. Uno script in una cartella temporanea ha eseguito:
 > - il codice attuale;
@@ -78,10 +85,11 @@ Gli altri documenti spiegano **com'è fatto** il progetto. Questo spiega **come 
 5. [Fase 2 — La specifica della lezione 5 e i sette piani (8 novembre)](#5-fase-2--la-specifica-della-lezione-5-e-i-sette-piani-8-novembre)
 6. [Fase 3 — I sette passi](#6-fase-3--i-sette-passi)
 7. [Fase 4 — La revisione finale a tappeto (`dev-revisione`)](#7-fase-4--la-revisione-finale-a-tappeto-dev-revisione)
-8. [Registro delle decisioni](#8-registro-delle-decisioni)
-9. [Le prove reali nel tempo](#9-le-prove-reali-nel-tempo)
-10. [Che cosa resta aperto](#10-che-cosa-resta-aperto)
-11. [Domande di ripasso](#11-domande-di-ripasso)
+8. [Fase 5 — La lezione 6: dall'agente alla chat nel browser (9–12 novembre)](#8-fase-5--la-lezione-6-dallagente-alla-chat-nel-browser-912-novembre)
+9. [Registro delle decisioni](#9-registro-delle-decisioni)
+10. [Le prove reali nel tempo](#10-le-prove-reali-nel-tempo)
+11. [Che cosa resta aperto](#11-che-cosa-resta-aperto)
+12. [Domande di ripasso](#12-domande-di-ripasso)
 
 - [Scaletta per le slide](#scaletta-per-le-slide)
 
@@ -98,11 +106,12 @@ Gli altri documenti spiegano **com'è fatto** il progetto. Questo spiega **come 
 | 8 nov., 14:01–20:58 | 3 | Sette passi, ciascuno sul suo branch, con revisione, checkpoint e merge in `main` | merge da `a6eb059` a `e3c3a73` |
 | 8 nov., 23:24 – 9 nov., 04:22 | 4 | Revisione finale a tappeto sul branch `dev-revisione`: 9 commit `fix(...)` | da `7871ef7` a `9aa287a` |
 | 9 nov., 15:24 | 4 | La revisione viene unita in `main`; poi si apre `dev-lezione_6` per la lezione 6 | `846b02a` |
+| 9 nov., 16:17 – 12 nov., 14:45 | 5 | Lezione 6: router, streaming, agente come servizio (anche in Docker), back-end con PostgreSQL, chat nel browser; otto unioni in `main` | da `bd8b891` a `f00512f` |
 
 Numeri utili:
-- `main` contiene **85 commit**, di cui 9 merge: l'importazione iniziale, i sette passi e la revisione;
-- i test raccolti oggi sono **503**, di cui **36 prove reali** (`--collect-only`, eseguito per questo documento);
-- l'ultimo checkpoint registrava **419 passati e 36 saltati**. I test in più sono arrivati con la revisione finale (sezione 7). Il 9 novembre, sullo stesso codice, il risultato è **467 passati e 36 saltati**.
+- `main` contiene **85 commit** al 9 novembre, di cui 9 merge: l'importazione iniziale, i sette passi e la revisione. Al 12 novembre i commit sono **172**, di cui 17 merge (gli otto della lezione 6 sono in più);
+- il 9 novembre i test raccolti erano **503**, di cui **36 prove reali**; il 12 novembre sono **699** (625 passati e 74 saltati), più 108 del front-end;
+- l'ultimo checkpoint della lezione 5 registrava **419 passati e 36 saltati**. I test in più sono arrivati con la revisione finale (sezione 7), che il 9 novembre dava **467 passati e 36 saltati**, e poi con la lezione 6 (sezione 8).
 
 ```mermaid
 gitGraph
@@ -152,11 +161,35 @@ gitGraph
    commit id: "9 commit fix(...)"
    checkout main
    merge dev-revisione id: "846b02a"
+   branch dev-router
+   commit id: "step 1"
+   checkout main
+   merge dev-router id: "bd8b891"
+   branch dev-streaming
+   commit id: "streaming"
+   checkout main
+   merge dev-streaming id: "711f421"
+   branch dev-grafica-gui
+   commit id: "step 6"
+   checkout main
+   merge dev-grafica-gui id: "fa83a50"
+   branch dev-docker-agente
+   commit id: "agente in Docker"
+   checkout main
+   merge dev-docker-agente id: "13a673f"
+   branch dev-backend
+   commit id: "step 7"
+   checkout main
+   merge dev-backend id: "a869164"
+   branch dev-frontend
+   commit id: "step 8"
+   checkout main
+   merge dev-frontend id: "f00512f"
 ```
 
 Due dettagli del grafico da saper spiegare:
 
-- **Il passo 1 parte da `dev`, i passi 2–7 da `main`.** La regola diceva «ogni branch parte da `dev`». Però `dev` non conteneva il passo 1, che era stato unito solo in `main`. Partire da `dev` avrebbe perso il lavoro già approvato, quindi l'esecutore è partito da `main` e l'ha dichiarato in ogni checkpoint (per esempio `2026-11-08-calcolatrice.md`, «Stato attuale»). Nel checkpoint finale ha chiesto all'utente se riallineare `dev` o cambiare la regola. Oggi `dev` punta allo stesso commit di `main` (`846b02a`): è stato riallineato.
+- **Il passo 1 parte da `dev`, i passi 2–7 da `main`.** La regola diceva «ogni branch parte da `dev`». Però `dev` non conteneva il passo 1, che era stato unito solo in `main`. Partire da `dev` avrebbe perso il lavoro già approvato, quindi l'esecutore è partito da `main` e l'ha dichiarato in ogni checkpoint (per esempio `2026-11-08-calcolatrice.md`, «Stato attuale»). Nel checkpoint finale ha chiesto all'utente se riallineare `dev` o cambiare la regola. Dopo la revisione `dev` è stato riallineato a `main` (`846b02a`) e così è rimasto dopo ogni unione della lezione 6, fino a `f00512f`.
 - **Ogni merge è un commit di merge** (`chore: unisci il passo N (...) in main`), fatto solo dopo l'approvazione esplicita dell'utente. Così in `git log --graph` ogni passo resta riconoscibile come un ramo chiuso.
 
 ---
@@ -207,7 +240,7 @@ flowchart TD
 
 Molte correzioni delle revisioni nascono proprio da un anti-obiettivo violato in un caso limite. Un esempio è il «numero arrotondato presentato come esatto» della sezione 7.1.
 
-**«Scelta mia».** Ogni volta che la specifica decide qualcosa che l'utente non ha chiesto, l'esecutore lo marca così. L'utente può contestare ogni singola scelta prima di approvare. È una forma di trasparenza: si vede chi ha deciso che cosa (sezione 8).
+**«Scelta mia».** Ogni volta che la specifica decide qualcosa che l'utente non ha chiesto, l'esecutore lo marca così. L'utente può contestare ogni singola scelta prima di approvare. È una forma di trasparenza: si vede chi ha deciso che cosa (sezione 9).
 
 **Resoconto onesto.** Ogni checkpoint separa ciò che è stato eseguito da ciò che *non* è verificato. Per esempio l'avvio interattivo da tastiera di `.\avvia.ps1` risulta «non verificato» in tutti e otto i checkpoint, e non viene mai dichiarato riuscito. La regola del `CLAUDE.md` è esplicita: «una risposta simulata non dimostra che il modello locale sappia usare lo strumento».
 
@@ -865,15 +898,102 @@ Il 9 novembre alle 15:24 la revisione entra in `main` con il commit di merge `84
 
 Il codice di `main` è identico a quello di `dev-revisione`: i riferimenti `percorso:riga` di questo documento restano validi. Dopo il merge `dev` è stato portato allo stesso commit. Il branch `dev-revisione` e i branch dei passi 1–7 sono stati cancellati in locale.
 
-Per la lezione 6 è stato aperto il branch `dev-lezione_6`, che parte da `dev`: router, revisore e riassunto della cronologia sono ancora da specificare.
+Per la lezione 6 è stato aperto il branch `dev-lezione_6`, che parte da `dev`. Che cosa è successo dopo è nella sezione 8.
 
 ---
 
-## 8. Registro delle decisioni
+## 8. Fase 5 — La lezione 6: dall'agente alla chat nel browser (9–12 novembre)
+
+Le slide della lezione 6 (`LLM_Lez_6.pdf`, fuori dal repository) dividono il lavoro in nove step. In quattro giorni ne sono stati fatti quattro (1, 6, 7 e 8), più due richieste dell'utente fuori dall'elenco: la risposta in streaming e il servizio dell'agente in Docker. Il metodo è quello di sempre: specifica e piano approvati prima del codice, un branch per passo, prove, checkpoint, unione in `main` solo con l'approvazione dell'utente. Una differenza rispetto alla fase 3: dopo ogni unione `dev` è stato riportato allo stesso commit di `main`, quindi ogni branch parte da `dev` senza perdere lavoro.
+
+### 8.0 Riepilogo
+
+| Quando | Che cosa | Branch | Unione in `main` | Esito alla fine del passo |
+|---|---|---|---|---|
+| 9 nov., 16:17 | Step 1: router dell'ambito | `dev-router` | `bd8b891` | 496 passati, 38 saltati; con LM Studio 32 passati |
+| 9 nov., 17:24 | Streaming della risposta e nuovo rifiuto (richiesta dell'utente) | `dev-streaming` | `711f421` | 509 passati, 40 saltati; con LM Studio 10 passati |
+| 10 nov., 09:28 | Step 6: l'agente come servizio HTTP | `dev-grafica-gui` | `fa83a50` | 524 passati, 43 saltati; con LM Studio 3 passati |
+| 10 nov., 12:05 | Il servizio dell'agente in Docker | `dev-docker-agente` | `13a673f` | 526 passati, 44 saltati; Docker 7 passati |
+| 10 nov., 12:10 | Regola sulla chat nel browser in `CLAUDE.md` | – | `3631867` | solo documentazione |
+| 11 nov., 12:18 | Step 7: back-end delle chat con PostgreSQL | `dev-backend` | `a869164` | 625 passati, 64 saltati; Docker 23 passati |
+| 11 nov., 12:23 | Correzioni ai documenti del back-end | – | `c4f2391` | solo documentazione |
+| 12 nov., 14:45 | Step 8: chat nel browser installabile come app | `dev-frontend` | `f00512f` | 625 passati, 74 saltati; 108 test del front-end; browser e Compose 9 passati |
+
+Gli esiti vengono dai checkpoint di `docs/superpowers/checkpoint/` (`2026-11-09-router.md`, `2026-11-09-streaming.md`, `2026-11-09-agente-servizio.md`, `2026-11-10-docker-agente.md`, `2026-11-10-backend.md`, `2026-11-11-frontend.md`).
+
+### 8.1 Step 1 — Il router dell'ambito (`bd8b891`)
+
+**Che cosa.** Un nodo `router` prima dell'agente decide se la domanda è «conversazione» o «fuori ambito». Nel secondo caso il nodo `rifiuto` risponde con un testo fisso, senza chiamare il modello dell'agente. L'ambito (che cosa è in ambito, che cosa no, il testo del rifiuto) sta in `risorse/ambito.json`, non nel codice. Nel grafo: `instrada_dopo_router` (`assistente/grafo.py:156`) e gli archi dei due nodi (`assistente/grafo.py:245-249`). Capitolo 04, sezione 21.
+
+**La decisione principale.** Il router usa lo stesso modello di LM Studio, senza strumenti, con un output strutturato (`with_structured_output(method="json_schema")`). Se l'output non è valido, il router non blocca nulla: la domanda passa all'agente e il log registra `esito=errore`. Un file `ambito.json` assente o malformato ferma l'avvio con `ErroreAvvio`.
+
+**La prova.** Con `google/gemma-4-e2b`: «che ore sono a Tokyo?» dà `categoria=conversazione`, `nodo=modello` e una chiamata a `ora_corrente` con `Asia/Tokyo`; «scrivimi una poesia sul mare» dà `categoria=fuori_ambito`, `nodo=rifiuto` e nessun `nodo=modello` nel log. Quella è l'evidenza che chiedono le slide: domanda fuori ambito rifiutata senza passare dall'agente.
+
+### 8.2 Streaming e nuovo rifiuto (`711f421`)
+
+**Che cosa.** La risposta finale arriva a pezzi (`esegui_turno_in_streaming`, `assistente/grafo.py:271`) e il rifiuto cambia testo. **Decisioni dell'utente:** il nuovo messaggio sostituisce il vecchio e rimanda a un altro provider; in streaming va solo la risposta finale, non i passaggi intermedi.
+
+**Due correzioni.** La prima è su codice già in `main`: dopo il router, `tests/test_avvio_unico.py` chiamava davvero LM Studio con il router reale, e passava solo perché LM Studio era acceso. Ora usa un router finto e un indirizzo dove non ascolta nessuno (`3a6a9ac`). La seconda è emersa dalla prova di avvio: con lo streaming il router faceva stampare a pydantic un avviso a ogni turno; ora ha `disable_streaming=True` e il tag `nostream` (`3add62f`).
+
+**La prova.** Con LM Studio 10 passati; la risposta di prova è arrivata in 48 pezzi. Con un avvio da pipe (`ciao`, `esci`): risposta in streaming e nessun avviso.
+
+### 8.3 Step 6 — L'agente come servizio HTTP (`fa83a50`)
+
+**Che cosa.** `python -m servizio_agente` espone lo stesso agente con `GET /salute` e `POST /chat`. CLI e servizio costruiscono il grafo con la stessa funzione, `crea_agente` (`assistente/agente.py`). Capitolo 13.
+
+**Le decisioni principali.** Il servizio è **senza stato**: la cronologia la conserva chi chiama e la rimanda a ogni turno, come fa il terminale. Così lo step 7 potrà salvarla in PostgreSQL senza toccare l'agente. Ascolta solo su `127.0.0.1` (`AGENTE_PORTA`, diversa dalle altre porte), perché non ha autenticazione. Un turno alla volta con un `threading.Lock`; errori sempre in italiano: `400`, `503`, `500`.
+
+**Un difetto trovato a mano.** Con `Invoke-RestMethod` di PowerShell 5.1 la risposta mostrava «martedÃ¬»: mancava `charset=utf-8` nell'intestazione. Corretto in `6ff181e`.
+
+**La prova.** La stessa domanda a CLI e API dà la stessa risposta: il rifiuto è identico (testo fisso) e «Quanto fa (3+4)*2?» dà «Il risultato di (3+4)*2 è 14.» con una chiamata a `calcola` da entrambe. Con LM Studio 3 passati.
+
+### 8.4 Il servizio dell'agente in Docker (`13a673f`) e la regola sulla chat nel browser (`3631867`)
+
+**Che cosa.** Un secondo servizio Compose, `agente`, dalla stessa immagine della CLI, con il suo server MCP nel container. **Scelta dell'utente.** La CLI in Docker resta com'è. Il servizio ascolta su `0.0.0.0` dentro il container (`AGENTE_HOST`), ma la porta è pubblicata solo su `127.0.0.1:${AGENTE_PORTA}` (`compose.yaml`, servizio `agente`). Si avvia con `avvia-agente.ps1`. Capitolo 08, sezione 7.9.
+
+**La prova.** Docker 7 passati su 7 (le sei esistenti più la nuova): avvio, `/salute` dall'host con il fuso di Windows, conversione con `converti_unita`, rifiuto e `docker compose stop` con uscita 0 e «spento server MCP codice=0» nel log.
+
+**La regola sulla chat nel browser.** Pochi minuti dopo, l'utente fa unire (`3631867`) una modifica a `CLAUDE.md`: l'unica interfaccia grafica ammessa è la chat nel browser dello step 8, con linguaggio e librerie scelti nella sua specifica e approvati da lui. La CLI resta.
+
+### 8.5 Step 7 — Il back-end delle chat con PostgreSQL (`a869164`)
+
+**Che cosa.** `servizio_backend/` salva progetti, chat e messaggi in PostgreSQL e fa da ponte tra il browser e l'agente: `python -m servizio_backend`. Capitolo 14.
+
+**Le scelte dell'utente.** PostgreSQL in un container con un volume; back-end FastAPI; `psycopg` 3 con SQL scritto a mano e tabelle create all'avvio, senza SQLAlchemy; streaming con Server-Sent Events; ricerca direttamente in PostgreSQL; un progetto raggruppa soltanto le chat e può avere istruzioni.
+
+**La decisione principale.** Il turno si salva **solo a risposta completa**, in una transazione, dopo l'evento `fine` dell'agente (`servizio_backend/turni.py:115-121`, `servizio_backend/archivio.py:218`). Dopo un errore non si salva nemmeno la domanda: è il comportamento della CLI, dove un turno fallito non entra nella cronologia. Il turno gira in un thread e, se il browser si scollega, arriva comunque alla fine: lo strumento (per esempio `add_note`) è già stato eseguito.
+
+**La revisione finale del branch.** Tre correzioni: `formatta_sse` scrive U+2028, U+2029 e U+0085 come escape JSON (`d72444c`); l'avvio mostra il motivo dell'errore del database senza il dsn (`0b218a6`); una riga di log per ogni richiesta, e il turno prenota la chat prima di leggere il contesto (`86b4df1`).
+
+**La prova.** Back-end vero e database di prova fermati e riavviati: progetti, chat e messaggi identici. Lo stesso a mano sul database dell'utente, dopo `docker compose stop database` e `up -d database`. È l'evidenza delle slide: chat ancora presenti dopo il riavvio. Con LM Studio e Docker 4 prove passate (turno in più pezzi con 14 e `calcola`, istruzioni in inglese verificate sul giorno della settimana, ricerca, rifiuto).
+
+### 8.6 Step 8 — La chat nel browser (`f00512f`)
+
+**Che cosa.** La cartella `frontend/`: una chat in Svelte 5 che parla solo con il back-end, tramite nginx in un container (`frontend`, `127.0.0.1:8780`). Capitolo 15.
+
+**Le decisioni.** L'utente voleva all'inizio un'app installata, non web. Ha scelto una **PWA**, una pagina con manifest e service worker minimo che Edge installa come app, sapendo che altrimenti cambiavano `CLAUDE.md` e lo step 9. La tecnologia, approvata nella specifica: **Svelte 5 con Vite e TypeScript** (6.0.3, perché `svelte-check` non supporta TypeScript 7), pochi pacchetti a versioni esatte. Durante l'esecuzione:
+- **nginx con `max_fails=0`** (`frontend/nginx/default.conf.template:1-3`): con l'impostazione predefinita rispondeva `502` per 10 secondi dopo il ritorno del back-end. In più `proxy_buffering off` (riga 23), altrimenti lo streaming non è più uno streaming;
+- ogni turno porta il suo `chatId` e non compare in un'altra chat;
+- le attese delle prove con LM Studio salgono a 300 secondi, perché il modello ora ragiona prima di rispondere e un turno dura 1–2 minuti.
+
+**La revisione finale dell'intero branch.** Il difetto più importante è di sicurezza. DOMPurify era configurato con divieti (niente immagini, moduli, stili), ma restavano `<video>`, `<audio>`, `<picture>`, SVG con `<image>` e `<feImage>`, e l'attributo `background`, che caricherebbero risorse esterne: un canale per far uscire dati. Ora c'è un **elenco chiuso** di tag e attributi ammessi (`frontend/src/lib/markdown.ts:41-42`, `e446d08`). In più nginx manda su ogni risposta una **Content-Security-Policy** con `X-Content-Type-Options: nosniff` e `Referrer-Policy: no-referrer` (`frontend/nginx/sicurezza.conf:8-10`, `ee2581f`). Altre correzioni: un turno fallito non perde la domanda (`430325a`), il primo disegno segue il tema scuro del sistema (`b3204c8`), chiudere la finestra durante una risposta chiede conferma (`c898038`).
+
+**La prova.** Vitest: 108 passati. Playwright con Chromium contro il container nginx, con back-end vero e agente finto: 7 prove nel browser più 2 di Compose, 9 passate con `--docker`. Con LM Studio, prima delle correzioni finali, 5 prove passate, compresa la chat nel browser con «Quanto fa (3+4)*2?». Verifica a mano: il 12 novembre l'utente ha installato la chat come app in Edge e ha confermato che funziona.
+
+### 8.7 Che cosa insegna questa fase
+
+1. **Servizio senza stato, poi stato a parte.** Tenere l'agente senza stato (step 6) ha permesso di aggiungere il salvataggio (step 7) senza toccarlo: il back-end tiene le chat, l'agente ragiona.
+2. **Un test che passa «per caso» non vale.** `tests/test_avvio_unico.py` passava solo perché LM Studio era acceso (sezione 8.2). Le prove reali restano separate e dichiarate.
+3. **La sicurezza si controlla alla fine, con occhi nuovi.** I divieti di DOMPurify sembravano bastare; la revisione dell'intero branch ha trovato i tag che aggirano l'elenco e ha portato all'elenco chiuso e alla CSP.
+4. **Il modello cambia, le prove si tarano.** `google/gemma-4-e2b` ora ragiona prima di rispondere: un turno dura 1–2 minuti e le attese delle prove sono più lunghe. Il comportamento con il modello precedente, senza ragionamento, non è stato verificato.
+
+---
+
+## 9. Registro delle decisioni
 
 Legenda: **U** = decisione dell'utente; **E** = scelta dell'esecutore (*«scelta mia»*), proposta nella specifica e approvata insieme a essa; **R** = decisione nata da una revisione.
 
-### 8.1 Architettura e perimetro
+### 9.1 Architettura e perimetro
 
 | Decisione | Chi | Dove | Motivazione |
 |---|---|---|---|
@@ -891,7 +1011,7 @@ Legenda: **U** = decisione dell'utente; **E** = scelta dell'esecutore (*«scelta
 | Nessun riavvio automatico di un server caduto | E | spec. conv. §5.3 | semplicità; l'errore di collegamento è visibile nel `ToolMessage` |
 | Niente stdio, prompt, resources, due server, RAG | spec. (non obiettivi) | spec. L5 §3 | non anticipare le lezioni successive (Confini) |
 
-### 8.2 Contratti degli strumenti
+### 9.2 Contratti degli strumenti
 
 | Decisione | Chi | Motivazione |
 |---|---|---|
@@ -905,7 +1025,7 @@ Legenda: **U** = decisione dell'utente; **E** = scelta dell'esecutore (*«scelta
 | Controllo degli argomenti mancanti e inventati nell'host | R (passo 3, revisione finale) | stesso messaggio italiano per ogni variante |
 | Numeri esatti anche come testo; arrotondati mai come intero | R (revisione finale) | nessuna falsa esattezza |
 
-### 8.3 Processo
+### 9.3 Processo
 
 | Decisione | Chi | Motivazione |
 |---|---|---|
@@ -918,9 +1038,27 @@ Legenda: **U** = decisione dell'utente; **E** = scelta dell'esecutore (*«scelta
 | Branch dei passi 2–7 da `main` invece che da `dev` | E, dichiarata | `dev` non conteneva i passi già uniti; poi `dev` è stato riallineato |
 | `.gitattributes` non toccato | E | fuori da `assistente-laboratorio/`; l'utente non ha dato indicazioni |
 
+### 9.4 Lezione 6: servizi, back-end e chat nel browser
+
+| Decisione | Chi | Dove | Motivazione |
+|---|---|---|---|
+| Il router usa lo stesso modello, senza strumenti, con output strutturato; se l'output non è valido, la domanda passa all'agente | E, approvata con la specifica | `assistente/router.py`; spec. router | un errore del router non deve bloccare la conversazione; resta visibile nel log (`esito=errore`) |
+| Un servizio dell'agente **senza stato** | E, approvata con la specifica | `servizio_agente/app.py`; spec. agente-servizio | la cronologia la tiene chi chiama; il back-end la potrà salvare senza cambiare l'agente |
+| Porta solo su `127.0.0.1` (anche per PostgreSQL, back-end e `frontend`); in Docker pubblicata solo su `127.0.0.1` | E, approvata con le specifiche | `compose.yaml:43`, `:59`, `:78` | nessuna autenticazione: nessun altro computer deve raggiungere i servizi |
+| Servizio dell'agente in Docker come secondo servizio Compose, con il suo server MCP | **U** | spec. docker-agente | la CLI in Docker non cambia; i quattro container sono lo step 9 |
+| Un turno si salva **solo a risposta completa**, in una transazione, anche se il browser si scollega | E, approvata con la specifica | `servizio_backend/turni.py:115-121`, `servizio_backend/archivio.py:218` | niente domande senza risposta; il turno ormai eseguito può aver avuto effetti |
+| PostgreSQL, `psycopg` 3 con SQL a mano, SSE, ricerca nel database | **U** | spec. backend | nessun ORM da spiegare; SSE basta per un flusso in una sola direzione |
+| Una **PWA** al posto di un'app nativa | **U** | spec. frontend; `frontend/public/sw.js` | finestra e icona da app senza cambiare `CLAUDE.md` e lo step 9 |
+| **Svelte 5 e TypeScript**, pacchetti npm a versioni esatte | **U**, nella specifica | `frontend/package.json:12-25` | pochi pacchetti, rune per lo stato; TypeScript 6.0.3 perché `svelte-check` non supporta il 7 |
+| nginx con `max_fails=0` e `proxy_buffering off` | E, durante l'esecuzione | `frontend/nginx/default.conf.template:3`, `:23` | senza `max_fails=0`, `502` per 10 secondi dopo il ritorno del back-end; senza buffering lo streaming arriverebbe tutto insieme |
+| Il testo del modello passa solo da `rendiMarkdown`, con un **elenco chiuso** di tag e attributi (DOMPurify) | R (revisione finale dello step 8) | `frontend/src/lib/markdown.ts:38-42` | i divieti lasciavano passare tag che caricano risorse esterne |
+| **Content-Security-Policy**, `nosniff` e `Referrer-Policy` su ogni risposta di nginx | R (revisione finale dello step 8) | `frontend/nginx/sicurezza.conf:8-10` | anche se qualcosa sfugge al filtro, il browser non carica risorse da altri siti |
+| Un turno fallito non perde la domanda | R (revisione finale dello step 8) | `frontend/src/lib/stato.svelte.ts` | l'errore resta nella chat del turno e la domanda torna nella casella |
+| La chat nel browser è l'unica interfaccia grafica ammessa | **U** | `../CLAUDE.md`, sezione «Confini» | `3631867`; niente altre interfacce o framework non concordati |
+
 ---
 
-## 9. Le prove reali nel tempo
+## 10. Le prove reali nel tempo
 
 | Momento | Strumenti visibili | Esito | Note |
 |---|---|---|---|
@@ -932,32 +1070,52 @@ Legenda: **U** = decisione dell'utente; **E** = scelta dell'esecutore (*«scelta
 | Passo 6 | 10 | 30/30 prima e dopo | meteo reale per Udine |
 | Passo 7 | 10 | **28/30**; aggiunta di una nota 2/3 alla ripetizione | il modello dice «Ho salvato la nota» senza chiamare `add_note` |
 
+Con la lezione 6 le prove reali crescono: oltre alle prove con LM Studio ci sono quelle con Docker, quelle nel browser (Playwright) e quelle combinate. Gli esiti dai checkpoint:
+
+| Momento | Prova | Esito | Note |
+|---|---|---|---|
+| Step 1 (9 nov.) | `--lmstudio` | 32 passati | domanda fuori ambito rifiutata senza il nodo `modello` |
+| Streaming (9 nov.) | tre file con LM Studio | 10 passati | risposta in 48 pezzi |
+| Step 6 (10 nov.) | servizio con LM Studio | 3 passati | rifiuto identico da CLI e API; `(3+4)*2` dà 14 in entrambe |
+| Docker dell'agente (10 nov.) | `--docker` e `--lmstudio` | Docker 7 passati; LM Studio 36 passati e 1 fallito | il fallito è il catalogo: il modello ha cercato «Deep Learning and LLM» in inglese; rieseguito, 4 passati |
+| Step 7 (11 nov.) | `--docker`, `--lmstudio`, combinate | Docker 23 passati e 4 saltati; LM Studio 36 passati e 1 fallito; combinate 4 passati | il fallito è il meteo esterno («nessuna risposta entro 8 secondi»); da solo, 2 passati |
+| Step 8 (12 nov.) | browser e Compose; combinate; LM Studio | 9 passati; 5 passati (prima delle correzioni finali); 35 passati e 2 falliti | i due falliti sono comportamento del modello (convertitore con «litri», `list_notes` invece di `delete_note`); rieseguiti, 10 passati |
+
 Che cosa insegna questa tabella:
 
 1. **Più strumenti, meno affidabilità con un modello da 2B.** Da nove strumenti in su sono comparsi i primi fallimenti: risposte a mente, nessun nuovo tentativo dopo un errore, azioni dichiarate e non eseguite.
 2. **Il codice non può impedire che il modello menta, ma può renderlo visibile.** Se il terminale non mostra la riga `[add_note · mcp: …]` e `server_mcp.log` non contiene `modifica note operazione=aggiunta`, la nota non esiste. La regola «se non hai chiamato lo strumento, non l'hai fatto» (`assistente/grafo.py:45-46`) riduce il problema ma non lo elimina.
 3. **I test con il modello finto non dimostrano niente sul modello vero.** Per questo le prove reali sono separate, attivate esplicitamente e riportate con i loro numeri, compresi i fallimenti.
 4. **Ritocchi limitati, poi decide l'utente.** Le specifiche ammettono «al massimo un paio di ritocchi» a descrizioni e messaggio di sistema. Poi si riporta l'esito con le evidenze: la scelta del modello resta all'utente.
+5. **Nella lezione 6 i fallimenti sono del modello o della rete, non del codice.** Ogni prova fallita (catalogo, meteo, convertitore, note) passa alla seconda esecuzione. Lo si dice con i numeri, senza nasconderli.
+6. **Il modello ragiona prima di rispondere.** Con il modello in LM Studio allo step 8 un turno richiede circa 1–2 minuti: le attese delle prove (300 secondi) sono tarate su questo.
 
 ---
 
-## 10. Che cosa resta aperto
+## 11. Che cosa resta aperto
 
-Elementi ancora aperti, ricontrollati sul codice e sulla repository attuali:
+Elementi ancora aperti, ricontrollati sul codice e sulla repository del 12 novembre:
 
 | Tema | Stato |
 |---|---|
 | Checkpoint della revisione finale | nessun file dedicato: il merge del 9 novembre (`846b02a`, sezione 7.11) è registrato nel checkpoint `2026-11-09-documentazione-studio.md` |
-| `.gitattributes` alla radice | ancora cancellato nella copia di lavoro, mai toccato |
+| `.gitattributes` alla radice | oggi presente e tracciato; nelle fasi 3 e 4 risultava cancellato nella copia di lavoro e non è mai stato toccato |
 | Avvio interattivo da tastiera di `.\avvia.ps1` | mai verificato (le prove usano `-SenzaTty` e l'ingresso da una pipe) |
 | Meteo con una rete presente ma senza Internet | la scadenza di 8 s è coperta solo dai test automatici |
 | Affidabilità di `google/gemma-4-e2b` con dieci strumenti | limite noto; cambiare modello si fa con `LMSTUDIO_MODEL` e lo decide l'utente |
 | Minor ancora presenti | catalogo salvato con BOM rifiutato (`logica/catalogo.py` legge in `utf-8`); HTTP 429/407 del meteo classificati come «risposta non valida» (`logica/meteo.py:78-79`); messaggio per variabili mancanti senza i valori ammessi delle varianti (`assistente/configurazione.py:44-53`); JSON della calcolatrice locale con gli spazi (`assistente/calcolatrice_locale.py:29`); nome dell'immagine fisso nella prova Docker (`tests/test_reale_docker.py:24`); `FUSO_ORARIO` assente dall'elenco delle variabili in `CLAUDE.md` |
 | Estensioni escluse dalla specifica | stdio, due server MCP, prompt e resources, conferma umana prima di eliminare: materia di lezioni future |
+| Step 9 della lezione 6 | quattro container (front-end, back-end, agente, database) con un solo comando: oggi il back-end e l'agente si avviano a mano sull'host, il database e il `frontend` con Compose |
+| Step 2–5 della lezione 6 | revisore, riassunto della cronologia, resource, prompt: non ancora specificati |
+| Prove con LM Studio instabili | convertitore con «litri», `list_notes` invece di `delete_note`, catalogo cercato in inglese, meteo esterno: passano alla seconda esecuzione, ma restano un limite del modello |
+| Ragionamento del modello | un turno dura 1–2 minuti; il comportamento con il modello precedente, senza ragionamento, non è stato verificato |
+| Formule LaTeX | il modello a volte le scrive (`$...$`); la chat nel browser le mostra grezze |
+| Non verificato | `Ctrl+C` digitato in una console vera su `servizio_backend`; le suite complete con LM Studio dopo le correzioni finali dello step 8 |
+| Cartella `.superpowers/` | non tracciata; si può aggiungere al `.gitignore` se l'utente lo vuole |
 
 ---
 
-## 11. Domande di ripasso
+## 12. Domande di ripasso
 
 1. **Perché i passi 2–7 partono da `main` e non da `dev`, come diceva la regola?**
    Perché `dev` non conteneva il passo 1, unito solo in `main`. Partire da `dev` avrebbe perso lavoro già approvato. L'esecutore lo ha dichiarato in ogni checkpoint e ha lasciato la decisione all'utente, che poi ha riallineato `dev`.
@@ -983,16 +1141,26 @@ Elementi ancora aperti, ricontrollati sul codice e sulla repository attuali:
     Con un test che fallisce sul codice vecchio e passa su quello nuovo, come chiede il metodo. Quando serve, si aggiunge una prova reale rieseguita, per esempio la calcolatrice 4/4 dopo le correzioni del passo 2.
 12. **Che cos'è il tag `backup-prima-pulizia`?**
     È la copia di sicurezza della storia del 2 novembre, i cui commit avevano ancora la riga `Co-Authored-By`, fatta prima di riscrivere la storia di `main` senza quelle righe.
+13. **Perché il servizio dell'agente è senza stato?**
+    Perché la cronologia la tiene chi chiama, come fa il terminale. Così il back-end può salvare le chat in PostgreSQL senza cambiare l'agente, e lo stesso agente serve CLI e back-end.
+14. **Perché il back-end salva il turno solo a risposta completa?**
+    Perché una domanda senza risposta lascerebbe la chat incoerente. E se il browser si scollega a metà, il back-end salva comunque: lo strumento (per esempio `add_note`) è già stato eseguito.
+15. **Perché una PWA e non un'app nativa? Chi l'ha deciso?**
+    L'ha deciso l'utente. Voleva un'app, ma una chat nel browser installabile dà finestra e icona da app e lascia validi `CLAUDE.md` e lo step 9.
+16. **Che difetto ha trovato la revisione finale dello step 8?**
+    DOMPurify vietava immagini, moduli e stili, ma lasciava passare tag come `<video>`, `<audio>` e SVG che caricano risorse esterne. Ora c'è un elenco chiuso di tag ammessi e nginx manda una Content-Security-Policy.
+17. **Perché nginx ha `max_fails=0`?**
+    Con l'impostazione predefinita nginx metteva da parte il back-end dopo un errore e rispondeva `502` per 10 secondi anche dopo il suo ritorno.
 
 ---
 
 ## Scaletta per le slide
 
-Una presentazione di circa 10 slide su questo capitolo. Ogni slide: titolo, tre punti brevi, che cosa mostrare.
+Una presentazione di circa 12 slide su questo capitolo. Ogni slide: titolo, tre punti brevi, che cosa mostrare.
 
 ### Slide 1 · Come ci si è arrivati
 - Gli altri capitoli dicono com'è fatto; questo dice perché
-- Quattro fasi dal 2 al 9 novembre, poi la lezione 6
+- Cinque fasi dal 2 al 12 novembre, fino alla chat nel browser
 - Decisioni dell'utente, dell'esecutore e delle revisioni, tenute distinte
 
 *Da mostrare:* la tabella «Il quadro in una pagina» della sezione 1.
@@ -1037,7 +1205,7 @@ Una presentazione di circa 10 slide su questo capitolo. Ogni slide: titolo, tre 
 - Da nove strumenti il modello da 2B comincia a sbagliare
 - Falso salvataggio: il codice lo rende visibile, non lo impedisce
 
-*Da mostrare:* la tabella della sezione 9.
+*Da mostrare:* la tabella della sezione 10.
 
 ### Slide 8 · La revisione finale
 - Nove commit `fix(...)` nella notte tra l'8 e il 9 novembre
@@ -1046,19 +1214,33 @@ Una presentazione di circa 10 slide su questo capitolo. Ogni slide: titolo, tre 
 
 *Da mostrare:* la tabella dei nove commit all'inizio della sezione 7 e l'esempio «prima/oggi» della sezione 7.1.
 
-### Slide 9 · L'unione in `main` e la lezione 6
+### Slide 9 · L'unione in `main` e l'inizio della lezione 6
 - 9 novembre: test rilanciati, poi il merge `846b02a`
 - 503 test raccolti: 467 passati, 36 prove reali saltate
-- Nuovo branch `dev-lezione_6`: la lezione 6 è ancora da specificare
+- Nuovo branch `dev-lezione_6`: da qui parte la fase 5
 
-*Da mostrare:* la sezione 7.11 e l'uscita di `git log --merges --oneline main`, con i nove merge.
+*Da mostrare:* la sezione 7.11 e l'uscita di `git log --merges --oneline main`.
+
+### Slide 9 bis · Lezione 6: dall'agente alla chat nel browser
+- Quattro step in quattro giorni: router, agente come servizio, back-end con PostgreSQL, chat nel browser
+- Ogni step ha la sua evidenza: rifiuto senza agente, stessa risposta da CLI e API, chat dopo il riavvio, conversazione dal browser
+- Un servizio senza stato, un turno salvato solo a risposta completa, una PWA scelta dall'utente
+
+*Da mostrare:* la tabella della sezione 8.0 e il grafico `gitGraph` della sezione 1.
+
+### Slide 9 ter · Che cosa ha insegnato la lezione 6
+- La revisione finale dello step 8 ha trovato un buco di sicurezza: l'elenco chiuso di DOMPurify e la CSP
+- Un test che passa solo con LM Studio acceso non è un test
+- Il modello ragiona: 1–2 minuti a turno, prove tarate di conseguenza
+
+*Da mostrare:* la tabella 9.4 del registro delle decisioni e la sezione 8.7.
 
 ### Slide 10 · Che cosa ricordare
 - Prima la specifica approvata, poi il codice
 - Ogni correzione arriva con un test che prima falliva
 - Il modello lo sceglie l'utente; il codice rende visibili gli errori
 
-*Da mostrare:* le tabelle del registro delle decisioni della sezione 8, con la legenda U, E, R.
+*Da mostrare:* le tabelle del registro delle decisioni della sezione 9, con la legenda U, E, R.
 
 ---
 
