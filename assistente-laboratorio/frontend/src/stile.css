@@ -60,6 +60,39 @@
   --velo: rgba(0, 0, 0, 0.5);
 }
 
+/* Prima che il JavaScript scelga il tema (data-tema), la pagina segue il sistema:
+   così il primo disegno è già scuro con il sistema scuro. Stessi valori del blocco sopra. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema]) {
+    color-scheme: dark;
+    /* «acqua di notte» */
+    --fondo: #16211f;
+    --laterale: #121b19;
+    --selezione: #1f3a35;
+    --accento: #4fb3a2;
+    --testo: #dfe9e6;
+    --su-accento: #0f1a18;
+    --testo-selezione: #9fe0d3;
+    --testo-tenue: #8aa39d;
+    --testo-lieve: #6a837d;
+    --linea: #1f2b28;
+    --linea-forte: #2a3834;
+    --superficie: #1b2725;
+    --riquadro-utente: #21302d;
+    --strumento-fondo: #1b2c29;
+    --strumento-testo: #7fcfc0;
+    --strumento-bordo: #27403b;
+    --codice-fondo: #1d2a27;
+    --errore: #d08a75;
+    --errore-testo: #e2a693;
+    --errore-fondo: #2a201c;
+    --bordo-fuoco: #4f625d;
+    --evidenziato: #4a3f26;
+    --ombra: 0 8px 28px rgba(0, 0, 0, 0.45);
+    --velo: rgba(0, 0, 0, 0.5);
+  }
+}
+
 :root {
   --raggio: 10px;
   --raggio-piccolo: 8px;
