@@ -67,6 +67,45 @@ describe('rendiMarkdown', () => {
     expect(rendiMarkdown('<svg onload=alert(1)>')).not.toContain('onload');
   });
 
+  describe('nessun elemento che carica risorse esterne', () => {
+    const VIETATI = [
+      'src=', 'poster=', 'srcset=', 'href=', 'background=',
+      '<video', '<audio', '<source', '<picture', '<svg', '<image', '<feimage', '<img',
+    ];
+    const vettori: Array<[string, string]> = [
+      ['video con poster e src', '<video poster="https://evil/p.png" src="https://evil/v.mp4"></video>'],
+      ['audio con src e autoplay', '<audio src="https://evil/a.mp3" autoplay></audio>'],
+      ['video con source', '<video><source src="https://evil/v.mp4"></video>'],
+      ['picture con source srcset', '<picture><source srcset="https://evil/i.png"></picture>'],
+      ['svg con image href', '<svg><image href="https://evil/i.png"></image></svg>'],
+      ['svg con image xlink:href', '<svg><image xlink:href="https://evil/i.png"></image></svg>'],
+      ['svg con feImage', '<svg><filter><feImage href="https://evil/i.png"></feImage></filter></svg>'],
+      ['table e td con background', '<table background="https://evil/t.png"><tr><td background="https://evil/c.png">x</td></tr></table>'],
+    ];
+    for (const [nome, html] of vettori) {
+      it(nome, () => {
+        const uscita = rendiMarkdown(html).toLowerCase();
+        for (const v of VIETATI) expect(uscita, `${nome}: ${uscita}`).not.toContain(v);
+      });
+    }
+
+    it('il testo della tabella resta', () => {
+      expect(rendiMarkdown('<table><tr><td background="https://evil/c.png">cella</td></tr></table>')).toContain('<td>cella</td>');
+    });
+  });
+
+  it('tabella Markdown con allineamento', () => {
+    const html = rendiMarkdown('| a | b |\n|:-:|--:|\n| 1 | 2 |');
+    expect(html).toContain('<table>');
+    expect(html).toContain('<th align="center">a</th>');
+    expect(html).toContain('<td align="right">2</td>');
+  });
+
+  it('elenco numerato da 3 tiene start; niente class sul codice', () => {
+    expect(rendiMarkdown('3. tre\n4. quattro')).toContain('<ol start="3">');
+    expect(rendiMarkdown('```python\nx = 1\n```')).toContain('<pre><code>x = 1');
+  });
+
   it('link in HTML grezzo e seconda chiamata ricevono target e rel', () => {
     for (let i = 0; i < 2; i++) {
       const html = rendiMarkdown('<a href="https://x">x</a>');
