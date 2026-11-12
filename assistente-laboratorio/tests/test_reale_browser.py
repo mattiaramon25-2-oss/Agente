@@ -5,13 +5,10 @@ Serve Chromium: python -m playwright install chromium
 """
 
 import json
-import socket
-import threading
 import time
 
 import psycopg
 import pytest
-import uvicorn
 from langchain_core.messages import AIMessage, SystemMessage
 from playwright.sync_api import expect, sync_playwright
 
@@ -23,44 +20,13 @@ from servizio_backend.app import crea_app as crea_app_backend
 from servizio_backend.archivio import ArchivioPostgres
 from servizio_backend.client_agente import ClientAgente
 from tests.finti import ModelloFinto, RouterFinto, chiamata, strumento_finto
-from tests.frontend_prova import frontend_di_prova
+from tests.frontend_prova import Servito, frontend_di_prova
 from tests.postgres_prova import database_di_prova, svuota
 
 pytestmark = pytest.mark.docker
 
 ATTESA = 30000
 DOMANDA = "Quanto fa (3+4)*2?"
-
-
-def _porta_libera() -> int:
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
-
-
-class Servito:
-    """Un'app servita da uvicorn in un thread su una porta fissa: si può fermare e riavviare sulla stessa porta."""
-
-    def __init__(self, app):
-        self.app = app
-        self.porta = _porta_libera()
-        self.server: uvicorn.Server | None = None
-        self.filo: threading.Thread | None = None
-
-    def avvia(self) -> None:
-        self.server = uvicorn.Server(uvicorn.Config(self.app, host="127.0.0.1", port=self.porta, log_level="warning"))
-        self.filo = threading.Thread(target=self.server.run, daemon=True)
-        self.filo.start()
-        fine = time.monotonic() + 30
-        while not self.server.started and time.monotonic() < fine:
-            time.sleep(0.05)
-        assert self.server.started, "il server non è partito"
-
-    def ferma(self) -> None:
-        if self.server is not None:
-            self.server.should_exit = True
-            self.filo.join(timeout=15)
-            self.server = None
 
 
 class Ambiente:

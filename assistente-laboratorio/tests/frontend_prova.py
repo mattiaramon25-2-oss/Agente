@@ -4,15 +4,43 @@ Ogni comando usa `-p PROGETTO_FRONTEND_PROVA`, e alla fine `down` toglie solo qu
 """
 import os
 import subprocess
+import threading
 import time
 import urllib.request
 from contextlib import contextmanager
 from typing import Iterator
 
+import uvicorn
+
 from tests.postgres_prova import CARTELLA, ENV_FINTO, LIMITE_COMPOSE, _porta_libera
 
 PROGETTO_FRONTEND_PROVA = "assistente-laboratorio-prova-frontend"
 ATTESA_PRONTO = 60
+
+
+class Servito:
+    """Un'app servita da uvicorn in un thread su una porta fissa: si può fermare e riavviare sulla stessa porta."""
+
+    def __init__(self, app):
+        self.app = app
+        self.porta = _porta_libera()
+        self.server: uvicorn.Server | None = None
+        self.filo: threading.Thread | None = None
+
+    def avvia(self) -> None:
+        self.server = uvicorn.Server(uvicorn.Config(self.app, host="127.0.0.1", port=self.porta, log_level="warning"))
+        self.filo = threading.Thread(target=self.server.run, daemon=True)
+        self.filo.start()
+        fine = time.monotonic() + 30
+        while not self.server.started and time.monotonic() < fine:
+            time.sleep(0.05)
+        assert self.server.started, "il server non è partito"
+
+    def ferma(self) -> None:
+        if self.server is not None:
+            self.server.should_exit = True
+            self.filo.join(timeout=15)
+            self.server = None
 
 
 def _compose(env: dict, *argomenti: str, controlla: bool = True) -> subprocess.CompletedProcess:
