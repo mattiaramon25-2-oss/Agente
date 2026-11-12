@@ -216,7 +216,13 @@ def test_installabile(ambiente, pagina):
     manifest = risposta.json()
     print("\n  manifest:", {k: manifest.get(k) for k in ("name", "display", "start_url")})
     assert manifest["name"]
-    pronto = pagina.evaluate("navigator.serviceWorker.ready.then(r => r.active ? r.active.state : 'nessuno')")
+    # Con un limite: se il service worker non si registra più, la prova fallisce invece di restare appesa.
+    pronto = pagina.evaluate(
+        """Promise.race([
+            navigator.serviceWorker.ready.then(r => r.active ? r.active.state : 'nessuno'),
+            new Promise(r => setTimeout(() => r('scaduto'), 10000)),
+        ])"""
+    )
     print("  service worker:", pronto)
     assert pronto in ("activating", "activated")
 

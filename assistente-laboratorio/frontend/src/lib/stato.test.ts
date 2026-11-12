@@ -112,6 +112,8 @@ describe('StatoApp', () => {
     stato.bozza = 'Ciao';
     await stato.invia();
     expect(stato.erroreTurno?.testo).toBe('Agente spento.');
+    // Un 503 con {"errore"} viene dal back-end, che quindi risponde: niente striscia.
+    expect(stato.backendSpento).toBe(false);
     expect(stato.chatAperta?.id).toBe(5);
     expect(stato.bozza).toBe('Ciao');
     await stato.invia();

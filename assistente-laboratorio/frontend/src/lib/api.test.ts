@@ -101,6 +101,15 @@ describe('client API', () => {
     expect(errore.message).toBe('Il back-end non risponde: avvialo con python -m servizio_backend.');
   });
 
+  it('503 con {"errore"} viene dal back-end acceso: il suo testo, back-end non spento', async () => {
+    fetchFinto(() => json({ errore: "L'agente non risponde." }, 503));
+    const errore = await elencaProgetti().catch((e) => e);
+    expect(errore).toBeInstanceOf(ErroreApi);
+    expect(errore.message).toBe("L'agente non risponde.");
+    expect(errore.stato).toBe(503);
+    expect(errore.backendSpento).toBe(false);
+  });
+
   it('errore di rete è back-end spento', async () => {
     impostaFetch(async () => {
       throw new TypeError('Failed to fetch');
