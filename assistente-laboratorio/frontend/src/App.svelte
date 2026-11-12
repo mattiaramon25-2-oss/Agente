@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { StatoApp } from './lib/stato.svelte';
+  import { proteggiUscita } from './lib/uscita';
   import Avvisi from './componenti/Avvisi.svelte';
   import BarraLaterale from './componenti/BarraLaterale.svelte';
   import StrisciaBackend from './componenti/StrisciaBackend.svelte';
@@ -11,6 +12,12 @@
 
   onMount(() => {
     void stato.carica();
+  });
+
+  // Durante un turno chiudere la finestra chiede conferma; finito il turno, la richiesta si toglie.
+  const turnoInCorso = $derived(stato.turno !== null);
+  $effect(() => {
+    if (turnoInCorso) return proteggiUscita(window);
   });
 </script>
 
