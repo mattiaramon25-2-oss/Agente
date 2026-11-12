@@ -85,7 +85,9 @@ chiamata non arriva né al server né al servizio, e compare solo in `logs/assis
 - Python 3.14
 - LM Studio sullo stesso computer, con il server attivo (porta predefinita 1234) e un modello
   scaricato. Provato con `google/gemma-4-e2b`.
-- Docker Desktop, solo per il database del back-end delle chat e per le prove con `--docker`.
+- Docker Desktop, solo per il database del back-end delle chat, per la chat nel browser (container `frontend`) e per le prove con `--docker`.
+- Node 24 con npm, solo per sviluppare o provare il front-end (`frontend/`); per usare la chat basta Docker.
+- Edge (o Chrome) per la chat nel browser; per le prove automatiche del browser, Chromium di Playwright (vedi «Test»).
 
 ## Configurazione
 
@@ -114,6 +116,7 @@ Poi aprire `.env` e controllare i valori:
 | `POSTGRES_USER`, `POSTGRES_DB` | solo per il back-end delle chat | utente e nome del database, per esempio `assistente`; li leggono il container e il back-end |
 | `POSTGRES_PASSWORD` | solo per il back-end delle chat | password del database, scelta da te: in `.env.example` è vuota e resta solo nel tuo `.env` |
 | `POSTGRES_PORTA` | no | porta di PostgreSQL sull'host, solo su `127.0.0.1`; predefinita `5432` |
+| `FRONTEND_PORTA` | no | porta della chat nel browser sull'host, solo su `127.0.0.1`; predefinita `8780` |
 | `FUSO_ORARIO` | no | fuso IANA di riserva se il rilevamento automatico non riesce |
 
 Per vedere gli identificativi disponibili:
@@ -426,6 +429,51 @@ PostgreSQL è pubblicato solo lì. Per fermare il database senza perdere le chat
 `docker compose stop database`; `docker compose down -v` invece **cancella il volume e quindi tutte le
 chat**.
 
+## La chat nel browser
+
+Lezione 6, step 8. La chat è una pagina web (Svelte 5, cartella `frontend/`) servita da nginx in un
+container. Parla solo con il back-end: nginx inoltra le richieste `/api/...` al back-end (che gira
+sull'host, solo su `127.0.0.1`) togliendo il prefisso, senza buffering, così la risposta compare a pezzi.
+Il programma da terminale resta com'è.
+
+Servono quattro pezzi, in quattro terminali PowerShell, dalla cartella `assistente-laboratorio/` (con
+l'ambiente attivato; `.env` completo come per il back-end):
+
+```powershell
+docker compose up -d database
+python -m servizio_agente
+python -m servizio_backend
+docker compose up -d --build frontend
+```
+
+Poi si apre `http://127.0.0.1:8780` (o la porta di `FRONTEND_PORTA`). La pagina mostra le chat e i
+progetti a sinistra, la conversazione a destra; le risposte arrivano a pezzi, con le righe degli strumenti
+usati; il tema è chiaro, scuro o automatico (segue Windows). Il modello attuale lavora in modalità
+«thinking»: un turno può durare 1–2 minuti. Le formule LaTeX compaiono come testo grezzo.
+
+**Dopo una modifica al codice del front-end l'immagine va ricostruita** con
+`docker compose up -d --build frontend`: il container serve la versione compilata nell'immagine.
+Per fermarlo: `docker compose stop frontend` (il database e le chat non cambiano).
+
+**Installare la chat come app.** Con il container acceso, in Edge si apre `http://127.0.0.1:8780`, poi
+menu «…» › App › «Installa questo sito come app». Si apre in una finestra sua. Per disinstallarla:
+`edge://apps` oppure «App installate» di Windows. Verificato il 12 novembre 2026 in Edge. Il service worker non si registra nel
+browser incorporato di Claude; in Edge e in Chromium sì.
+
+**Sviluppo.** Per modificare il front-end senza ricostruire l'immagine:
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+Vite ascolta su `127.0.0.1:5173` (un altro programma può già usare quella porta: in tal caso
+`npm run dev -- --port 5181`) e inoltra `/api` al back-end sulla porta `BACKEND_PORTA`, che vale `8768`
+se la variabile non è impostata nel terminale: se nel `.env` hai un'altra porta, impostala prima con
+`$env:BACKEND_PORTA = "<porta>"`. Il service worker non si registra in sviluppo. Altri comandi, sempre da
+`frontend/`: `npm test` (Vitest), `npm run check` (`svelte-check`), `npm run build` (la cartella `dist/`).
+
 ## Test
 
 Test automatici (non servono né LM Studio né Docker; il modello è simulato):
@@ -520,6 +568,34 @@ fermati né letti, anche se è acceso. L'evidenza dello step 7 (`tests/test_real
 riavvia e controlla che progetto, chat e messaggi siano identici. Le prove con `--docker` spostano da parte
 `logs/` come descritto sopra.
 
+Prove del front-end. La logica si prova con Vitest, senza browser e senza rete:
+
+```powershell
+cd frontend
+npm test
+npm run check
+cd ..
+```
+
+(`npm test`: 85 test in 9 file; `npm run check`: `svelte-check` senza errori.) Le prove nel browser vero
+usano Playwright con Chromium, che si installa una volta sola:
+
+```powershell
+python -m playwright install chromium
+python -m pytest --docker tests/test_compose_frontend.py
+python -m pytest --docker tests/test_reale_browser.py -v -s
+python -m pytest --lmstudio --docker tests/test_reale_browser_lmstudio.py -v -s
+```
+
+`test_reale_browser.py` (sei prove: conversazione completa, progetto con istruzioni, ricerca ed
+eliminazione, agente spento, back-end spento, app installabile) avvia un container nginx di prova in un
+progetto Compose a parte, con back-end vero, database di prova e agente finto: il tuo container
+`frontend` e le tue chat non si toccano. `test_reale_browser_lmstudio.py` ha due marcatori, `lmstudio`
+**e** `docker`: con l'agente vero chiede «Quanto fa (3+4)*2?» e controlla la riga di `calcola` e la
+risposta a pezzi (attese di 300 secondi, per il modello in «thinking»). Con il modello può fallire se non
+chiama lo strumento: è un esito da riportare. Esiti del 12 novembre 2026: `python -m pytest` 625 passati e 73 saltati;
+`--docker -m docker` 31 passati; `--lmstudio --docker -m "lmstudio and docker"` 5 passati.
+
 Il fuso dell'utente è rilevato una volta sola all'avvio, in quest'ordine:
 
 1. `FUSO_HOST_WINDOWS` (impostata dallo script di avvio con Docker), convertita in nome IANA;
@@ -593,6 +669,19 @@ infine il modello. Un errore di un livello basso non si risolve cambiando il mes
 
   `docker compose down` ferma e rimuove il container ma **non** il volume `dati_postgres`: le chat restano.
   `docker compose down -v` cancella anche il volume e quindi **tutte le chat e i progetti**.
+- **La chat nel browser**:
+
+  | Sintomo | Cosa controllare |
+  |---|---|
+  | striscia rossa «Il back-end non risponde: avvialo con python -m servizio_backend.» | il back-end è spento o `BACKEND_PORTA` del `.env` è diversa da quella con cui è partito il container (`docker compose up -d --build frontend` dopo aver cambiato il `.env`). La striscia sparisce da sola, entro pochi secondi, quando il back-end risponde |
+  | `docker compose up -d --build frontend` fallisce perché la porta è già in uso | un altro programma usa la porta 8780: chiuderlo o impostare `FRONTEND_PORTA` nel `.env` |
+  | la pagina non cambia dopo una modifica al codice | l'immagine contiene la versione compilata: `docker compose up -d --build frontend` |
+  | `npm run dev` non parte o la pagina è di un altro programma | un altro programma usa la porta 5173: `npm run dev -- --port 5181` |
+  | la risposta compare tutta insieme alla fine | qualcosa tra il browser e il back-end fa buffering: nginx deve avere `proxy_buffering off` (è nel file del progetto); verificare con `curl.exe -N` (sezione «Il back-end delle chat») |
+  | messaggio rosso «La risposta si è interrotta: il messaggio non è stato salvato.» | il flusso è caduto prima di `fine`: il back-end non ha salvato il turno, la domanda è tornata nella casella e si può rimandare. Cercare la causa in `logs/servizio_backend.log` |
+  | «Errore inatteso del back-end (stato N).» | la risposta non era un JSON con `errore`: `logs/servizio_backend.log` e, per i `413`, la dimensione del messaggio (nginx accetta fino a 1 MB) |
+  | «Installa questo sito come app» non compare | si usa un browser senza service worker (il browser incorporato di Claude): aprire `http://127.0.0.1:8780` in Edge |
+
 - **Il meteo**: richiede l'accesso a Internet dal computer o dal container in cui gira il server.
   `Servizio meteo non disponibile` o `nessuna risposta entro 4 secondi` (per una fase della richiesta)
   o `entro 8 secondi` (per l'intero strumento, risoluzione del nome compresa) indicano un problema di

@@ -17,6 +17,7 @@
 7. **Spegnere vuol dire chiedere, aspettare, imporre.** L'assistente chiede ai figli di chiudersi e aspetta 5 secondi. Solo se sono ancora vivi li uccide. Il figlio trasforma la richiesta in un'uscita normale, con codice 0 e una riga nel log. → sezione 8
 8. **Il servizio dell'agente ha un container suo** (10 novembre). Il servizio Compose `agente` usa la stessa immagine, avvia il suo server MCP e pubblica `AGENTE_PORTA` solo su `127.0.0.1` dell'host; dentro ascolta su `0.0.0.0` (`AGENTE_HOST`). Si avvia con `avvia-agente.ps1`. → sezione 7.9
 9. **Il database delle chat** (step 7). Il servizio Compose `database` è PostgreSQL 18 con il volume con nome `dati_postgres`, porta solo su `127.0.0.1`. Le variabili `POSTGRES_*` sono scritte senza `:?`, perché Compose controlla tutto il file e le altre prove non devono cambiare. → sezione 7.10
+10. **La chat nel browser** (step 8). Il servizio Compose `frontend` è nginx con i file compilati di `frontend/`, pubblicato su `127.0.0.1:${FRONTEND_PORTA:-8780}`; inoltra `/api` al back-end che gira sull'host. Anche qui niente `:?`. Dopo ogni modifica al front-end l'immagine si ricostruisce. → sezione 7.11
 
 **Il quadro**
 
@@ -41,6 +42,7 @@ flowchart TD
 | Attese dei processi figli | avvio al massimo 10 s, arresto 5 s, una prova ogni 0,25 s | `assistente/avvio_server.py:25-27` |
 | Nel container il fuso del sistema non si usa | `ENV ASSISTENTE_IN_DOCKER=1` | `Dockerfile:4` |
 | Fuso dell'host passato al container | `-e FUSO_HOST_WINDOWS=$fuso` | `avvia.ps1:13` |
+| Chat nel browser | `docker compose up -d --build frontend`, poi `http://127.0.0.1:8780`; porta da `FRONTEND_PORTA` | `compose.yaml:71-81` |
 
 **Se te lo chiedono all'orale**
 
@@ -960,6 +962,37 @@ lo cancella, con tutte le chat. In questo step solo il database è in un contain
 girano con `python -m`. Le prove usano un progetto Compose a parte, con il loro volume
 ([09, sezione 10.4](09-test-e-verifiche.md#104-lo-step-7-database-di-prova-e-prove-del-back-end)).
 
+### 7.11 Il servizio `frontend`: la chat nel browser
+
+Dall'11 novembre (specifica `docs/superpowers/specs/2026-11-11-frontend-chat-design.md`) `compose.yaml` ha
+il servizio `frontend` (righe 71-81). Il dettaglio sta nel [capitolo 15](15-chat-nel-browser.md); qui le
+scelte di configurazione:
+
+| Riga | Perché |
+|---|---|
+| `build: ./frontend` | immagine in due fasi: Node compila con Vite, nginx senza privilegi serve i file (`frontend/Dockerfile`) |
+| `BACKEND_PORTA: ${BACKEND_PORTA:-8768}` | **senza** `:?`, per lo stesso motivo del database: Compose controlla tutto il file. nginx la usa per raggiungere il back-end |
+| `ports: "127.0.0.1:${FRONTEND_PORTA:-8780}:8080"` | pubblicata solo sull'host locale: il servizio non ha autenticazione; `8780` se la variabile manca |
+| `extra_hosts: host.docker.internal:host-gateway` | il back-end ascolta su `127.0.0.1` dell'host e il container lo raggiunge con questo nome |
+
+`frontend/nginx/default.conf.template` serve i file e inoltra `/api/` al back-end (senza il prefisso, senza
+buffering, `proxy_read_timeout 300s`). Così pagina e API hanno la stessa origine e non serve CORS.
+
+Avvio dei quattro pezzi (PowerShell, da `assistente-laboratorio/`):
+
+```powershell
+docker compose up -d database
+python -m servizio_agente
+python -m servizio_backend
+docker compose up -d --build frontend
+```
+
+L'immagine contiene la versione compilata: **dopo una modifica al codice del front-end va ricostruita**
+(`docker compose up -d --build frontend`), altrimenti il container serve ancora la vecchia. Per
+sviluppare senza ricostruire si usa `cd frontend; npm install; npm run dev` (Vite su `127.0.0.1:5173`).
+In questo step il front-end è l'unico dei servizi dell'applicazione che gira in un container insieme al
+database; back-end e agente girano ancora con `python -m` (lo step 9 li containerizzerà).
+
 ## 8. Arresto ordinato e segnali
 
 ### 8.1 Come si esce dall'assistente
@@ -1275,6 +1308,13 @@ Una presentazione di circa 10 slide su questo capitolo. Ogni slide: titolo, tre 
 - Variabili `POSTGRES_*` senza `:?`, per non fermare gli altri avvii
 
 *Da mostrare:* la tabella della sezione 7.10.
+
+### Slide 10 quater · La chat nel browser
+- Servizio `frontend`: nginx con i file compilati, porta solo su `127.0.0.1:8780`
+- Inoltra `/api` al back-end sull'host, senza `:?` nelle variabili
+- Dopo una modifica: `docker compose up -d --build frontend`
+
+*Da mostrare:* la tabella della sezione 7.11.
 
 ### Slide 10 · Che cosa ricordare
 - Configurazione fuori dal codice, controllata per prima

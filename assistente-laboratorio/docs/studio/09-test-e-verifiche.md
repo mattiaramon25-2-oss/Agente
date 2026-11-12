@@ -34,6 +34,7 @@ flowchart LR
 | Il modello finto | `ModelloFinto`: risposte preparate, restituite in ordine | `tests/finti.py:13-25` |
 | Giri massimi con gli strumenti in un turno | `MAX_GIRI_STRUMENTO = 3` | `assistente/grafo.py:20` |
 | Esito dello step 7, 2026-11-10 | `python -m pytest`: 625 passati, 64 saltati (dopo la revisione finale); `--docker -m docker`: 23 passati; `--lmstudio --docker tests/test_reale_backend.py`: 4 passati | → sezione 10.4 |
+| Esito dello step 8, 2026-11-12 | `python -m pytest`: 625 passati, 73 saltati; `--docker -m docker`: 31 passati; `--lmstudio --docker -m "lmstudio and docker"`: 5 passati; `npm test`: 85 passati in 9 file | → sezione 10.5 |
 | Ambiente comune delle prove reali | `ambiente_reale()`, con archivio delle note temporaneo | `tests/reale.py:32-63` |
 
 **Se te lo chiedono all'orale**
@@ -874,6 +875,32 @@ dell'utente non vengono né fermati né letti: le prove funzionano anche con il 
 istruzioni «rispondi sempre in inglese» chiede il giorno della settimana e verifica che compaia un nome
 inglese e nessuno italiano. È una prova su un modello piccolo: se fallisce, è un esito da riportare.
 
+### 10.5 Lo step 8: Vitest nel front-end e Playwright nel browser
+
+Il front-end ha due livelli di prova, più il contratto di Compose ([15, sezione 9](15-chat-nel-browser.md#9-le-prove-con-vitest-e-playwright)).
+
+| Livello | Dove | Che cosa prova | Come si lancia |
+|---|---|---|---|
+| **Vitest** | `frontend/src/**/*.test.ts`, 9 file e 85 test | lettore SSE, API con un `fetch` finto, markdown sicuro, temi, `StatoApp` con un'API finta, manifest, sorgenti in UTF-8; senza browser e senza rete | `cd frontend; npm test` |
+| **Tipi** | `svelte-check` | 231 file, 0 errori, 0 avvisi | `npm run check` |
+| **Contratto di Compose** | `tests/test_compose_frontend.py` (marcatore `docker`) | porta solo su `127.0.0.1`, valore predefinito di `FRONTEND_PORTA` | `python -m pytest --docker tests/test_compose_frontend.py` |
+| **Playwright, agente finto** | `tests/test_reale_browser.py` (marcatore `docker`), 6 prove | conversazione completa, progetto con istruzioni, ricerca ed eliminazione, agente spento, striscia del back-end spento, app installabile | `python -m pytest --docker tests/test_reale_browser.py -v -s` |
+| **Playwright, LM Studio** | `tests/test_reale_browser_lmstudio.py` (marcatori `lmstudio` **e** `docker`) | «Quanto fa (3+4)*2?» con l'agente vero: riga di `calcola`, risposta a pezzi | `python -m pytest --lmstudio --docker tests/test_reale_browser_lmstudio.py -v -s` |
+
+- **Marcatori combinati.** Come `test_reale_backend.py`, l'ultima prova ha due marcatori: con la sola
+  `--docker` resta saltata, per questo `--docker -m docker` ha 31 passati e 5 saltati (le 4 prove del
+  back-end e questa). Per lanciare solo le prove con entrambi: `-m "lmstudio and docker"`; per le
+  prove con LM Studio senza Docker: `-m "lmstudio and not docker"`.
+- **Chromium si installa una volta**: `python -m playwright install chromium` (Playwright è solo una
+  dipendenza di sviluppo, `playwright==1.65.0`).
+- **Ambiente separato dall'utente.** `tests/frontend_prova.py` avvia nginx in un progetto Compose a parte
+  (`assistente-laboratorio-prova-frontend`) e il database di prova della sezione 10.4; la chat dell'utente,
+  il suo container e il suo volume non si toccano. Gli elementi della pagina si trovano con l'attributo
+  `data-test`.
+- **Esito del 12 novembre 2026:** `--lmstudio -m "lmstudio and not docker"` ha dato 35 passati e 2 falliti
+  (`converti_unita` chiamata con `litri`; `list_notes` al posto di `delete_note`): comportamento del modello,
+  riesecuzione dei due file 10 passati.
+
 ## 11. Perché una risposta simulata non dimostra che il modello usa lo strumento
 
 È un **anti-obiettivo** scritto nella prima specifica
@@ -951,6 +978,11 @@ python -m pytest -k "meteo" -v                     # i test il cui nome contiene
 
 python -m pytest --lmstudio -m lmstudio -v -s      # prove reali con LM Studio (LM Studio acceso, .env completo)
 python -m pytest --docker -m docker -v -s          # prove reali con Docker (Docker Desktop e LM Studio accesi)
+python -m pytest --lmstudio --docker -m "lmstudio and docker" -v -s   # prove con entrambi (back-end, chat nel browser)
+
+cd frontend; npm test; npm run check; cd ..        # prove del front-end (Vitest e svelte-check)
+python -m playwright install chromium              # una volta sola, per le prove nel browser
+python -m pytest --docker tests/test_reale_browser.py -v -s
 ```
 
 Le opzioni:

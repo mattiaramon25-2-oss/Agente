@@ -1,6 +1,6 @@
 # 14 — Il back-end delle chat
 
-[← Indice](00-indice.md) · [← 13 L'agente come servizio HTTP](13-agente-come-servizio.md)
+[← Indice](00-indice.md) · [← 13 L'agente come servizio HTTP](13-agente-come-servizio.md) · [15 La chat nel browser →](15-chat-nel-browser.md)
 
 ## Scheda in 5 minuti
 
@@ -262,7 +262,15 @@ Esiti della verifica finale (10 novembre 2026, `google/gemma-4-e2b`):
 - **`DELETE` prenota le chat**, invece di controllare soltanto.
 - **`/chat/stream` risponde `409` subito** se l'agente è occupato.
 
-## 11. Limiti noti
+## 11. Il front-end come cliente del back-end
+
+Dallo step 8 il back-end ha un cliente: la chat nel browser ([15](15-chat-nel-browser.md)). Il contratto non è cambiato: il front-end usa le stesse rotte e gli stessi eventi SSE descritti qui, raggiunti su `/api` attraverso nginx (che toglie il prefisso). Tre conseguenze per il back-end:
+
+- gli errori sempre in JSON `{"errore": "..."}` in italiano (sezione 8) sono ciò che il browser mostra all'utente così com'è;
+- `fine` dopo il salvataggio con la risposta definitiva (sezione 6) è ciò che il browser usa per sostituire i pezzi ricevuti;
+- il `409` per un turno già in corso e il `503` dell'agente occupato arrivano in chat come messaggi leggibili.
+
+## 12. Limiti noti
 
 - Nessuna autenticazione e un solo utente: per questo tutto ascolta su `127.0.0.1`.
 - Il flag `scollegato` è «al meglio»: può restare `false` se l'ultimo evento era già stato letto.
@@ -343,10 +351,10 @@ Una presentazione di circa 9 slide. Ogni slide: titolo, tre punti brevi, che cos
 ### Slide 10 · Che cosa ricordare
 - Tre servizi, tre ruoli
 - Si salva solo ciò che è completo
-- Prossimo passo: la chat nel browser (step 8)
+- Prossimo passo: la chat nel browser (step 8), vedi [15](15-chat-nel-browser.md)
 
 *Da mostrare:* la tabella «Da sapere a memoria».
 
 ---
 
-[← 13 L'agente come servizio HTTP](13-agente-come-servizio.md) · [Indice](00-indice.md)
+[← 13 L'agente come servizio HTTP](13-agente-come-servizio.md) · [Indice](00-indice.md) · [15 La chat nel browser →](15-chat-nel-browser.md)
