@@ -66,5 +66,19 @@ services:
       timeout: 3s
       retries: 30
 
+  # Lezione 6, step 8: la chat nel browser. nginx serve i file compilati e inoltra /api al back-end sull'host.
+  # Avvio: docker compose up -d --build frontend (poi http://127.0.0.1:8780).
+  frontend:
+    build: ./frontend
+    environment:
+      # Senza :? perché Compose controlla tutto il file: gli altri avvii non devono fermarsi.
+      BACKEND_PORTA: ${BACKEND_PORTA:-8768}
+    ports:
+      # Solo sull'host locale: il servizio non ha autenticazione.
+      - "127.0.0.1:${FRONTEND_PORTA:-8780}:8080"
+    extra_hosts:
+      # Il back-end ascolta su 127.0.0.1 dell'host: dal container si raggiunge con questo nome.
+      - "host.docker.internal:host-gateway"
+
 volumes:
   dati_postgres:

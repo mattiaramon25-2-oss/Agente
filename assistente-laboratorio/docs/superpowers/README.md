@@ -81,5 +81,8 @@ Router, revisore e riassunto della cronologia, poi resource e prompt MCP, infine
 | Specifica | [2026-11-10-backend-chat-design.md](specs/2026-11-10-backend-chat-design.md) | step 7: back-end delle chat con PostgreSQL, progetti con istruzioni, ricerca, turno in streaming SSE |
 | Piano | [2026-11-10-backend-chat.md](plans/2026-11-10-backend-chat.md) | i dodici task dello step 7 |
 | Checkpoint | [2026-11-10-backend.md](checkpoint/2026-11-10-backend.md) | step 7 fatto: chat ancora presenti dopo il riavvio, prove con LM Studio e Docker |
+| Specifica | [2026-11-11-frontend-chat-design.md](specs/2026-11-11-frontend-chat-design.md) | step 8: chat nel browser in Svelte 5, installabile come app, con nginx che inoltra `/api` |
+| Piano | [2026-11-11-frontend-chat.md](plans/2026-11-11-frontend-chat.md) | gli undici task dello step 8 |
+| Checkpoint | [2026-11-11-frontend.md](checkpoint/2026-11-11-frontend.md) | step 8 fatto: conversazione completa dal browser, errori mostrati, prove con Playwright e LM Studio |
 
-Specifica e piani degli step arriveranno qui, con lo stesso schema: `specs/AAAA-MM-GG-<argomento>-design.md`, `plans/AAAA-MM-GG-<argomento>.md`, `checkpoint/AAAA-MM-GG-<passo>.md`.
+Specifica e piani degli step successivi arriveranno qui, con lo stesso schema: `specs/AAAA-MM-GG-<argomento>-design.md`, `plans/AAAA-MM-GG-<argomento>.md`, `checkpoint/AAAA-MM-GG-<passo>.md`.

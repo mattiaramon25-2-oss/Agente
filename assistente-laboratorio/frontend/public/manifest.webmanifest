@@ -1,0 +1,16 @@
+{
+  "name": "Assistente del laboratorio",
+  "short_name": "Assistente",
+  "description": "Chat con l'assistente del laboratorio, un modello locale con strumenti.",
+  "lang": "it",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "theme_color": "#5fb3a6",
+  "background_color": "#f6f8f6",
+  "icons": [
+    { "src": "/icone/icona.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icone/icona-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icone/icona-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
