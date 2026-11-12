@@ -977,6 +977,9 @@ scelte di configurazione:
 
 `frontend/nginx/default.conf.template` serve i file e inoltra `/api/` al back-end (senza il prefisso, senza
 buffering, `proxy_read_timeout 300s`). Così pagina e API hanno la stessa origine e non serve CORS.
+`frontend/nginx/sicurezza.conf` (copiato nell'immagine e incluso dal modello) aggiunge a ogni risposta
+una Content-Security-Policy, `X-Content-Type-Options: nosniff` e `Referrer-Policy: no-referrer`
+([capitolo 15, sezione 4](15-chat-nel-browser.md#4-il-markdown-sicuro-e-la-csp)).
 
 Avvio dei quattro pezzi (PowerShell, da `assistente-laboratorio/`):
 
@@ -990,8 +993,10 @@ docker compose up -d --build frontend
 L'immagine contiene la versione compilata: **dopo una modifica al codice del front-end va ricostruita**
 (`docker compose up -d --build frontend`), altrimenti il container serve ancora la vecchia. Per
 sviluppare senza ricostruire si usa `cd frontend; npm install; npm run dev` (Vite su `127.0.0.1:5173`).
-In questo step il front-end è l'unico dei servizi dell'applicazione che gira in un container insieme al
-database; back-end e agente girano ancora con `python -m` (lo step 9 li containerizzerà).
+Nella configurazione di questo step back-end e agente girano con `python -m`; in container ci sono il
+database e il front-end. Il servizio Compose `agente` (sezione 7.9) esiste, ma è facoltativo e qui non
+si usa: il back-end parla con l'agente avviato con `python -m servizio_agente`. Lo step 9 porterà tutti i
+pezzi in container.
 
 ## 8. Arresto ordinato e segnali
 

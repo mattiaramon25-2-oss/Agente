@@ -86,7 +86,9 @@ chiamata non arriva né al server né al servizio, e compare solo in `logs/assis
 - LM Studio sullo stesso computer, con il server attivo (porta predefinita 1234) e un modello
   scaricato. Provato con `google/gemma-4-e2b`.
 - Docker Desktop, solo per il database del back-end delle chat, per la chat nel browser (container `frontend`) e per le prove con `--docker`.
-- Node 24 con npm, solo per sviluppare o provare il front-end (`frontend/`); per usare la chat basta Docker.
+- Node 24 con npm, solo per sviluppare o provare il front-end (`frontend/`). Per usare la chat non serve:
+  la pagina la serve Docker (container `frontend`), mentre il back-end e l'agente girano comunque con
+  Python (`python -m servizio_backend`, `python -m servizio_agente`).
 - Edge (o Chrome) per la chat nel browser; per le prove automatiche del browser, Chromium di Playwright (vedi «Test»).
 
 ## Configurazione
@@ -451,6 +453,12 @@ progetti a sinistra, la conversazione a destra; le risposte arrivano a pezzi, co
 usati; il tema è chiaro, scuro o automatico (segue Windows). Il modello attuale lavora in modalità
 «thinking»: un turno può durare 1–2 minuti. Le formule LaTeX compaiono come testo grezzo.
 
+La pagina arriva con una Content-Security-Policy, insieme a `X-Content-Type-Options: nosniff` e
+`Referrer-Policy: no-referrer` (`frontend/nginx/sicurezza.conf`): il browser carica solo i file della
+chat e non contatta altri siti. Le immagini nelle risposte del modello non vengono mostrate, per scelta:
+un'immagine remota sarebbe un modo per far uscire dati. Se un turno fallisce, la domanda non si perde:
+torna nella casella, oppure si rimette con «Rimetti nella casella» se nel frattempo hai scritto altro.
+
 **Dopo una modifica al codice del front-end l'immagine va ricostruita** con
 `docker compose up -d --build frontend`: il container serve la versione compilata nell'immagine.
 Per fermarlo: `docker compose stop frontend` (il database e le chat non cambiano).
@@ -587,14 +595,17 @@ python -m pytest --docker tests/test_reale_browser.py -v -s
 python -m pytest --lmstudio --docker tests/test_reale_browser_lmstudio.py -v -s
 ```
 
-`test_reale_browser.py` (sei prove: conversazione completa, progetto con istruzioni, ricerca ed
-eliminazione, agente spento, back-end spento, app installabile) avvia un container nginx di prova in un
+`test_reale_browser.py` (sette prove: conversazione completa, progetto con istruzioni, ricerca ed
+eliminazione, agente spento, back-end spento, app installabile, intestazioni di sicurezza; in tutte la
+console non deve mostrare violazioni della CSP) avvia un container nginx di prova in un
 progetto Compose a parte, con back-end vero, database di prova e agente finto: il tuo container
 `frontend` e le tue chat non si toccano. `test_reale_browser_lmstudio.py` ha due marcatori, `lmstudio`
 **e** `docker`: con l'agente vero chiede «Quanto fa (3+4)*2?» e controlla la riga di `calcola` e la
 risposta a pezzi (attese di 300 secondi, per il modello in «thinking»). Con il modello può fallire se non
-chiama lo strumento: è un esito da riportare. Esiti del 12 novembre 2026: `python -m pytest` 625 passati e 73 saltati;
-`--docker -m docker` 31 passati; `--lmstudio --docker -m "lmstudio and docker"` 5 passati.
+chiama lo strumento: è un esito da riportare. Esiti del 12 novembre 2026, dopo le correzioni della revisione finale: `python -m pytest` 625 passati e
+74 saltati; `--docker tests/test_reale_browser.py tests/test_compose_frontend.py` 9 passati. Prima di
+quelle correzioni (non rieseguite dopo): `--docker -m docker` 31 passati;
+`--lmstudio --docker -m "lmstudio and docker"` 5 passati.
 
 Il fuso dell'utente è rilevato una volta sola all'avvio, in quest'ordine:
 
