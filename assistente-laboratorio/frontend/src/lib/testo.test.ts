@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { partiEvidenziate, rigaStrumento } from './testo';
+import { inizioTesto, partiEvidenziate, rigaStrumento } from './testo';
 
 describe('partiEvidenziate', () => {
   it('le parti di indice dispari sono le occorrenze, senza badare alle maiuscole', () => {
@@ -58,5 +58,24 @@ describe('rigaStrumento', () => {
 
   it('senza argomenti resta solo il nome', () => {
     expect(rigaStrumento({ nome: 'ora_corrente', origine: 'mcp', argomenti: {} })).toBe('ora_corrente');
+  });
+});
+
+describe('inizioTesto', () => {
+  it('un testo corto resta intero, senza puntini', () => {
+    expect(inizioTesto('Ciao')).toBe('Ciao');
+  });
+
+  it('un testo lungo si taglia a 40 caratteri con i puntini', () => {
+    const lungo = 'a'.repeat(39) + 'bcdef';
+    expect(inizioTesto(lungo)).toBe('a'.repeat(39) + 'b…');
+  });
+
+  it('a capo e spazi ripetuti diventano uno spazio', () => {
+    expect(inizioTesto('  riga uno\n\n  riga   due  ')).toBe('riga uno riga due');
+  });
+
+  it('non spezza un carattere fuori dal piano base', () => {
+    expect(inizioTesto('😀'.repeat(41))).toBe('😀'.repeat(40) + '…');
   });
 });

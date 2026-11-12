@@ -17,14 +17,8 @@
   });
   const titolo = $derived(stato.chatAperta?.titolo ?? 'Nuova chat');
 
-  // La domanda dell'ultimo turno, per mostrarla (non salvata) sopra il suo errore.
-  let domandaFallita = $state<{ chatId: number | null; testo: string } | null>(null);
-  $effect(() => {
-    if (turno) domandaFallita = { chatId: turno.chatId, testo: turno.domanda };
-  });
-  const mostraDomandaFallita = $derived(
-    errore !== null && domandaFallita !== null && domandaFallita.chatId === stato.erroreTurno?.chatId,
-  );
+  // La domanda fallita è già nella casella? Se no, l'errore offre «Rimetti nella casella».
+  const domandaInCasella = $derived(errore !== null && stato.bozza.includes(errore.domanda));
 
   // Scorrimento: segue la risposta che arriva, se chi legge è già in fondo.
   let scorrimento = $state<HTMLDivElement>();
@@ -78,12 +72,19 @@
           <Messaggio ruolo="assistente" testo={turno.testo} strumenti={turno.strumenti} inCorso />
         {/if}
         {#if errore}
-          {#if mostraDomandaFallita && domandaFallita}
-            <Messaggio ruolo="utente" testo={domandaFallita.testo} nonSalvato />
-          {/if}
+          <Messaggio ruolo="utente" testo={errore.domanda} nonSalvato />
           <div class="errore-turno" role="alert" data-test="errore-turno">
-            <p>{errore}</p>
-            <p class="suggerimento">Il messaggio è tornato nella casella: puoi inviarlo di nuovo.</p>
+            <p>{errore.testo}</p>
+            {#if domandaInCasella}
+              <p class="suggerimento">Il messaggio è tornato nella casella: puoi inviarlo di nuovo.</p>
+            {:else}
+              <p class="suggerimento">
+                Il messaggio non è stato salvato.
+                <button type="button" class="rimetti" data-test="rimetti" onclick={() => stato.rimettiDomanda()}>
+                  Rimetti nella casella
+                </button>
+              </p>
+            {/if}
           </div>
         {/if}
       </div>
@@ -165,6 +166,17 @@
     margin-top: 2px;
     font-size: 12px;
     color: var(--testo-tenue);
+  }
+
+  .rimetti {
+    margin-left: 4px;
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--errore-testo);
+    font-size: inherit;
+    text-decoration: underline;
+    cursor: pointer;
   }
 
   .piede {

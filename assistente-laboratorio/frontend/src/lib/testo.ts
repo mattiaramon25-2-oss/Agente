@@ -11,7 +11,14 @@ export function partiEvidenziate(testo: string, q: string): string[] {
   return testo.split(new RegExp(`(${proteggi(q)})`, 'gi'));
 }
 
-const comeTesto = (v: unknown) => (typeof v === 'string' ? v : typeof v === 'object' && v !== null ? JSON.stringify(v) : String(v));
+/** L'inizio di un testo su una riga, per citarlo in un avviso: spazi e a capo ridotti
+ *  a uno spazio, al massimo `lunghezza` caratteri e «…» se è stato tagliato. */
+export function inizioTesto(testo: string, lunghezza = 40): string {
+  const caratteri = Array.from(testo.replace(/\s+/g, ' ').trim());
+  return caratteri.length <= lunghezza ? caratteri.join('') : `${caratteri.slice(0, lunghezza).join('')}…`;
+}
+
+const comeTesto =(v: unknown) => (typeof v === 'string' ? v : typeof v === 'object' && v !== null ? JSON.stringify(v) : String(v));
 
 /** Come la CLI: «nome · valori», con i valori degli argomenti uniti da «, ». */
 export function rigaStrumento(strumento: Strumento): string {

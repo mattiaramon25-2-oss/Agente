@@ -68,7 +68,7 @@ describe('StatoApp', () => {
     expect(api.creaChat).toHaveBeenCalledWith(null);
     expect(api.inviaMessaggio).toHaveBeenCalledWith(5, 'Ciao', expect.anything());
     expect(stato.turno).toBeNull();
-    expect(stato.erroreTurno).toBeNull();
+    expect(stato.erroriTurno).toEqual([]);
     expect(stato.bozza).toBe('');
     expect(stato.chatAperta?.titolo).toBe('Saluto');
     expect(stato.vista).toEqual({ tipo: 'chat', chatId: 5, progettoId: null });
@@ -111,13 +111,14 @@ describe('StatoApp', () => {
     const stato = new StatoApp(api);
     stato.bozza = 'Ciao';
     await stato.invia();
-    expect(stato.erroreTurno?.testo).toBe('Agente spento.');
+    expect(stato.erroreTurnoVisibile).toEqual({ chatId: 5, testo: 'Agente spento.', domanda: 'Ciao' });
     // Un 503 con {"errore"} viene dal back-end, che quindi risponde: niente striscia.
     expect(stato.backendSpento).toBe(false);
     expect(stato.chatAperta?.id).toBe(5);
     expect(stato.bozza).toBe('Ciao');
     await stato.invia();
-    expect(stato.erroreTurno).toBeNull();
+    expect(stato.erroreTurnoVisibile).toBeNull();
+    expect(stato.erroriTurno).toEqual([]);
     expect(api.creaChat).toHaveBeenCalledTimes(1);
     expect(inviaMessaggio.mock.calls[1][0]).toBe(5);
     expect(stato.chatAperta?.messaggi).toHaveLength(2);
@@ -152,7 +153,7 @@ describe('StatoApp', () => {
     expect(stato.turno).toBeNull();
   });
 
-  it('errore del turno rimette la bozza', async () => {
+  it('errore del turno con la casella vuota rimette la domanda nella casella', async () => {
     const api = apiFinta({
       inviaMessaggio: vi.fn(async () => {
         throw new ErroreApi('Modello assente.', null);
@@ -162,8 +163,10 @@ describe('StatoApp', () => {
     stato.bozza = 'Domanda';
     await stato.invia();
     expect(stato.turno).toBeNull();
-    expect(stato.erroreTurno?.testo).toBe('Modello assente.');
+    expect(stato.erroreTurnoVisibile).toEqual({ chatId: 5, testo: 'Modello assente.', domanda: 'Domanda' });
     expect(stato.bozza).toBe('Domanda');
+    // La chat 5 è stata creata da questo turno: le liste si ricaricano per mostrarla.
+    expect(api.elencaChat).toHaveBeenCalledWith('nessuno');
     expect(stato.backendSpento).toBe(false);
     expect(stato.chatAperta?.messaggi).toHaveLength(0);
   });
@@ -178,7 +181,7 @@ describe('StatoApp', () => {
     stato.bozza = 'Ciao';
     await stato.invia();
     expect(stato.backendSpento).toBe(true);
-    expect(stato.erroreTurno?.testo).toBe(TESTO_BACKEND_SPENTO);
+    expect(stato.erroreTurnoVisibile).toEqual({ chatId: null, testo: TESTO_BACKEND_SPENTO, domanda: 'Ciao' });
     expect(stato.bozza).toBe('Ciao');
     await stato.controllaBackend();
     expect(stato.backendSpento).toBe(false);
@@ -326,22 +329,115 @@ describe('StatoApp', () => {
       expect(stato.chatAperta?.messaggi).toHaveLength(0);
     });
 
-    it('errore dopo aver lasciato la chat: avviso e bozza corrente intatta', async () => {
-      const { stato } = conDue({
-        inviaMessaggio: vi.fn(async () => {
-          await Promise.resolve();
-          throw new ErroreApi('Modello assente.', null);
-        }),
+  });
+
+  describe('turno fallito: la domanda non si perde', () => {
+    /** Un turno che resta in attesa finché il test non lo fa fallire. */
+    function conFallimento(over: Partial<ApiBackend> = {}) {
+      let fallisci!: (e: Error) => void;
+      const api = apiFinta({
+        inviaMessaggio: vi.fn(() => new Promise<FineTurno>((_ok, ko) => (fallisci = ko))),
+        ...over,
       });
+      return { api, stato: new StatoApp(api), fallisci: (e: Error) => fallisci(e) };
+    }
+
+    it('il testo scritto durante il turno resta; «Rimetti nella casella» mette la domanda in testa', async () => {
+      const { api, stato, fallisci } = conFallimento();
       await stato.apriChat(1);
       stato.bozza = 'Ciao';
       const p = stato.invia();
+      expect(api.inviaMessaggio).toHaveBeenCalledTimes(1);
+      expect(stato.bozza).toBe('');
+      stato.bozza = 'scritto durante il turno';
+      fallisci(new ErroreApi('Modello assente.', null));
+      await p;
+      expect(stato.bozza).toBe('scritto durante il turno');
+      expect(stato.erroreTurnoVisibile).toEqual({ chatId: 1, testo: 'Modello assente.', domanda: 'Ciao' });
+      expect(stato.avvisi).toEqual([]);
+      stato.rimettiDomanda();
+      expect(stato.bozza).toBe('Ciao\n\nscritto durante il turno');
+    });
+
+    it('con la casella di soli spazi la domanda torna nella casella', async () => {
+      const { stato, fallisci } = conFallimento();
+      await stato.apriChat(1);
+      stato.bozza = 'Ciao';
+      const p = stato.invia();
+      stato.bozza = '   ';
+      fallisci(new ErroreApi('Modello assente.', null));
+      await p;
+      expect(stato.bozza).toBe('Ciao');
+    });
+
+    it('«Rimetti nella casella» con la casella vuota mette solo la domanda', async () => {
+      const { stato, fallisci } = conFallimento();
+      await stato.apriChat(1);
+      stato.bozza = 'Ciao';
+      const p = stato.invia();
+      stato.bozza = 'x';
+      fallisci(new ErroreApi('Modello assente.', null));
+      await p;
+      stato.bozza = '';
+      stato.rimettiDomanda();
+      expect(stato.bozza).toBe('Ciao');
+    });
+
+    it("errore dopo aver lasciato la chat: avviso con l'inizio della domanda, bozza intatta, errore visibile al ritorno", async () => {
+      const { stato, fallisci } = conFallimento();
+      await stato.apriChat(1);
+      stato.bozza = 'Quanto fa (3+4)*2? Spiegami anche i passaggi uno per uno';
+      const p = stato.invia();
       await stato.apriChat(2);
       stato.bozza = 'altro testo';
+      fallisci(new ErroreApi('Modello assente.', null));
       await p;
       expect(stato.bozza).toBe('altro testo');
       expect(stato.erroreTurnoVisibile).toBeNull();
-      expect(stato.avvisi.map((a) => a.testo)).toEqual(['Il messaggio non è stato inviato: Modello assente.']);
+      expect(stato.avvisi.map((a) => a.testo)).toEqual([
+        'Il messaggio «Quanto fa (3+4)*2? Spiegami anche i pass…» non è stato inviato: Modello assente.',
+      ]);
+      await stato.apriChat(1);
+      expect(stato.erroreTurnoVisibile).toEqual({
+        chatId: 1,
+        testo: 'Modello assente.',
+        domanda: 'Quanto fa (3+4)*2? Spiegami anche i passaggi uno per uno',
+      });
+      expect(stato.bozza).toBe('altro testo');
+      stato.rimettiDomanda();
+      expect(stato.bozza).toBe('Quanto fa (3+4)*2? Spiegami anche i passaggi uno per uno\n\naltro testo');
+    });
+
+    it("un nuovo invio in quella chat toglie il suo errore, non quello di un'altra chat", async () => {
+      const inviaMessaggio = vi
+        .fn()
+        .mockRejectedValueOnce(new ErroreApi('Primo errore.', null))
+        .mockRejectedValueOnce(new ErroreApi('Secondo errore.', null))
+        .mockResolvedValueOnce(fine());
+      const stato = new StatoApp(apiFinta({ inviaMessaggio }));
+      await stato.apriChat(1);
+      stato.bozza = 'Uno';
+      await stato.invia();
+      await stato.apriChat(2);
+      stato.bozza = 'Due';
+      await stato.invia();
+      expect(stato.erroriTurno.map((e) => e.chatId)).toEqual([1, 2]);
+      await stato.invia();
+      expect(stato.erroriTurno.map((e) => e.chatId)).toEqual([1]);
+      expect(stato.erroreTurnoVisibile).toBeNull();
+      await stato.apriChat(1);
+      expect(stato.erroreTurnoVisibile?.domanda).toBe('Uno');
+    });
+
+    it('eliminare la chat toglie il suo errore', async () => {
+      const inviaMessaggio = vi.fn().mockRejectedValueOnce(new ErroreApi('Errore.', null));
+      const stato = new StatoApp(apiFinta({ inviaMessaggio }));
+      await stato.apriChat(1);
+      stato.bozza = 'Uno';
+      await stato.invia();
+      expect(stato.erroriTurno).toHaveLength(1);
+      await stato.eliminaChat(1);
+      expect(stato.erroriTurno).toEqual([]);
     });
   });
 

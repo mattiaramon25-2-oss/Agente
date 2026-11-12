@@ -12,6 +12,7 @@ import {
   type RisultatoRicerca,
   type Strumento,
 } from './api';
+import { inizioTesto } from './testo';
 
 export type Vista =
   | { tipo: 'chat'; chatId: number | null; progettoId: number | null }
@@ -19,7 +20,8 @@ export type Vista =
 
 /** chatId è null finché una chat nuova non è stata creata sul back-end. */
 export type Turno = { chatId: number | null; domanda: string; testo: string; strumenti: Strumento[] };
-export type ErroreTurno = { chatId: number | null; testo: string };
+/** Un turno fallito: l'errore e la domanda (non salvata), legati alla chat del turno. */
+export type ErroreTurno = { chatId: number | null; testo: string; domanda: string };
 export type Avviso = { id: number; testo: string };
 
 const LUNGHEZZA_MINIMA_RICERCA = 2;
@@ -32,7 +34,8 @@ export class StatoApp {
   progettoAperto = $state<Progetto | null>(null);
   chatDelProgetto = $state<ChatBreve[]>([]);
   turno = $state<Turno | null>(null);
-  erroreTurno = $state<ErroreTurno | null>(null);
+  /** Al massimo un errore per chat: resta finché in quella chat non parte un nuovo invio. */
+  erroriTurno = $state<ErroreTurno[]>([]);
   bozza = $state('');
   backendSpento = $state(false);
   ricerca = $state<{ q: string; risultati: RisultatoRicerca[] } | null>(null);
@@ -63,9 +66,20 @@ export class StatoApp {
     return this.turno && this.èQuiLaChat(this.turno.chatId) ? this.turno : null;
   }
 
-  /** L'errore dell'ultimo turno, con la stessa regola di turnoVisibile. */
-  get erroreTurnoVisibile(): string | null {
-    return this.erroreTurno && this.èQuiLaChat(this.erroreTurno.chatId) ? this.erroreTurno.testo : null;
+  /** L'errore del turno fallito nella chat che l'utente ha davanti, se c'è. */
+  get erroreTurnoVisibile(): ErroreTurno | null {
+    return this.erroriTurno.find((e) => this.èQuiLaChat(e.chatId)) ?? null;
+  }
+
+  private togliErroreTurno(chatId: number | null): void {
+    this.erroriTurno = this.erroriTurno.filter((e) => e.chatId !== chatId);
+  }
+
+  /** «Rimetti nella casella»: la domanda fallita in testa, prima del testo già scritto. */
+  rimettiDomanda(): void {
+    const errore = this.erroreTurnoVisibile;
+    if (!errore) return;
+    this.bozza = this.bozza.trim() ? `${errore.domanda}\n\n${this.bozza}` : errore.domanda;
   }
 
   private notaBackend(e: unknown): void {
@@ -130,7 +144,7 @@ export class StatoApp {
 
   nuovaChat(progettoId?: number): void {
     this.chatAperta = null;
-    if (this.erroreTurno?.chatId === null) this.erroreTurno = null;
+    this.togliErroreTurno(null);
     this.vista = { tipo: 'chat', chatId: null, progettoId: progettoId ?? null };
   }
 
@@ -160,16 +174,18 @@ export class StatoApp {
     const domanda = this.bozza.trim();
     if (!domanda || this.turno) return;
 
-    this.erroreTurno = null;
     this.bozza = '';
     this.turno = { chatId: this.chatAperta?.id ?? null, domanda, testo: '', strumenti: [] };
     let chatId = this.turno.chatId;
+    this.togliErroreTurno(chatId);
+    let chatCreata = false;
 
     try {
       if (chatId === null) {
         const progettoId = this.vista.tipo === 'chat' ? this.vista.progettoId : null;
         const chat = await this.api.creaChat(progettoId);
         chatId = chat.id;
+        chatCreata = true;
         if (this.turno) this.turno.chatId = chatId;
         // Se nel frattempo l'utente ha lasciato la chat nuova, non lo riporto indietro.
         if (this.suChatNuova) {
@@ -197,15 +213,23 @@ export class StatoApp {
       this.turno = null;
     } catch (e) {
       const testo = e instanceof Error ? e.message : 'Errore imprevisto.';
-      const qui = this.èQuiLaChat(chatId);
       this.turno = null;
       this.notaBackend(e);
-      if (qui) {
-        this.erroreTurno = { chatId, testo };
-        this.bozza = domanda;
+      // L'errore resta sempre nella chat del turno, con la domanda: chi ci torna lo ritrova.
+      this.togliErroreTurno(chatId);
+      this.erroriTurno.push({ chatId, testo, domanda });
+      if (this.èQuiLaChat(chatId)) {
+        // La domanda torna nella casella solo se è vuota: il testo scritto durante il turno non si tocca
+        // (c'è «Rimetti nella casella»).
+        if (!this.bozza.trim()) this.bozza = domanda;
       } else {
-        this.avvisi.push({ id: this.prossimoAvviso++, testo: `Il messaggio non è stato inviato: ${testo}` });
+        this.avvisi.push({
+          id: this.prossimoAvviso++,
+          testo: `Il messaggio «${inizioTesto(domanda)}» non è stato inviato: ${testo}`,
+        });
       }
+      // Una chat creata da questo turno esiste sul back-end: compare nell'elenco per poterci tornare.
+      if (chatCreata) await this.ricarica();
       return;
     }
     await this.ricarica();
@@ -252,6 +276,7 @@ export class StatoApp {
       await this.api.cancellaChat(id);
     });
     if (!riuscita) return;
+    this.togliErroreTurno(id);
     if (this.chatAperta?.id === id) this.nuovaChat();
     await this.ricarica();
   }
