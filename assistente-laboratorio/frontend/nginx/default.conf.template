@@ -1,3 +1,8 @@
+# max_fails=0: nginx non mette da parte il back-end dopo un errore, così al riavvio risponde subito.
+upstream backend {
+    server host.docker.internal:${BACKEND_PORTA} max_fails=0;
+}
+
 server {
     listen 8080;
     server_name _;
@@ -7,7 +12,7 @@ server {
     # Il back-end gira sull'host (solo su 127.0.0.1); si toglie il prefisso /api.
     # Niente buffering: gli eventi SSE devono arrivare uno alla volta.
     location /api/ {
-        proxy_pass http://host.docker.internal:${BACKEND_PORTA}/;
+        proxy_pass http://backend/;
         proxy_http_version 1.1;
         proxy_set_header Connection "";
         proxy_set_header Host $host;
