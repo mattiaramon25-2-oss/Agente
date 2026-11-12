@@ -109,7 +109,7 @@
     padding: 2px 6px;
     margin-left: -6px;
     border: none;
-    border-radius: 6px;
+    border-radius: var(--raggio-piccolo);
     background: none;
     color: var(--testo-tenue);
   }

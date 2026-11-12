@@ -4,9 +4,10 @@
   import type { StatoApp } from '../lib/stato.svelte';
   import Conferma from './Conferma.svelte';
 
-  /** Menu «…» di una chat (Sposta, Elimina) o di un progetto (Elimina). */
-  type Props = { stato: StatoApp; chat?: ChatBreve; progetto?: Progetto };
-  let { stato, chat, progetto }: Props = $props();
+  /** Menu «…» di una chat (Sposta, Elimina) o di un progetto (Elimina).
+   *  quandoRimossa: dove portare il fuoco se dopo l'azione la riga non c'è più. */
+  type Props = { stato: StatoApp; chat?: ChatBreve; progetto?: Progetto; quandoRimossa?: () => void };
+  let { stato, chat, progetto, quandoRimossa }: Props = $props();
 
   const LARGHEZZA = 210;
   const MARGINE = 8;
@@ -65,7 +66,15 @@
 
   async function sposta(progettoId: number | null): Promise<void> {
     chiudi();
+    const ripiego = quandoRimossa;
     if (chat) await stato.spostaChat(chat.id, progettoId);
+    await fuocoSeRimossa(ripiego);
+  }
+
+  /** Se la riga (e il suo «…») è sparita, il fuoco non deve cadere sul body. */
+  async function fuocoSeRimossa(ripiego: (() => void) | undefined): Promise<void> {
+    await tick();
+    if (!pulsante?.isConnected) ripiego?.();
   }
 
   function elimina(): void {
@@ -75,8 +84,10 @@
 
   async function eliminaConfermato(): Promise<void> {
     chiedeConferma = false;
+    const ripiego = quandoRimossa;
     if (chat) await stato.eliminaChat(chat.id);
     else if (progetto) await stato.eliminaProgetto(progetto.id);
+    await fuocoSeRimossa(ripiego);
   }
 
   function suPuntatore(e: PointerEvent): void {
@@ -164,7 +175,7 @@
     width: 26px;
     height: 26px;
     border: none;
-    border-radius: 6px;
+    border-radius: var(--raggio-piccolo);
     background: none;
     color: var(--testo-tenue);
     line-height: 1;
@@ -202,7 +213,7 @@
     border: none;
     background: none;
     padding: 6px 10px;
-    border-radius: 6px;
+    border-radius: var(--raggio-piccolo);
     text-align: left;
     font-size: 14px;
     white-space: nowrap;

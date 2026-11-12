@@ -25,6 +25,8 @@
   --errore: #c0705a;
   --errore-testo: #9a4f3b;
   --errore-fondo: #f8ece7;
+  --bordo-fuoco: #9cafaa;
+  --evidenziato: #f2e3c2;
   --ombra: 0 8px 24px rgba(47, 62, 60, 0.12);
   --velo: rgba(47, 62, 60, 0.28);
 }
@@ -52,6 +54,8 @@
   --errore: #d08a75;
   --errore-testo: #e2a693;
   --errore-fondo: #2a201c;
+  --bordo-fuoco: #4f625d;
+  --evidenziato: #4a3f26;
   --ombra: 0 8px 28px rgba(0, 0, 0, 0.45);
   --velo: rgba(0, 0, 0, 0.5);
 }
@@ -103,8 +107,9 @@ button:disabled {
   cursor: default;
 }
 
+/* Unica eccezione al verde acqua: il contorno della tastiera, per l'accessibilità. */
 :focus-visible {
-  outline: 2px solid var(--accento);
+  outline: 1.5px solid var(--accento);
   outline-offset: 2px;
 }
 
@@ -276,7 +281,7 @@ button:disabled {
 
 .markdown a {
   color: inherit;
-  text-decoration-color: var(--accento);
+  text-decoration-color: currentColor;
   text-underline-offset: 2px;
 }
 
@@ -284,8 +289,8 @@ button:disabled {
   font-family: var(--carattere-codice);
   font-size: 0.88em;
   background: var(--codice-fondo);
-  border-radius: 6px;
-  padding: 0.1em 0.35em;
+  border-radius: var(--raggio-piccolo);
+  padding: 0.1em 0.4em;
 }
 
 .markdown pre {

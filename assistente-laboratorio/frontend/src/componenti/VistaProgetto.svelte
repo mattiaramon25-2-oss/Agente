@@ -10,6 +10,7 @@
   let istruzioni = $state('');
   let idMostrato: number | null = null;
   let salvate = $state(false);
+  let pulsanteNuova: HTMLButtonElement;
 
   $effect(() => {
     if (progetto.id === idMostrato) return;
@@ -95,7 +96,11 @@
       <div class="blocco">
         <div class="intestazione">
           <h2 class="etichetta-sezione">Chat</h2>
-          <button type="button" class="pulsante-tenue" onclick={() => stato.nuovaChat(progetto.id)}
+          <button
+            type="button"
+            class="pulsante-tenue"
+            bind:this={pulsanteNuova}
+            onclick={() => stato.nuovaChat(progetto.id)}
             >Nuova chat in questo progetto</button
           >
         </div>
@@ -106,7 +111,7 @@
                 <span class="testo-chat">{chat.titolo}</span>
                 <span class="data">{data(chat.aggiornata)}</span>
               </button>
-              <MenuAzioni {stato} {chat} />
+              <MenuAzioni {stato} {chat} quandoRimossa={() => pulsanteNuova?.focus()} />
             </div>
           {:else}
             <p class="vuoto">Ancora nessuna chat in questo progetto.</p>
@@ -156,7 +161,7 @@
   }
 
   .nome:focus {
-    border-color: var(--accento);
+    border-color: var(--bordo-fuoco);
     background: var(--superficie);
   }
 
@@ -178,7 +183,7 @@
   }
 
   textarea:focus {
-    border-color: var(--accento);
+    border-color: var(--bordo-fuoco);
   }
 
   textarea::placeholder {

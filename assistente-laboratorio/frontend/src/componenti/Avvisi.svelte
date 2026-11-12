@@ -75,8 +75,8 @@
     flex: none;
     border: none;
     background: none;
-    padding: 0 4px;
-    border-radius: 6px;
+    padding: 0 6px;
+    border-radius: var(--raggio-piccolo);
     color: var(--errore-testo);
     font-size: 18px;
     line-height: 1.2;

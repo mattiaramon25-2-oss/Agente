@@ -91,8 +91,8 @@
     width: 8px;
     height: 8px;
     margin: 8px 0;
-    border-radius: 2px;
-    background: var(--accento);
+    border-radius: 50%;
+    background: var(--testo-lieve);
     animation: respira 1.4s ease-in-out infinite;
   }
 

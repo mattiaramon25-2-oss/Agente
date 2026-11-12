@@ -1,18 +1,10 @@
 <script lang="ts">
   import type { RisultatoRicerca } from '../lib/api';
   import type { StatoApp } from '../lib/stato.svelte';
+  import { partiEvidenziate } from '../lib/testo';
 
   type Props = { stato: StatoApp; q: string; risultati: RisultatoRicerca[] };
   let { stato, q, risultati }: Props = $props();
-
-  const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-  /** Divide il testo attorno alle occorrenze di q (senza badare alle maiuscole):
-   *  le parti di indice dispari sono quelle da evidenziare. Nessun HTML: solo testo. */
-  function parti(testo: string): string[] {
-    if (!q) return [testo];
-    return testo.split(new RegExp(`(${escapeRegExp(q)})`, 'gi'));
-  }
 
   const nomeRuolo = (ruolo: string) => (ruolo === 'utente' ? 'Tu' : 'Assistente');
 </script>
@@ -24,7 +16,7 @@
       <span class="titolo">{r.titolo}</span>
       <span class="estratto"
         ><span class="ruolo">{nomeRuolo(r.ruolo)}:</span>
-        {#each parti(r.estratto) as parte, i (i)}{#if i % 2 === 1}<mark>{parte}</mark>{:else}{parte}{/if}{/each}</span
+        <!-- Solo testo: le occorrenze stanno nelle parti di indice dispari. -->{#each partiEvidenziate(r.estratto, q) as parte, i (i)}{#if i % 2 === 1}<mark>{parte}</mark>{:else}{parte}{/if}{/each}</span
       >
     </button>
   {:else}
@@ -56,7 +48,7 @@
   }
 
   .risultato:hover {
-    background: var(--selezione);
+    background: var(--linea);
   }
 
   .titolo {
@@ -77,11 +69,12 @@
     color: var(--testo-lieve);
   }
 
+  /* Evidenziatura calda e neutra: il verde acqua resta alla chat aperta. */
   mark {
-    background: var(--selezione);
-    color: var(--testo-selezione);
-    border-radius: 3px;
-    padding: 0 1px;
+    background: var(--evidenziato);
+    color: inherit;
+    border-radius: var(--raggio-piccolo);
+    padding: 0 2px;
   }
 
   .vuoto {

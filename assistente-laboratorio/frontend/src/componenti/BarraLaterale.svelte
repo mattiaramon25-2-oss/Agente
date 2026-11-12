@@ -13,15 +13,20 @@
   let timerRicerca: ReturnType<typeof setTimeout> | undefined;
   let creaProgetto = $state(false);
   let nomeProgetto = $state('');
+  let creazioneInCorso = false;
+  let pulsanteNuova: HTMLButtonElement;
 
   const progettoAttivo = $derived(
     stato.vista.tipo === 'progetto' ? stato.vista.progettoId : (stato.chatAperta?.progetto_id ?? stato.vista.progettoId),
   );
 
-  /** Da dentro un progetto, «Nuova chat» crea la chat in quel progetto. */
+  /** Da dentro un progetto (la sua pagina o una sua chat), «Nuova chat» crea la chat in quel progetto. */
   function nuovaChat(): void {
-    stato.nuovaChat(stato.vista.tipo === 'progetto' ? stato.vista.progettoId : undefined);
+    stato.nuovaChat(progettoAttivo ?? undefined);
   }
+
+  /** Quando una riga sparisce (chat spostata o eliminata), il fuoco torna su «Nuova chat». */
+  const fuocoSuNuova = () => pulsanteNuova?.focus();
 
   // La ricerca parte dopo una breve pausa nella scrittura; svuotando la casella tornano subito gli elenchi.
   function suRicerca(e: Event & { currentTarget: HTMLInputElement }): void {
@@ -43,16 +48,23 @@
   }
 
   async function confermaProgetto(): Promise<void> {
+    // Un secondo Invio mentre il progetto si sta creando non ne crea un altro.
+    if (creazioneInCorso) return;
     const nome = nomeProgetto.trim();
     if (!nome) {
       creaProgetto = false;
       return;
     }
-    const creato = await stato.creaProgetto(nome);
-    if (creato) {
-      creaProgetto = false;
-      nomeProgetto = '';
-      await stato.apriProgetto(creato.id);
+    creazioneInCorso = true;
+    try {
+      const creato = await stato.creaProgetto(nome);
+      if (creato) {
+        creaProgetto = false;
+        nomeProgetto = '';
+        await stato.apriProgetto(creato.id);
+      }
+    } finally {
+      creazioneInCorso = false;
     }
   }
 
@@ -72,7 +84,12 @@
 </script>
 
 <nav class="laterale" aria-label="Chat e progetti">
-  <button type="button" class="pulsante-principale nuova" data-test="nuova-chat" onclick={nuovaChat}>+ Nuova chat</button>
+  <button
+    type="button"
+    class="pulsante-principale nuova"
+    data-test="nuova-chat"
+    bind:this={pulsanteNuova}
+    onclick={nuovaChat}>+ Nuova chat</button>
 
   <input
     type="search"
@@ -120,7 +137,7 @@
               aria-current={stato.vista.tipo === 'progetto' && stato.vista.progettoId === progetto.id ? 'page' : undefined}
               onclick={() => stato.apriProgetto(progetto.id)}>{progetto.nome}</button
             >
-            <MenuAzioni {stato} {progetto} />
+            <MenuAzioni {stato} {progetto} quandoRimossa={fuocoSuNuova} />
           </div>
         {:else}
           {#if !creaProgetto}<p class="vuoto">Nessun progetto.</p>{/if}
@@ -140,7 +157,7 @@
               aria-current={stato.chatAperta?.id === chat.id ? 'page' : undefined}
               onclick={() => stato.apriChat(chat.id)}>{chat.titolo}</button
             >
-            <MenuAzioni {stato} {chat} />
+            <MenuAzioni {stato} {chat} quandoRimossa={fuocoSuNuova} />
           </div>
         {:else}
           <p class="vuoto">Nessuna chat.</p>
@@ -183,7 +200,7 @@
 
   .cerca:focus,
   .nome-progetto:focus {
-    border-color: var(--accento);
+    border-color: var(--bordo-fuoco);
   }
 
   .cerca::placeholder,
@@ -219,7 +236,7 @@
     width: 24px;
     height: 24px;
     border: none;
-    border-radius: 6px;
+    border-radius: var(--raggio-piccolo);
     background: none;
     color: var(--testo-lieve);
     font-size: 17px;

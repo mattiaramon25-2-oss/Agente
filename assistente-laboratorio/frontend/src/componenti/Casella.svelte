@@ -80,7 +80,7 @@
   }
 
   .casella:focus-within {
-    border-color: var(--accento);
+    border-color: var(--bordo-fuoco);
   }
 
   textarea {

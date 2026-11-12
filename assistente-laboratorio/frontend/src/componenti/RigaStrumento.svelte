@@ -1,12 +1,10 @@
 <script lang="ts">
   import type { Strumento } from '../lib/api';
+  import { rigaStrumento } from '../lib/testo';
 
   let { strumento }: { strumento: Strumento } = $props();
 
-  // Come la CLI: «nome · valori», con i valori degli argomenti uniti da «, ».
-  const valore = (v: unknown) => (typeof v === 'string' ? v : JSON.stringify(v));
-  const valori = $derived(Object.values(strumento.argomenti ?? {}).map(valore).join(', '));
-  const testo = $derived(valori ? `${strumento.nome} · ${valori}` : strumento.nome);
+  const testo = $derived(rigaStrumento(strumento));
 </script>
 
 <div class="riga" data-test="riga-strumento" title={testo}>{testo}</div>

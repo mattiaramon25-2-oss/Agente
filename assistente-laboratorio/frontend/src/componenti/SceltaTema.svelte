@@ -54,8 +54,8 @@
   button {
     border: none;
     background: none;
-    padding: 3px 5px;
-    border-radius: 6px;
+    padding: 3px 6px;
+    border-radius: var(--raggio-piccolo);
     color: var(--testo-lieve);
   }
 
