@@ -5,6 +5,7 @@ Serve Chromium: python -m playwright install chromium
 """
 
 import json
+import re
 import time
 
 import psycopg
@@ -27,6 +28,11 @@ pytestmark = pytest.mark.docker
 
 ATTESA = 30000
 DOMANDA = "Quanto fa (3+4)*2?"
+CSP = (
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
+    "media-src 'none'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; connect-src 'self'; "
+    "manifest-src 'self'; worker-src 'self'"
+)
 
 
 class Ambiente:
@@ -91,9 +97,12 @@ def pagina(browser, ambiente):
     contesto = browser.new_context()
     contesto.set_default_timeout(ATTESA)
     p = contesto.new_page()
+    violazioni = []
+    p.on("console", lambda m: violazioni.append(m.text) if "Content Security Policy" in m.text else None)
     p.goto(ambiente.url)
     yield p
     contesto.close()
+    assert not violazioni, f"violazioni della CSP nella console: {violazioni}"
 
 
 def _invia(pagina, testo: str) -> None:
@@ -210,3 +219,19 @@ def test_installabile(ambiente, pagina):
     pronto = pagina.evaluate("navigator.serviceWorker.ready.then(r => r.active ? r.active.state : 'nessuno')")
     print("  service worker:", pronto)
     assert pronto in ("activating", "activated")
+
+
+def test_intestazioni_di_sicurezza(ambiente, pagina):
+    """Ogni risposta di nginx porta CSP, nosniff e Referrer-Policy, anche quelle con Cache-Control proprio."""
+    pagina_html = pagina.request.get(f"{ambiente.url}/").text()
+    script = re.search(r'src="(/assets/[^"]+\.js)"', pagina_html)
+    assert script, "nessuno script in /assets/ nella pagina"
+    percorsi = ["/", "/index.html", "/una/chat/qualsiasi", script.group(1), "/sw.js", "/manifest.webmanifest", "/api/salute"]
+    for percorso in percorsi:
+        risposta = pagina.request.get(f"{ambiente.url}{percorso}")
+        intestazioni = risposta.headers
+        print(f"\n  {percorso}: {risposta.status}, csp={'content-security-policy' in intestazioni}", end="")
+        assert intestazioni.get("content-security-policy") == CSP, percorso
+        assert intestazioni.get("x-content-type-options") == "nosniff", percorso
+        assert intestazioni.get("referrer-policy") == "no-referrer", percorso
+    print()
