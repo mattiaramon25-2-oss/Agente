@@ -1,0 +1,1236 @@
+/* Presentazioni e atlante dell'assistente del laboratorio.
+   Un solo foglio di stile per le slide (body.mazzo) e per le pagine che scorrono (body.pagina).
+   I colori sono quelli della chat nel browser: chiaro «acqua e salvia», scuro «acqua di notte». */
+
+:root {
+  color-scheme: light;
+  --fondo: #f6f8f6;
+  --superficie: #ffffff;
+  --rilievo: #eef3f0;
+  --testo: #2f3e3c;
+  --testo-tenue: #5f736e;
+  --linea: #d2ded9;
+  --accento: #2f8577;
+  --accento-fondo: #d9ece7;
+  --codice-fondo: #edf2ef;
+  --errore: #b3563d;
+  --errore-fondo: #f8ece7;
+  --evidenza: #f2e3c2;
+  --ombra: 0 10px 30px rgba(47, 62, 60, 0.14);
+  /* Colori degli schemi: chi ragiona, chi esegue, dove restano i dati. */
+  --llm: #6f5fb0;
+  --llm-fondo: #ebe7f6;
+  --esegue: #2f8577;
+  --esegue-fondo: #dcefea;
+  --dati: #a2761c;
+  --dati-fondo: #f7edd3;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema="chiaro"]) {
+    color-scheme: dark;
+    --fondo: #121b19;
+    --superficie: #1b2725;
+    --rilievo: #22302d;
+    --testo: #dfe9e6;
+    --testo-tenue: #9bb3ad;
+    --linea: #33453f;
+    --accento: #6fd0bf;
+    --accento-fondo: #1f3a35;
+    --codice-fondo: #16211f;
+    --errore: #e2a693;
+    --errore-fondo: #33231d;
+    --evidenza: #4a3f26;
+    --ombra: 0 10px 34px rgba(0, 0, 0, 0.5);
+    --llm: #b3a5ea;
+    --llm-fondo: #2b2845;
+    --esegue: #6fd0bf;
+    --esegue-fondo: #1c3b35;
+    --dati: #e0bd6c;
+    --dati-fondo: #3b3220;
+  }
+}
+
+:root[data-tema="scuro"] {
+  color-scheme: dark;
+  --fondo: #121b19;
+  --superficie: #1b2725;
+  --rilievo: #22302d;
+  --testo: #dfe9e6;
+  --testo-tenue: #9bb3ad;
+  --linea: #33453f;
+  --accento: #6fd0bf;
+  --accento-fondo: #1f3a35;
+  --codice-fondo: #16211f;
+  --errore: #e2a693;
+  --errore-fondo: #33231d;
+  --evidenza: #4a3f26;
+  --ombra: 0 10px 34px rgba(0, 0, 0, 0.5);
+  --llm: #b3a5ea;
+  --llm-fondo: #2b2845;
+  --esegue: #6fd0bf;
+  --esegue-fondo: #1c3b35;
+  --dati: #e0bd6c;
+  --dati-fondo: #3b3220;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--fondo);
+  color: var(--testo);
+}
+
+code,
+pre,
+kbd {
+  font-family: "Cascadia Code", "Cascadia Mono", Consolas, "Courier New", monospace;
+}
+
+code {
+  background: var(--codice-fondo);
+  border-radius: 5px;
+  padding: 0.05em 0.32em;
+  font-size: 0.88em;
+}
+
+a {
+  color: var(--accento);
+}
+
+:focus-visible {
+  outline: 3px solid var(--accento);
+  outline-offset: 2px;
+}
+
+/* ───────────── La slide: 1280 × 720, sempre ───────────── */
+
+.slide {
+  position: relative;
+  width: 1280px;
+  height: 720px;
+  margin: 24px auto;
+  padding: 50px 72px 40px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--superficie);
+  color: var(--testo);
+  border-radius: 14px;
+  box-shadow: var(--ombra);
+  font-size: 25px;
+  line-height: 1.36;
+}
+
+.slide .occhiello {
+  margin: 0 0 6px;
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--accento);
+}
+
+.slide h2 {
+  margin: 0 0 24px;
+  font-size: 42px;
+  line-height: 1.12;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+.slide h3 {
+  margin: 0 0 8px;
+  font-size: 23px;
+  line-height: 1.2;
+  font-weight: 650;
+}
+
+.slide p {
+  margin: 0 0 14px;
+}
+
+.slide .fonte {
+  margin: auto 0 0;
+  padding-top: 12px;
+  font-size: 15px;
+  color: var(--testo-tenue);
+}
+
+.slide::after {
+  content: attr(data-n) " / " attr(data-tot);
+  position: absolute;
+  right: 72px;
+  bottom: 40px;
+  font-size: 15px;
+  color: var(--testo-tenue);
+  font-variant-numeric: tabular-nums;
+}
+
+.slide:not([data-n])::after {
+  content: none;
+}
+
+/* Slide di apertura */
+.slide.titolo {
+  justify-content: center;
+  padding-left: 112px;
+  background: linear-gradient(120deg, var(--accento-fondo), var(--superficie) 62%);
+}
+
+.slide.titolo::before {
+  content: "";
+  position: absolute;
+  left: 72px;
+  top: 190px;
+  bottom: 190px;
+  width: 8px;
+  border-radius: 4px;
+  background: var(--accento);
+}
+
+.slide.titolo h1 {
+  margin: 0 0 18px;
+  font-size: 66px;
+  line-height: 1.05;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+.slide.titolo .sottotitolo {
+  margin: 0;
+  max-width: 880px;
+  font-size: 29px;
+  color: var(--testo-tenue);
+}
+
+.slide.titolo .fonte {
+  position: absolute;
+  left: 112px;
+  bottom: 40px;
+  margin: 0;
+}
+
+/* Slide con uno schema grande: titolo più piccolo, più spazio al disegno */
+.slide.grande {
+  padding-top: 38px;
+}
+
+.slide.grande h2 {
+  font-size: 34px;
+  margin-bottom: 14px;
+}
+
+/* Elenchi */
+.slide ul.punti,
+.slide ol.punti {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.slide .punti li {
+  position: relative;
+  margin: 0 0 15px;
+  padding-left: 32px;
+}
+
+.slide ul.punti li::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 0.5em;
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
+  background: var(--accento);
+}
+
+.slide ol.punti {
+  counter-reset: passo;
+}
+
+.slide ol.punti li {
+  counter-increment: passo;
+  padding-left: 44px;
+}
+
+.slide ol.punti li::before {
+  content: counter(passo);
+  position: absolute;
+  left: 0;
+  top: 0.1em;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--accento-fondo);
+  color: var(--accento);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 30px;
+  text-align: center;
+}
+
+.slide .punti.fitti {
+  font-size: 22px;
+}
+
+.slide .punti.fitti li {
+  margin-bottom: 10px;
+}
+
+.slide .punti.grandi {
+  font-size: 29px;
+}
+
+.slide .punti.grandi li {
+  margin-bottom: 22px;
+}
+
+.slide ol.punti.grandi li::before {
+  top: 0.16em;
+}
+
+/* Due colonne */
+.slide .colonne {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 44px;
+  align-items: center;
+}
+
+.slide .colonne.largo-stretto {
+  grid-template-columns: 3fr 2fr;
+}
+
+.slide .colonne.stretto-largo {
+  grid-template-columns: 2fr 3fr;
+}
+
+.slide .colonne > * {
+  min-width: 0;
+  min-height: 0;
+}
+
+/* Riquadri affiancati */
+.slide .schede {
+  display: grid;
+  grid-template-columns: repeat(var(--n, 3), 1fr);
+  gap: 20px;
+}
+
+.slide .scheda {
+  padding: 18px 20px 16px;
+  background: var(--rilievo);
+  border: 1px solid var(--linea);
+  border-top: 5px solid var(--accento);
+  border-radius: 12px;
+  font-size: 20.5px;
+  line-height: 1.34;
+}
+
+.slide .scheda p:last-child,
+.slide .scheda ul:last-child {
+  margin-bottom: 0;
+}
+
+.slide .scheda.llm {
+  border-top-color: var(--llm);
+}
+
+.slide .scheda.dati {
+  border-top-color: var(--dati);
+}
+
+.slide .scheda.attenzione {
+  border-top-color: var(--errore);
+}
+
+.slide .scheda.spenta {
+  border-top-color: var(--linea);
+  color: var(--testo-tenue);
+}
+
+.slide .scheda .numero {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 58px;
+  line-height: 1;
+  font-weight: 700;
+  color: var(--accento);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Tabelle */
+.slide table.tabella {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 20px;
+  line-height: 1.3;
+}
+
+.slide .tabella th {
+  padding: 0 16px 8px 0;
+  border-bottom: 2px solid var(--linea);
+  text-align: left;
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--testo-tenue);
+}
+
+.slide .tabella td {
+  padding: 9px 16px 9px 0;
+  border-bottom: 1px solid var(--linea);
+  vertical-align: top;
+}
+
+.slide .tabella.fitta {
+  font-size: 18px;
+}
+
+.slide .tabella.fitta td {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+.slide .tabella td.si {
+  color: var(--accento);
+  font-weight: 650;
+}
+
+.slide .tabella td.no {
+  color: var(--testo-tenue);
+}
+
+/* Codice e uscite del terminale */
+.slide pre.codice {
+  margin: 0 0 14px;
+  padding: 16px 22px;
+  background: var(--codice-fondo);
+  border: 1px solid var(--linea);
+  border-radius: 10px;
+  font-size: 17.5px;
+  line-height: 1.48;
+  white-space: pre;
+  overflow: hidden;
+}
+
+.slide pre.codice b {
+  color: var(--accento);
+  font-weight: 650;
+}
+
+.slide pre.codice i {
+  color: var(--testo-tenue);
+  font-style: normal;
+}
+
+/* Riquadro «attenzione» e domanda d'orale */
+.slide .avviso {
+  margin: 0 0 14px;
+  padding: 12px 20px;
+  border-left: 6px solid var(--errore);
+  background: var(--errore-fondo);
+  border-radius: 0 10px 10px 0;
+  font-size: 22px;
+}
+
+.slide .avviso.buono {
+  border-left-color: var(--accento);
+  background: var(--accento-fondo);
+}
+
+.slide .domanda {
+  margin: 0 0 16px;
+  padding: 14px 20px;
+  background: var(--rilievo);
+  border-radius: 12px;
+  font-size: 21px;
+}
+
+.slide .domanda .q {
+  margin: 0 0 6px;
+  font-weight: 650;
+}
+
+.slide .domanda .q::before {
+  content: "D ";
+  color: var(--accento);
+}
+
+.slide .domanda .r {
+  margin: 0;
+  color: var(--testo-tenue);
+}
+
+/* Schemi dentro le slide */
+.slide figure.schema {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.slide figure.schema svg {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.slide figure.schema figcaption {
+  padding-top: 6px;
+  font-size: 17px;
+  color: var(--testo-tenue);
+  text-align: center;
+}
+
+.slide .colonne > figure.schema {
+  align-self: stretch;
+  height: 100%;
+}
+
+.slide .colonne pre.codice:last-child,
+.slide .colonne table.tabella:last-child {
+  margin-bottom: 0;
+}
+
+/* Una slide poco piena tiene il contenuto al centro, tra il titolo e la riga della fonte.
+   Questa regola sta dopo gli elementi della slide perché deve vincere sui loro margini. */
+.slide:not(.titolo) > h2 + * {
+  margin-top: auto;
+}
+
+/* Le note non si vedono nella slide: le mostra slide.js sotto la slide o nel pannello. */
+aside.note {
+  display: none;
+}
+
+/* ───────────── Presentazione: una slide alla volta ───────────── */
+
+body.mazzo.pronto {
+  --barra: 46px;
+}
+
+body.mazzo.pronto:not(.elenco) {
+  height: 100vh;
+  overflow: hidden;
+}
+
+body.mazzo.pronto .cornice {
+  display: none;
+}
+
+body.mazzo.pronto .tela {
+  position: relative;
+}
+
+body.mazzo.pronto .slide {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  margin: 0;
+  transform: translate(-50%, -50%) scale(var(--scala, 1));
+}
+
+body.mazzo.pronto:not(.elenco) .cornice.attiva {
+  display: block;
+  position: fixed;
+  inset: 0 0 var(--barra) 0;
+}
+
+body.mazzo.pronto:not(.elenco) .cornice.attiva .tela {
+  position: absolute;
+  inset: 12px;
+}
+
+body.mazzo.pronto.intero {
+  --barra: 0px;
+}
+
+body.mazzo.pronto.intero:not(.elenco) .cornice.attiva .tela {
+  inset: 0;
+}
+
+body.mazzo.pronto.intero .slide {
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* Pannello delle note (tasto N) */
+body.mazzo.pronto.con-note:not(.elenco) .cornice.attiva:not(.senza-nota) .tela {
+  bottom: calc(24vh + 12px);
+}
+
+body.mazzo.pronto.con-note:not(.elenco) .cornice.attiva aside.note {
+  display: block;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 24vh;
+  overflow: auto;
+}
+
+aside.note {
+  padding: 12px 28px 14px;
+  background: var(--rilievo);
+  border-top: 3px solid var(--accento);
+  font-size: 18px;
+  line-height: 1.5;
+}
+
+aside.note::before {
+  content: "Da dire a voce";
+  display: block;
+  margin-bottom: 4px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--accento);
+}
+
+aside.note p {
+  margin: 0 0 8px;
+}
+
+/* Vista a elenco (tasto E): tutte le slide in colonna, con le note sotto */
+body.mazzo.pronto.elenco {
+  padding-bottom: calc(var(--barra) + 24px);
+}
+
+body.mazzo.pronto.elenco .cornice {
+  display: block;
+  width: min(100% - 32px, 1040px);
+  margin: 28px auto;
+  cursor: pointer;
+}
+
+body.mazzo.pronto.elenco .tela {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+}
+
+body.mazzo.pronto.elenco .cornice aside.note {
+  display: block;
+  margin-top: 10px;
+  border-radius: 0 0 10px 10px;
+  cursor: auto;
+}
+
+/* Barra dei comandi */
+.barra {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--barra);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  background: var(--superficie);
+  border-top: 1px solid var(--linea);
+  font-size: 14px;
+  z-index: 5;
+}
+
+body.intero .barra,
+body.intero .avanzamento {
+  display: none;
+}
+
+.barra .nome {
+  margin: 0 8px;
+  color: var(--testo-tenue);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.barra .spazio {
+  flex: 1;
+}
+
+.barra a,
+.barra button,
+.pulsante {
+  font: inherit;
+  height: 30px;
+  padding: 0 11px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--linea);
+  border-radius: 8px;
+  background: var(--rilievo);
+  color: var(--testo);
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.barra a:hover,
+.barra button:hover,
+.pulsante:hover {
+  border-color: var(--accento);
+}
+
+.barra button[aria-pressed="true"] {
+  background: var(--accento-fondo);
+  border-color: var(--accento);
+}
+
+.barra .freccia {
+  width: 36px;
+  justify-content: center;
+  font-size: 19px;
+  padding: 0;
+}
+
+.barra .contatore {
+  min-width: 62px;
+  text-align: center;
+  color: var(--testo-tenue);
+  font-variant-numeric: tabular-nums;
+}
+
+.avanzamento {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: var(--barra);
+  height: 3px;
+  background: var(--linea);
+  z-index: 5;
+}
+
+.avanzamento span {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--accento);
+  transition: width 0.2s;
+}
+
+/* ───────────── Schemi (SVG disegnati da schemi.js) ───────────── */
+
+svg.sch {
+  display: block;
+  max-width: 100%;
+  font-family: inherit;
+}
+
+.sch text {
+  fill: var(--testo);
+  font-size: 15px;
+}
+
+.sch .sch-t {
+  font-size: 18px;
+  font-weight: 650;
+}
+
+.sch .sch-s {
+  fill: var(--testo-tenue);
+}
+
+.sch .sch-mono {
+  font-family: "Cascadia Code", "Cascadia Mono", Consolas, "Courier New", monospace;
+  font-size: 14px;
+}
+
+.sch .sch-forma {
+  fill: var(--rilievo);
+  stroke: var(--testo-tenue);
+  stroke-width: 1.6;
+}
+
+.sch .sch-tratto {
+  fill: none;
+  stroke: var(--testo-tenue);
+  stroke-width: 1.6;
+}
+
+.sch .llm .sch-forma {
+  fill: var(--llm-fondo);
+  stroke: var(--llm);
+}
+
+.sch .llm .sch-tratto {
+  stroke: var(--llm);
+}
+
+.sch .esegue .sch-forma {
+  fill: var(--esegue-fondo);
+  stroke: var(--esegue);
+}
+
+.sch .esegue .sch-tratto {
+  stroke: var(--esegue);
+}
+
+.sch .dati .sch-forma {
+  fill: var(--dati-fondo);
+  stroke: var(--dati);
+}
+
+.sch .dati .sch-tratto {
+  stroke: var(--dati);
+}
+
+.sch .attenzione .sch-forma {
+  fill: var(--errore-fondo);
+  stroke: var(--errore);
+}
+
+.sch .esterno .sch-forma {
+  stroke-dasharray: 7 5;
+}
+
+.sch .piano .sch-forma {
+  fill: var(--superficie);
+}
+
+.sch .evidenza .sch-forma {
+  fill: var(--superficie);
+  stroke: var(--accento);
+  stroke-width: 2.8;
+}
+
+.sch .sch-freccia {
+  fill: none;
+  stroke: var(--testo-tenue);
+  stroke-width: 1.8;
+  stroke-linejoin: round;
+}
+
+.sch .sch-freccia.tratteggio {
+  stroke-dasharray: 7 5;
+}
+
+.sch .sch-freccia.sottile {
+  stroke-width: 1.1;
+  opacity: 0.75;
+}
+
+.sch .sch-freccia.evidenza {
+  stroke: var(--accento);
+  stroke-width: 2.8;
+}
+
+.sch .sch-punta {
+  fill: var(--testo-tenue);
+}
+
+.sch .sch-punta.evidenza {
+  fill: var(--accento);
+}
+
+.sch .sch-etichetta,
+.sch .sch-sep {
+  paint-order: stroke;
+  stroke: var(--superficie);
+  stroke-width: 7px;
+  stroke-linejoin: round;
+}
+
+.sch .sch-etichetta.evidenza {
+  fill: var(--accento);
+  font-weight: 650;
+}
+
+.sch .sch-gruppo {
+  fill: none;
+  stroke: var(--testo-tenue);
+  stroke-width: 1.2;
+  stroke-dasharray: 3 6;
+}
+
+.sch .sch-gruppo-t,
+.sch .sch-sep {
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  fill: var(--testo-tenue);
+}
+
+.sch .sch-vita {
+  stroke: var(--linea);
+  stroke-width: 1.6;
+  stroke-dasharray: 5 6;
+}
+
+.sch .sch-riga {
+  stroke: var(--linea);
+  stroke-width: 1.2;
+}
+
+.sch .sch-numero {
+  font-size: 13px;
+  font-weight: 700;
+  fill: var(--accento);
+}
+
+.sch .sch-cerchio {
+  fill: var(--accento-fondo);
+}
+
+/* ───────────── Pagine che scorrono: indice e atlante ───────────── */
+
+body.pagina {
+  line-height: 1.55;
+  font-size: 17px;
+}
+
+.pagina .testata {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px max(16px, calc((100% - 1120px) / 2));
+  background: var(--superficie);
+  border-bottom: 1px solid var(--linea);
+  font-size: 14px;
+}
+
+.pagina .testata .spazio {
+  flex: 1;
+}
+
+.pagina main {
+  max-width: 1152px;
+  margin: 0 auto;
+  padding: 36px 16px 90px;
+}
+
+.pagina h1 {
+  margin: 0 0 10px;
+  font-size: clamp(30px, 5vw, 46px);
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+.pagina .sommario {
+  max-width: 68ch;
+  margin: 0 0 30px;
+  font-size: 19px;
+  color: var(--testo-tenue);
+}
+
+.pagina h2 {
+  margin: 52px 0 8px;
+  font-size: 27px;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  scroll-margin-top: 70px;
+}
+
+.pagina h2 .n {
+  color: var(--accento);
+  font-variant-numeric: tabular-nums;
+  margin-right: 6px;
+}
+
+.pagina p {
+  max-width: 76ch;
+  margin: 0 0 12px;
+}
+
+.pagina .mazzi {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+  margin: 18px 0 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.pagina .mazzi a {
+  display: block;
+  height: 100%;
+  padding: 18px 20px;
+  background: var(--superficie);
+  border: 1px solid var(--linea);
+  border-top: 5px solid var(--accento);
+  border-radius: 14px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.pagina .mazzi a:hover {
+  border-color: var(--accento);
+  box-shadow: var(--ombra);
+}
+
+.pagina .mazzi .et {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--accento);
+}
+
+.pagina .mazzi strong {
+  display: block;
+  margin: 4px 0 6px;
+  font-size: 21px;
+  line-height: 1.2;
+}
+
+.pagina .mazzi span.d {
+  display: block;
+  font-size: 15px;
+  color: var(--testo-tenue);
+}
+
+.pagina table {
+  border-collapse: collapse;
+  margin: 12px 0 16px;
+  font-size: 16px;
+}
+
+.pagina .scorri {
+  overflow-x: auto;
+}
+
+.pagina th,
+.pagina td {
+  padding: 8px 18px 8px 0;
+  border-bottom: 1px solid var(--linea);
+  text-align: left;
+  vertical-align: top;
+}
+
+.pagina th {
+  font-size: 12.5px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--testo-tenue);
+}
+
+kbd {
+  display: inline-block;
+  min-width: 26px;
+  padding: 1px 7px;
+  border: 1px solid var(--linea);
+  border-bottom-width: 3px;
+  border-radius: 6px;
+  background: var(--superficie);
+  font-size: 13.5px;
+  text-align: center;
+}
+
+.pagina .indice-schemi {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 14.5px;
+}
+
+.pagina .indice-schemi a {
+  display: block;
+  padding: 4px 11px;
+  border: 1px solid var(--linea);
+  border-radius: 999px;
+  background: var(--superficie);
+  color: var(--testo);
+  text-decoration: none;
+}
+
+.pagina .indice-schemi a:hover {
+  border-color: var(--accento);
+}
+
+.pagina .legenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 15px;
+}
+
+.pagina .legenda li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pagina .legenda i {
+  width: 22px;
+  height: 16px;
+  border-radius: 4px;
+  border: 1.6px solid var(--testo-tenue);
+  background: var(--rilievo);
+}
+
+.pagina .legenda i.llm {
+  border-color: var(--llm);
+  background: var(--llm-fondo);
+}
+
+.pagina .legenda i.esegue {
+  border-color: var(--esegue);
+  background: var(--esegue-fondo);
+}
+
+.pagina .legenda i.dati {
+  border-color: var(--dati);
+  background: var(--dati-fondo);
+}
+
+.pagina .legenda i.attenzione {
+  border-color: var(--errore);
+  background: var(--errore-fondo);
+}
+
+.pagina .legenda i.esterno {
+  border-style: dashed;
+}
+
+.pagina .legenda i.evidenza {
+  border: 2.8px solid var(--accento);
+  background: var(--superficie);
+}
+
+.pagina figure.schema {
+  margin: 14px 0 10px;
+  padding: 18px;
+  background: var(--superficie);
+  border: 1px solid var(--linea);
+  border-radius: 14px;
+  overflow-x: auto;
+}
+
+.pagina figure.schema svg {
+  width: 100%;
+  height: auto;
+  min-width: 640px;
+}
+
+.pagina figure.schema.stretto svg {
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+.pagina .leggi {
+  font-size: 15px;
+  color: var(--testo-tenue);
+}
+
+/* ───────────── Stampa: una slide per pagina, in chiaro ───────────── */
+
+@media print {
+  /* Solo le presentazioni si stampano su pagine 16:9 senza margini: indice e atlante no. */
+  @page slide {
+    size: 1280px 720px;
+    margin: 0;
+  }
+
+  body.mazzo > .slide,
+  body.mazzo .cornice {
+    page: slide;
+  }
+
+  :root,
+  :root[data-tema="scuro"],
+  :root:not([data-tema="chiaro"]) {
+    color-scheme: light;
+    --fondo: #ffffff;
+    --superficie: #ffffff;
+    --rilievo: #eef3f0;
+    --testo: #2f3e3c;
+    --testo-tenue: #5f736e;
+    --linea: #d2ded9;
+    --accento: #2f8577;
+    --accento-fondo: #d9ece7;
+    --codice-fondo: #edf2ef;
+    --errore: #b3563d;
+    --errore-fondo: #f8ece7;
+    --evidenza: #f2e3c2;
+    --ombra: none;
+    --llm: #6f5fb0;
+    --llm-fondo: #ebe7f6;
+    --esegue: #2f8577;
+    --esegue-fondo: #dcefea;
+    --dati: #a2761c;
+    --dati-fondo: #f7edd3;
+  }
+
+  html,
+  body.mazzo.pronto,
+  body.mazzo.pronto:not(.elenco) {
+    height: auto;
+    overflow: visible;
+    padding: 0;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .barra,
+  .avanzamento {
+    display: none !important;
+  }
+
+  body.mazzo .cornice,
+  body.mazzo.pronto .cornice,
+  body.mazzo.pronto:not(.elenco) .cornice.attiva {
+    display: block;
+    position: static;
+    width: 1280px;
+    height: 720px;
+    margin: 0;
+    break-after: page;
+    break-inside: avoid;
+  }
+
+  body.mazzo.pronto .tela,
+  body.mazzo.pronto:not(.elenco) .cornice.attiva .tela {
+    position: static;
+    width: 1280px;
+    height: 720px;
+    aspect-ratio: auto;
+  }
+
+  body.mazzo .slide,
+  body.mazzo.pronto .slide {
+    position: relative;
+    left: auto;
+    top: auto;
+    margin: 0;
+    transform: none;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  body.mazzo aside.note,
+  body.mazzo.pronto.elenco .cornice aside.note,
+  body.mazzo.pronto.con-note:not(.elenco) .cornice.attiva aside.note {
+    display: none;
+  }
+}

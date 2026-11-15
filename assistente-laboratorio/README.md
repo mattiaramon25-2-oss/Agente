@@ -6,6 +6,8 @@ il nodo `strumenti` esegue lo strumento che il modello chiede, il nodo `limite` 
 dopo 3 giri di strumento. La cronologia resta in memoria per la sessione e si perde alla chiusura;
 le uniche informazioni che restano tra una sessione e l'altra sono le note (vedi sotto).
 
+> **Vuoi solo farlo partire?** La guida di una pagina è [AVVIO-RAPIDO.md](AVVIO-RAPIDO.md).
+
 Gli strumenti stanno in un **server MCP** («Strumenti laboratorio», scritto con FastMCP) che
 l'assistente avvia da solo, interroga con la discovery (`tools/list`) e spegne all'uscita:
 
@@ -671,7 +673,7 @@ infine il modello. Un errore di un livello basso non si risolve cambiando il mes
   | `docker compose up -d database` fallisce con `required variable … is missing a value` | Compose interpola tutto il file: nel `.env` servono anche `LMSTUDIO_BASE_URL_DOCKER`, `MCP_PORTA`, `VARIANTE_CALCOLATRICE`, `VARIANTE_SCADENZE` e `AGENTE_PORTA`, anche se il database non li usa |
   | `Il database PostgreSQL non risponde su 127.0.0.1:… (motivo)` all'avvio | il motivo tra parentesi dice che cosa è andato storto (anche nel log). Se è il container spento: `docker compose up -d database` e `docker compose ps` (deve essere `healthy`); controllare `POSTGRES_PORTA`; se il container non parte, `docker compose logs database` ne dice il motivo, per esempio la password mancante (comportamento dell'immagine ufficiale, non provato nel progetto) |
   | `503` «Il database non risponde: riprova tra poco.» durante l'uso | il container si è fermato: `docker compose up -d database`, il back-end non va riavviato |
-  | `password authentication failed` nel motivo dell'avvio, o nel messaggio | la password nel `.env` è diversa da quella con cui il volume è stato creato: PostgreSQL la legge solo alla prima creazione (comportamento generale, non provato nel progetto). Rimettere quella vecchia, oppure `docker compose down -v` (**cancella tutte le chat**) e ripartire |
+  | `password authentication failed` nel motivo dell'avvio, o nel messaggio | la password nel `.env` è diversa da quella con cui il volume è stato creato: PostgreSQL la legge solo alla prima creazione (osservato il 15 novembre 2026: `.env` cambiato a database già creato). Rimettere quella vecchia; oppure, con il database acceso, dargli quella nuova senza perdere le chat: `docker compose exec -T database psql -U assistente -d assistente -c "ALTER USER assistente WITH PASSWORD 'la-password-nuova';"` (risposta `ALTER ROLE`, provato il 15 novembre 2026); oppure `docker compose down -v` (**cancella tutte le chat**) e ripartire |
   | `GET /salute` con `"agente": "non raggiungibile"`, o `503` «L'agente non risponde su …» | avviare `python -m servizio_agente`; `AGENTE_PORTA` deve essere la stessa nei due programmi |
   | `503` «L'agente sta già rispondendo a un'altra chat: riprova tra poco.» | l'agente fa un turno alla volta: aspettare la fine dell'altro |
   | `409` «C'è già una risposta in corso in questa chat.» | un turno è già in corso nella stessa chat |

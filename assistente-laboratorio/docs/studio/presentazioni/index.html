@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Presentazioni e schemi · Assistente del laboratorio</title>
+  <link rel="stylesheet" href="stile.css">
+  <script src="slide.js"></script>
+</head>
+<body class="pagina">
+  <header class="testata">
+    <strong>Assistente del laboratorio</strong>
+    <span class="spazio"></span>
+    <button class="pulsante" type="button" data-azione="tema">Tema chiaro / scuro</button>
+  </header>
+
+  <main>
+    <h1>Presentazioni e schemi</h1>
+    <p class="sommario">Il progetto da vedere, oltre che da leggere: quattro presentazioni e un atlante di schemi. Funzionano senza Internet. I dettagli restano nei capitoli di studio.</p>
+
+    <h2>Le presentazioni</h2>
+    <ul class="mazzi">
+      <li><a href="progetto-in-15-minuti.html">
+        <span class="et">Per cominciare · 15 slide</span>
+        <strong>Tutto il progetto in 15 minuti</strong>
+        <span class="d">Che cos'è, com'è fatto, come si dimostra che funziona.</span>
+      </a></li>
+      <li><a href="lezione-4.html">
+        <span class="et">Lezione 4 · 16 slide</span>
+        <strong>L'assistente di base</strong>
+        <span class="d">Modello locale, tool calling, grafo LangGraph, avvio e Docker, test con il modello finto.</span>
+      </a></li>
+      <li><a href="lezione-5.html">
+        <span class="et">Lezione 5 · 20 slide</span>
+        <strong>Gli strumenti via MCP</strong>
+        <span class="d">Server MCP, discovery, dieci strumenti, tre varianti, log e diagnosi.</span>
+      </a></li>
+      <li><a href="lezione-6.html">
+        <span class="et">Lezione 6 · 21 slide</span>
+        <strong>Evolvere l'agente</strong>
+        <span class="d">Router, agente come servizio, back-end con PostgreSQL, chat nel browser.</span>
+      </a></li>
+    </ul>
+
+    <h2>Gli schemi</h2>
+    <ul class="mazzi">
+      <li><a href="atlante.html">
+        <span class="et">Una pagina · 18 schemi</span>
+        <strong>Atlante degli schemi</strong>
+        <span class="d">I pezzi, chi parla con chi, la strada di una domanda, dove restano i dati. Ogni schema ha la sua spiegazione e il capitolo dove approfondire.</span>
+      </a></li>
+    </ul>
+
+    <h2>I tasti delle presentazioni</h2>
+    <div class="scorri">
+      <table>
+        <thead>
+          <tr><th>Per</th><th>Tasti</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>andare avanti</td><td><kbd>→</kbd> <kbd>Spazio</kbd> <kbd>PagGiù</kbd></td></tr>
+          <tr><td>tornare indietro</td><td><kbd>←</kbd> <kbd>PagSu</kbd></td></tr>
+          <tr><td>prima e ultima slide</td><td><kbd>Home</kbd> <kbd>Fine</kbd></td></tr>
+          <tr><td>le note «Da dire a voce»</td><td><kbd>N</kbd></td></tr>
+          <tr><td>tutte le slide in elenco, con le note</td><td><kbd>E</kbd></td></tr>
+          <tr><td>schermo intero</td><td><kbd>F</kbd></td></tr>
+          <tr><td>tema chiaro o scuro</td><td><kbd>T</kbd></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Gli stessi comandi sono nei pulsanti in basso. Con <kbd>Ctrl</kbd> + <kbd>P</kbd> il browser stampa una slide per pagina: scegli «Salva come PDF» per avere il file.</p>
+
+    <h2>Come usarle per studiare</h2>
+    <ol>
+      <li><strong>Prima volta.</strong> Guarda «Tutto il progetto in 15 minuti» con le note aperte (<kbd>N</kbd>).</li>
+      <li><strong>Per ripassare.</strong> Apri l'elenco (<kbd>E</kbd>), copri le note e prova a dire a voce ogni slide. Poi confronta.</li>
+      <li><strong>Per capire un disegno.</strong> Cercalo nell'atlante: sotto c'è che cosa guardare.</li>
+      <li><strong>Per i dettagli.</strong> In basso a sinistra ogni slide indica il capitolo: i capitoli sono in <a href="../00-indice.md">docs/studio</a>.</li>
+    </ol>
+
+    <h2>Per far partire il progetto</h2>
+    <p>La guida di una pagina è <a href="../../../AVVIO-RAPIDO.md">AVVIO-RAPIDO.md</a>, nella cartella <code>assistente-laboratorio</code>.</p>
+
+    <p class="leggi">Stato del progetto: 12 novembre 2026. Fatti e numeri vengono dai capitoli di studio e dal codice. Per correggere uno schema si modifica <code>schemi.js</code>: atlante e presentazioni si aggiornano insieme.</p>
+  </main>
+</body>
+</html>

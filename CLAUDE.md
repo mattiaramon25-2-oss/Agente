@@ -17,7 +17,8 @@ Dentro `assistente-laboratorio/`:
 - `logs/`: `assistente.log`, `server_mcp.log`, `servizio_api.log` e `servizio_backend.log`, fuori da Git.
 - `archivio/`: `note.sqlite3`, l'archivio delle note persistenti, fuori da Git e dall'immagine Docker.
 - `tests/`: test automatici; `finti.py` contiene modello e strumenti finti; `reale.py` l'ambiente comune delle prove reali; `test_reale_*.py` sono le prove reali.
-- `docs/studio/`: documenti di studio per argomento, con indice per lezione in `00-indice.md`; ogni capitolo ha una «Scheda in 5 minuti» in cima e una «Scaletta per le slide» in fondo. Quando cambia il codice, si aggiornano anche i capitoli interessati.
+- `docs/studio/`: documenti di studio per argomento, con indice per lezione in `00-indice.md`; ogni capitolo ha una «Scheda in 5 minuti» in cima e una «Scaletta per le slide» in fondo. In `docs/studio/presentazioni/` le pagine HTML per studiare: quattro presentazioni (una per lezione più il riassunto), l'atlante degli schemi e i file comuni `stile.css`, `slide.js` e `schemi.js`, senza librerie e senza rete. Quando cambia il codice, si aggiornano anche i capitoli interessati e le slide e gli schemi che ne parlano.
+- `AVVIO-RAPIDO.md`: la guida di avvio di una pagina; riporta solo comandi verificati, come il README.
 - `docs/superpowers/`: specifiche, piani e checkpoint in `specs/`, `plans/` e `checkpoint/`, con un indice per lezione in `README.md`.
 - Dipendenze in `requirements.txt` (applicazione) e `requirements-dev.txt` (più pytest), versioni fissate.
 

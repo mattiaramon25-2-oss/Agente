@@ -88,4 +88,14 @@ Router, revisore e riassunto della cronologia, poi resource e prompt MCP, infine
 | Checkpoint | [2026-11-11-frontend.md](checkpoint/2026-11-11-frontend.md) | step 8 fatto: conversazione completa dal browser, errori mostrati, prove con Playwright e LM Studio |
 | Checkpoint | [2026-11-12-lezione-6-pausa.md](checkpoint/2026-11-12-lezione-6-pausa.md) | pausa dopo gli step 1, 6, 7 e 8 uniti in `main`: che cosa resta e che cosa non è verificato |
 
+### Avvio rapido e materiale di studio visuale (15 novembre)
+
+Non è uno step della lezione: è documentazione. Una guida di avvio di una pagina, quattro presentazioni HTML e un atlante di schemi in [`docs/studio/presentazioni/`](../studio/presentazioni/index.html).
+
+| Tipo | Documento | In una riga |
+|---|---|---|
+| Specifica | [2026-11-15-avvio-rapido-materiale-studio-design.md](specs/2026-11-15-avvio-rapido-materiale-studio-design.md) | guida di avvio, presentazioni HTML per lezione, atlante degli schemi; nessuna modifica al codice dell'applicazione |
+| Piano | [2026-11-15-avvio-rapido-materiale-studio.md](plans/2026-11-15-avvio-rapido-materiale-studio.md) | gli otto task, con la verifica nel browser |
+| Checkpoint | [2026-11-15-docs-avvio-studio.md](checkpoint/2026-11-15-docs-avvio-studio.md) | guida, quattro presentazioni e atlante fatti; password del database riallineata al `.env` |
+
 Specifica e piani degli step successivi arriveranno qui, con lo stesso schema: `specs/AAAA-MM-GG-<argomento>-design.md`, `plans/AAAA-MM-GG-<argomento>.md`, `checkpoint/AAAA-MM-GG-<passo>.md`.
