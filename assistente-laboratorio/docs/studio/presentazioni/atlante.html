@@ -116,7 +116,7 @@
     <section>
       <h2 id="processi"><span class="n">10</span> Chi avvia chi</h2>
       <figure class="schema stretto" data-schema="processi"></figure>
-      <p>LM Studio, la chat da terminale, il servizio dell'agente, il back-end e i due container li avvii tu: sei cose. Il server MCP no: lo avviano e lo spengono la chat da terminale e il servizio dell'agente, ciascuno il suo, sulla stessa porta. Per questo i due non si usano insieme: il secondo si ferma con <code>Porta … già in uso</code>. Con la variante <code>fastapi</code> avviano anche il servizio delle scadenze.</p>
+      <p>LM Studio, la chat da terminale, il servizio dell'agente, il back-end e i due container li avvii tu: sei cose. Il server MCP no: lo avviano e lo spengono la chat da terminale e il servizio dell'agente, ciascuno il suo, sulla stessa porta. Per questo i due non si usano insieme: il secondo si ferma con <code>Porta … già in uso</code>. Con la variante <code>fastapi</code> avviano anche il servizio delle scadenze. Il file <code>avvia-chat.cmd</code> avvia con un doppio clic i quattro pezzi della chat nel browser, e accende anche Docker e LM Studio se sono spenti.</p>
       <p class="leggi">Le porte sono quelle di <code>.env.example</code>. I comandi sono nella guida <a href="../../../AVVIO-RAPIDO.md">AVVIO-RAPIDO.md</a>. Approfondisci: <a href="../02-architettura.md">capitolo 02</a>, sezione 2.</p>
     </section>
 

@@ -98,4 +98,14 @@ Non è uno step della lezione: è documentazione. Una guida di avvio di una pagi
 | Piano | [2026-11-15-avvio-rapido-materiale-studio.md](plans/2026-11-15-avvio-rapido-materiale-studio.md) | gli otto task, con la verifica nel browser |
 | Checkpoint | [2026-11-15-docs-avvio-studio.md](checkpoint/2026-11-15-docs-avvio-studio.md) | guida, quattro presentazioni e atlante fatti; password del database riallineata al `.env` |
 
+### Avvio della chat con un doppio clic (15 novembre)
+
+Nemmeno questo è uno step della lezione, e non è lo step 9: un file `avvia-chat.cmd` e un piccolo programma, `python -m avvio_chat`, che accendono ciò che manca e aprono la chat nel browser.
+
+| Tipo | Documento | In una riga |
+|---|---|---|
+| Specifica | [2026-11-15-avvio-chat-doppio-clic-design.md](specs/2026-11-15-avvio-chat-doppio-clic-design.md) | un doppio clic accende Docker, LM Studio, container, agente e back-end e apre il browser; spegne solo ciò che ha avviato |
+| Piano | [2026-11-15-avvio-chat-doppio-clic.md](plans/2026-11-15-avvio-chat-doppio-clic.md) | i quattro task, con i test prima del codice e la prova reale |
+| Checkpoint | [2026-11-15-avvio-chat.md](checkpoint/2026-11-15-avvio-chat.md) | fatto e provato dal vero; la revisione ha fatto togliere un Job Object che avrebbe chiuso anche browser, Docker Desktop e LM Studio |
+
 Specifica e piani degli step successivi arriveranno qui, con lo stesso schema: `specs/AAAA-MM-GG-<argomento>-design.md`, `plans/AAAA-MM-GG-<argomento>.md`, `checkpoint/AAAA-MM-GG-<passo>.md`.

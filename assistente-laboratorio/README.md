@@ -41,7 +41,7 @@ Ogni chiamata eseguita con successo compare nel terminale con la sua origine, pe
 Struttura: `logica/` contiene la logica pura degli strumenti, scritta una volta sola e riusata da
 tutte le varianti; `server_mcp/` la registrazione MCP; `servizio_api/` il servizio FastAPI delle
 scadenze; `servizio_agente/` l'agente come servizio HTTP; `servizio_backend/` il back-end delle chat
-(progetti, chat e ricerca in PostgreSQL); `assistente/` l'agente (grafo, collegamento al modello, client MCP, varianti, avvio dei
+(progetti, chat e ricerca in PostgreSQL); `avvio_chat/` l'avvio di tutti i pezzi della chat con un doppio clic; `assistente/` l'agente (grafo, collegamento al modello, client MCP, varianti, avvio dei
 processi, terminale); `risorse/` i dati versionati (catalogo, festività); `archivio/` le note e
 `logs/` i log, entrambi fuori da Git.
 
@@ -257,7 +257,8 @@ con Docker è montata sull'host):
 - `logs/servizio_api.log` (solo con `VARIANTE_SCADENZE=fastapi`): avvio e arresto del servizio e
   ogni richiesta a `/scadenza` con argomenti ed esito;
 - `logs/servizio_backend.log` (solo con `python -m servizio_backend`): avvio e arresto, una riga per ogni
-  richiesta (metodo, percorso senza query string, esito, stato, durata) e una per ogni turno con `chat_id`, strumenti usati, `esito` e se il browser si è scollegato; mai il testo dei messaggi.
+  richiesta (metodo, percorso senza query string, esito, stato, durata) e una per ogni turno con `chat_id`, strumenti usati, `esito` e se il browser si è scollegato; mai il testo dei messaggi;
+- `logs/avvio_agente.log` e `logs/avvio_backend.log` (solo con `avvia-chat.cmd`): ciò che agente e back-end scrivono sul terminale quando li avvia il file del doppio clic; se uno dei due non parte, le ultime righe compaiono nell'errore.
 
 Il `call_id` del modello non arriva al server (l'identificativo del protocollo è un altro): le due
 tracce si confrontano per strumento, argomenti e ora. Una risposta plausibile senza la riga
@@ -440,7 +441,11 @@ container. Parla solo con il back-end: nginx inoltra le richieste `/api/...` al 
 sull'host, solo su `127.0.0.1`) togliendo il prefisso, senza buffering, così la risposta compare a pezzi.
 Il programma da terminale resta com'è.
 
-Servono quattro pezzi, in quattro terminali PowerShell, dalla cartella `assistente-laboratorio/` (con
+**Con un doppio clic.** Il file `avvia-chat.cmd` avvia da solo tutti i pezzi e apre il browser. Lancia `python -m avvio_chat`, che nell'ordine: controlla Docker (`docker info`) e, se è spento, lo accende con `docker desktop start`; controlla il server di LM Studio e, se è spento, lo accende con `lms server start`; accende i container con `docker compose up -d --wait database frontend`; avvia `python -m servizio_agente` e `python -m servizio_backend` se non rispondono già su `/salute`; apre `http://127.0.0.1:8780`. Poi la finestra resta aperta: scrivendo `esci` (o con `Ctrl+C`, o a fine input) spegne l'agente e il back-end che ha avviato, prima il back-end; i container restano accesi. Ciò che era già acceso non viene né riavviato né spento: con tutto acceso il file apre solo il browser. Se la finestra viene chiusa senza `esci`, Windows chiude i processi attaccati a quella console, quindi anche l'agente, il back-end e il server MCP; il browser, Docker Desktop e LM Studio restano accesi. Con `python -m avvio_chat --senza-browser` il browser non si apre. Il modello resta quello di `LMSTUDIO_MODEL`. Il `.env` viene letto senza copiarlo nell'ambiente: la password del database non passa ai programmi che il file lascia accesi.
+
+Provato il 15 novembre 2026: primo avvio con agente e back-end spenti (pronto in 16 secondi, `/salute` ok anche attraverso nginx, `esci` con codice 0 e porte libere); secondo avvio con tutto acceso. Docker spento e LM Studio spento sono provati solo dai test automatici, con comandi finti. La chiusura della finestra è provata da un test automatico, che chiude una console vera con il messaggio del pulsante X; un clic vero sulla X non è stato provato.
+
+A mano servono quattro pezzi, in tre terminali PowerShell (i due comandi `docker compose up -d` tornano subito al prompt), dalla cartella `assistente-laboratorio/` (con
 l'ambiente attivato; `.env` completo come per il back-end):
 
 ```powershell
@@ -694,6 +699,18 @@ infine il modello. Un errore di un livello basso non si risolve cambiando il mes
   | messaggio rosso «La risposta si è interrotta: il messaggio non è stato salvato.» | il flusso è caduto prima di `fine`: il back-end non ha salvato il turno, la domanda è tornata nella casella e si può rimandare. Cercare la causa in `logs/servizio_backend.log` |
   | «Errore inatteso del back-end (stato N).» | la risposta non era un JSON con `errore`: `logs/servizio_backend.log` e, per i `413`, la dimensione del messaggio (nginx accetta fino a 1 MB) |
   | «Installa questo sito come app» non compare | si usa un browser senza service worker (il browser incorporato di Claude): aprire `http://127.0.0.1:8780` in Edge |
+
+- **L'avvio con un doppio clic** (`avvia-chat.cmd`): ogni errore è una riga `Errore: …` e la finestra aspetta un tasto.
+
+  | Sintomo | Cosa controllare |
+  |---|---|
+  | `Manca l'ambiente virtuale .venv` | non sono stati fatti i passi di «Configurazione»: `python -m venv .venv` e `pip install` |
+  | `Docker non è installato o non è nel PATH` | installare Docker Desktop |
+  | `Docker Desktop non risponde dopo 180 secondi` | aprire Docker Desktop a mano, aspettare che sia pronto e riprovare |
+  | `LM Studio non risponde su … e il comando lms non c'è` oppure `… dopo 60 secondi` | aprire LM Studio, attivare il server e riprovare |
+  | `docker compose up non è riuscito per database e frontend` | le ultime righe di Compose sono nel messaggio: di solito una porta occupata o una variabile mancante nel `.env` |
+  | `La porta … (MCP_PORTA) è occupata ma il servizio dell'agente è spento` | è aperta la chat da terminale (`python -m assistente`): chiuderla e riprovare |
+  | `Il servizio dell'agente non è partito` oppure `Il back-end delle chat non è partito` | il messaggio riporta le ultime righe di `logs/avvio_agente.log` o `logs/avvio_backend.log`, cioè l'errore del servizio (per esempio la password del database) |
 
 - **Il meteo**: richiede l'accesso a Internet dal computer o dal container in cui gira il server.
   `Servizio meteo non disponibile` o `nessuna risposta entro 4 secondi` (per una fase della richiesta)

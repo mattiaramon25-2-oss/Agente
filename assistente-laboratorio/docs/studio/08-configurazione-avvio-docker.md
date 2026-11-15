@@ -18,6 +18,7 @@
 8. **Il servizio dell'agente ha un container suo** (10 novembre). Il servizio Compose `agente` usa la stessa immagine, avvia il suo server MCP e pubblica `AGENTE_PORTA` solo su `127.0.0.1` dell'host; dentro ascolta su `0.0.0.0` (`AGENTE_HOST`). Si avvia con `avvia-agente.ps1`. → sezione 7.9
 9. **Il database delle chat** (step 7). Il servizio Compose `database` è PostgreSQL 18 con il volume con nome `dati_postgres`, porta solo su `127.0.0.1`. Le variabili `POSTGRES_*` sono scritte senza `:?`, perché Compose controlla tutto il file e le altre prove non devono cambiare. → sezione 7.10
 10. **La chat nel browser** (step 8). Il servizio Compose `frontend` è nginx con i file compilati di `frontend/`, pubblicato su `127.0.0.1:${FRONTEND_PORTA:-8780}`; inoltra `/api` al back-end che gira sull'host. Anche qui niente `:?`. Dopo ogni modifica al front-end l'immagine si ricostruisce. → sezione 7.11
+11. **Tutti i pezzi con un doppio clic** (15 novembre). Il file `avvia-chat.cmd` lancia `python -m avvio_chat`: accende Docker Desktop e il server di LM Studio se sono spenti, i due container, l'agente e il back-end, poi apre il browser. Spegne solo ciò che ha avviato. Non è lo step 9: agente e back-end restano fuori da Docker. → sezione 7.12
 
 **Il quadro**
 
@@ -638,6 +639,7 @@ Tutti i comandi sono per PowerShell, dalla cartella `assistente-laboratorio/`, c
 | Docker con pipe tramite lo script | `avvia.ps1 -SenzaTty` | `… (host Windows)` | Usato dalla prova reale Docker. |
 | Docker senza lo script | `"Che ore sono?", "esci" \| docker compose run --rm -T assistente` | `Europe/Rome (FUSO_ORARIO)` | Se manca anche `FUSO_ORARIO`: UTC con avviso. |
 | Database delle chat | `docker compose up -d database`, poi `python -m servizio_backend` | — | PostgreSQL su `127.0.0.1:POSTGRES_PORTA`, back-end su `127.0.0.1:BACKEND_PORTA` (vedi [7.10](#710-il-database-delle-chat)). |
+| Chat nel browser, tutti i pezzi | doppio clic su `avvia-chat.cmd` (oppure `python -m avvio_chat`) | — | Accende ciò che manca e apre il browser; con `esci` spegne ciò che ha avviato (vedi [7.12](#712-un-doppio-clic-per-tutti-i-pezzi-avvia-chatcmd)). |
 | Docker, servizio dell'agente | `.\avvia-agente.ps1` (oppure `docker compose up --build agente`) | `… (host Windows)` (senza lo script: `FUSO_ORARIO`) | HTTP su `http://127.0.0.1:8767`; Ctrl+C ferma il container in modo ordinato (vedi [7.9](#79-il-servizio-dellagente-in-docker)). |
 | Docker con varianti | `"Che tempo fa a Udine?", "esci" \| docker compose run --rm -T -e VARIANTE_SCADENZE=fastapi -e API_PORTA=8766 -e VARIANTE_CALCOLATRICE=locale assistente` | `Europe/Rome (FUSO_ORARIO)` | Varianti forzate senza cambiare il `.env` (vedi [7.7](#77-le-varianti-nel-container-con--e)). |
 
@@ -997,6 +999,34 @@ Nella configurazione di questo step back-end e agente girano con `python -m`; in
 database e il front-end. Il servizio Compose `agente` (sezione 7.9) esiste, ma è facoltativo e qui non
 si usa: il back-end parla con l'agente avviato con `python -m servizio_agente`. Lo step 9 porterà tutti i
 pezzi in container.
+
+### 7.12 Un doppio clic per tutti i pezzi: `avvia-chat.cmd`
+
+Dal 15 novembre i quattro pezzi della sezione 7.11 si avviano anche con un doppio clic sul file `avvia-chat.cmd`. Non è lo step 9: l'agente e il back-end restano programmi Python sul computer. Il file li avvia soltanto, insieme ai due container, e apre il browser.
+
+Il file `.cmd` ha poche righe: va nella sua cartella, controlla che `.venv` esista e lancia `python -m avvio_chat`. La logica sta nel pacchetto `avvio_chat/`:
+
+| File | Che cosa fa |
+|---|---|
+| `avvio_chat/passi.py` | i passi, uno per funzione: `assicura_docker`, `assicura_lmstudio`, `assicura_container`, `servizio`, `avvia_chat` |
+| `avvio_chat/__main__.py` | legge il `.env` senza copiarlo nell'ambiente, chiama `avvia_chat`, traduce gli errori in `Errore: …` e nel codice di uscita |
+
+I passi, nell'ordine:
+
+1. **Docker.** `docker info` riesce? Se no, `docker desktop start`, poi si riprova per al massimo 180 secondi.
+2. **LM Studio.** Il server risponde a `GET /v1/models`? Se no, `lms server start`, poi si riprova per al massimo 60 secondi. Il modello resta quello del `.env`: se manca dall'elenco, l'errore è quello di `verifica_server`.
+3. **Container.** `docker compose up -d --wait database frontend`, con un'attesa fino a 600 secondi: la prima volta l'immagine della pagina va costruita.
+4. **Agente.** Se `/salute` risponde, è già acceso e non viene toccato. Altrimenti parte con `processo_in_attesa` (`assistente/avvio_server.py`), la stessa funzione che avvia il server MCP: avvia, aspetta che risponda davvero e all'uscita spegne.
+5. **Back-end.** Come l'agente.
+6. **Browser.** Si apre `http://127.0.0.1:<FRONTEND_PORTA>`.
+
+Tre idee da ricordare:
+
+- **Le dipendenze sono parametri.** Ogni passo riceve come parametri ciò che tocca il mondo esterno: l'esecuzione dei comandi, le richieste HTTP, l'orologio. Così i test li provano con comandi finti, senza Docker e senza LM Studio (`tests/test_avvio_chat.py`). È lo stesso principio del [capitolo 09](09-test-e-verifiche.md).
+- **Si spegne solo ciò che si è avviato.** I servizi stanno in un `ExitStack`: con `esci`, con Ctrl+C o a fine input si spengono in ordine inverso, prima il back-end e poi l'agente. Un servizio che era già acceso resta acceso, e così i container.
+- **Chiudere la finestra spegne i servizi, e solo quelli.** Chi chiude la finestra con la X non passa da `esci`. Windows però avvisa tutti i processi attaccati a quella console e li chiude: l'agente, il back-end e il server MCP lo sono, perché partono nella stessa finestra. Il browser, Docker Desktop e LM Studio no, e restano accesi. Un primo tentativo usava un Job Object, che chiude tutti i discendenti del programma: la revisione l'ha fatto togliere, perché avrebbe chiuso anche il browser e i programmi accesi dal file.
+
+Provato il 15 novembre 2026: primo avvio con agente e back-end spenti (pronto in 16 secondi, `/salute` ok anche attraverso nginx, `esci` con codice 0 e porte libere); secondo avvio con tutto acceso (nessun processo avviato, codice 0). I passi «Docker spento» e «LM Studio spento» sono provati solo con i test automatici. La chiusura della finestra è provata da un test automatico, che avvia un servizio in una console vera e la chiude con il messaggio del pulsante X; un clic vero sulla X non è stato provato.
 
 ## 8. Arresto ordinato e segnali
 
