@@ -4,12 +4,38 @@ Una pagina per far partire l'assistente del laboratorio. I dettagli e tutti i ca
 
 Tutti i comandi si scrivono in **PowerShell**, dalla cartella `assistente-laboratorio`.
 
+## Il modo più semplice: un doppio clic
+
+Fai doppio clic su **`avvia-chat.cmd`**, nella cartella `assistente-laboratorio`. Si apre una finestra che accende ciò che manca e poi apre la chat nel browser:
+
+```text
+Assistente del laboratorio · avvio della chat
+[1/5] Docker: acceso
+[2/5] LM Studio: risponde, modello google/gemma-4-e2b presente
+      Accendo database e pagina (la prima volta ci vuole qualche minuto)...
+[3/5] Database e pagina: accesi
+      Avvio il servizio dell'agente...
+[4/5] Agente: pronto su http://127.0.0.1:8767
+      Avvio il back-end delle chat...
+[5/5] Back-end: pronto su http://127.0.0.1:8768
+Apro http://127.0.0.1:8780
+La chat è accesa. Per spegnerla scrivi «esci» e premi Invio, oppure chiudi questa finestra.
+```
+
+- **Accende da solo ciò che è spento:** Docker Desktop, il server di LM Studio, il database, la pagina, l'agente e il back-end.
+- **Per spegnere:** scrivi `esci` nella finestra e premi Invio. Si spengono l'agente e il back-end; il database e la pagina restano accesi in Docker.
+- **Se chiudi la finestra** senza scrivere `esci`, Windows chiude comunque l'agente e il back-end. Il browser, Docker Desktop e LM Studio restano aperti.
+- **Se è già tutto acceso**, il doppio clic apre solo il browser.
+- **Prima serve** aver fatto una volta i passi di «La prima volta», più sotto.
+
+Il resto di questa pagina spiega gli stessi passi fatti a mano, e gli altri due modi di usare l'assistente.
+
 ## Scegli come usarlo
 
 | Modo | Che cosa ottieni | Che cosa deve essere acceso | Comandi |
 |---|---|---|---|
 | **A · Chat da terminale** | la chat nella finestra di PowerShell | LM Studio | 1 |
-| **B · Chat nel browser** | la chat in una pagina web, con le conversazioni salvate | LM Studio e Docker Desktop | 4, in 3 terminali |
+| **B · Chat nel browser** | la chat in una pagina web, con le conversazioni salvate | LM Studio e Docker Desktop | un doppio clic, oppure 4 a mano |
 | **C · Terminale in Docker** | come A, ma dentro un container | LM Studio e Docker Desktop | 2 |
 
 Se vuoi solo provarlo, parti da **A**.
@@ -74,6 +100,8 @@ Prova con `che ore sono a Tokyo?`. Prima della risposta compare la riga dello st
 ---
 
 ## B · Chat nel browser
+
+Il doppio clic su `avvia-chat.cmd` fa da solo tutti i passi di questa sezione. Qui c'è la versione a mano.
 
 I pezzi da avviare sono quattro. Ognuno parla solo con il vicino:
 
@@ -147,6 +175,9 @@ La chat è la stessa del modo A, ma gira in un container. LM Studio resta sul co
 | `Porta … già in uso` oppure `La porta … è occupata` | un altro programma, o un avvio precedente rimasto acceso, usa quella porta: chiudilo o cambia la porta nel `.env`. Succede anche se provi il modo A con il servizio dell'agente del modo B acceso: usane uno alla volta |
 | `Il database PostgreSQL non risponde su 127.0.0.1:…` | il database è spento: `docker compose up -d database` |
 | lo stesso messaggio, con `password authentication failed` | la password nel `.env` è diversa da quella con cui il database è stato creato. Rimetti quella vecchia, oppure dai al database quella nuova (vedi sotto): in tutti e due i casi le chat restano. `docker compose down -v` invece **cancella tutte le chat** |
+| `La porta … (MCP_PORTA) è occupata ma il servizio dell'agente è spento` | è aperta la chat da terminale (modo A): chiudila e rifai il doppio clic |
+| `Docker Desktop non risponde dopo 180 secondi` | apri Docker Desktop a mano, aspetta che sia pronto e rifai il doppio clic |
+| `LM Studio non risponde su … dopo 60 secondi` | apri LM Studio, attiva il server e rifai il doppio clic |
 | striscia rossa «Il back-end non risponde: avvialo con python -m servizio_backend.» | il back-end è spento: avvialo (comando 3). La striscia sparisce da sola |
 | `required variable … is missing a value` | Docker Compose non trova una variabile: aggiungila al `.env` come in `.env.example` |
 | `.\avvia.ps1` non può essere eseguito perché l'esecuzione di script è disabilitata | `powershell -NoProfile -ExecutionPolicy Bypass -File .\avvia.ps1` |
@@ -170,4 +201,4 @@ Per tutto il resto: sezione «Diagnosi» del [README](README.md#diagnosi).
 
 ---
 
-*Comandi presi dal README. Rieseguiti il 15 novembre 2026: l'avvio e l'uscita del modo A; nel modo B il servizio dell'agente e il back-end, con `/salute` che risponde `ok` sia direttamente sia attraverso nginx (`http://127.0.0.1:8780/api/salute`), con database e `frontend` già accesi; il cambio della password del database, dopo il quale le chat c'erano ancora; il modo A con il servizio dell'agente acceso, che si ferma con `Porta 8765 già in uso`. Non rieseguiti il 15 novembre: una conversazione completa con il modello, i comandi 1 e 4 del modo B (i due container erano già accesi) e il modo C. Per il modo C il README segnala che l'avvio con la tastiera va ancora confermato: finora è stato provato con l'ingresso da una pipe.*
+*Comandi presi dal README. Rieseguiti il 15 novembre 2026: l'avvio e l'uscita del modo A; nel modo B il servizio dell'agente e il back-end, con `/salute` che risponde `ok` sia direttamente sia attraverso nginx (`http://127.0.0.1:8780/api/salute`), con database e `frontend` già accesi; il cambio della password del database, dopo il quale le chat c'erano ancora; il modo A con il servizio dell'agente acceso, che si ferma con `Porta 8765 già in uso`. Non rieseguiti il 15 novembre: una conversazione completa con il modello, i comandi 1 e 4 del modo B (i due container erano già accesi) e il modo C. Per il modo C il README segnala che l'avvio con la tastiera va ancora confermato: finora è stato provato con l'ingresso da una pipe. Il file `avvia-chat.cmd` è stato provato il 15 novembre 2026: primo avvio completo, secondo avvio con tutto acceso, spegnimento con `esci`. La chiusura della finestra è provata da un test automatico, che chiude una console vera come fa il pulsante X. Non provati dal vivo: Docker spento, LM Studio spento e un clic vero sulla X.*

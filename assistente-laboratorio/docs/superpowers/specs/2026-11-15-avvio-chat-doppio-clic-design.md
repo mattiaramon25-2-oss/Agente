@@ -51,6 +51,7 @@ L'utente vuole avviare la chat nel browser con un solo gesto: doppio clic su un 
 | `avvio_chat/__main__.py` | legge il `.env`, costruisce le dipendenze vere, chiama `avvia_chat`, traduce gli errori in `Errore: …` e nel codice di uscita |
 | `avvio_chat/passi.py` | i passi, uno per funzione, con le dipendenze passate come parametri |
 | `tests/test_avvio_chat.py`, `tests/servizio_salute_finto.py` | test automatici, senza Docker e senza LM Studio |
+| `.gitattributes` | `*.cmd text eol=crlf`: il file del doppio clic ha sempre la fine riga di Windows |
 
 ### I passi
 
@@ -70,12 +71,17 @@ Se agente e back-end erano già accesi tutti e due, il file apre il browser ed e
 Assistente del laboratorio · avvio della chat
 [1/5] Docker: acceso
 [2/5] LM Studio: risponde, modello google/gemma-4-e2b presente
+      Accendo database e pagina (la prima volta ci vuole qualche minuto)...
 [3/5] Database e pagina: accesi
+      Avvio il servizio dell'agente...
 [4/5] Agente: pronto su http://127.0.0.1:8767
+      Avvio il back-end delle chat...
 [5/5] Back-end: pronto su http://127.0.0.1:8768
 Apro http://127.0.0.1:8780
 La chat è accesa. Per spegnerla scrivi «esci» e premi Invio, oppure chiudi questa finestra.
 ```
+
+Le righe rientrate compaiono solo quando c'è qualcosa da accendere; quella dei container compare sempre.
 
 ### Errori
 
@@ -107,6 +113,7 @@ L'uscita di agente e back-end va in `logs/avvio_agente.log` e `logs/avvio_backen
 - Test automatici con comandi e servizi finti: ogni passo, il riuso di ciò che è già acceso, l'arresto in ordine inverso, nessun processo rimasto, i codici di uscita. La suite resta verde.
 - Prova reale, a mano e riportata nel checkpoint: `avvia-chat.cmd` con tutto il resto spento salvo Docker e LM Studio; secondo avvio con tutto acceso; `esci`; chiusura della finestra con la X, con il controllo che le porte dell'agente, del back-end e del server MCP siano libere.
 - Se alla chiusura con la X resta un processo, si aggiunge un gestore della chiusura della console e si riprova.
+- **Aggiornamento del 15 novembre, durante la costruzione.** Il gestore della console non è servito. Chiudendo la finestra, Windows chiude da sé i processi attaccati a quella console, cioè agente, back-end e server MCP: lo prova un test automatico, che avvia un servizio in una console vera e la chiude con il messaggio del pulsante X. Un Job Object di Windows, provato per primo, è stato tolto dopo la revisione: chiude tutti i discendenti del programma, quindi avrebbe chiuso anche il browser, Docker Desktop e LM Studio avviati dal file.
 - I passi «Docker spento» e «LM Studio spento» si provano solo con i test automatici: per provarli dal vivo andrebbero spenti i programmi dell'utente.
 
 ## Lasciato a chi costruisce
