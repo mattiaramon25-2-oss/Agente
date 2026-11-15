@@ -1,11 +1,16 @@
 """Avvio della chat con un doppio clic: i passi di avvio_chat, senza Docker e senza LM Studio."""
 
+import ctypes
 import io
+import os
+import shutil
 import socket
 import subprocess
 import sys
+import threading
 import time
 from contextlib import contextmanager
+from ctypes import wintypes
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -149,10 +154,11 @@ def test_docker_spento_lo_avvia_e_aspetta():
 
 def test_docker_che_non_parte():
     tempo = Tempo()
-    esegui = EseguiFinto({DOCKER_INFO: [Esito(1, "errore")], DOCKER_AVVIO: [Esito(0, "")]})
+    esegui = EseguiFinto({DOCKER_INFO: [Esito(1, "errore")], DOCKER_AVVIO: [Esito(1, "riga inutile\nlicenza non accettata\n")]})
     with pytest.raises(ErroreAvvio) as errore:
         passi.assicura_docker(esegui, Righe(), pausa=tempo.pausa, orologio=tempo.orologio)
     assert "Docker Desktop non risponde" in str(errore.value) and "180" in str(errore.value)
+    assert "docker desktop start" in str(errore.value) and "licenza non accettata" in str(errore.value)
     assert tempo.adesso >= passi.ATTESA_DOCKER
 
 
@@ -208,13 +214,14 @@ def test_lmstudio_spento_senza_lms():
 
 def test_lmstudio_che_non_parte():
     tempo = Tempo()
-    esegui = EseguiFinto({("lms-finto",): [Esito(0, "")]})
+    esegui = EseguiFinto({("lms-finto",): [Esito(1, "porta 1234 occupata\n")]})
     with pytest.raises(ErroreAvvio) as errore:
         passi.assicura_lmstudio(
             impostazioni(), esegui, Righe(), risponde=lambda url: False, verifica=lambda *a: None, lms=lambda: "lms-finto",
             pausa=tempo.pausa, orologio=tempo.orologio,
         )
     assert "LM Studio non risponde" in str(errore.value) and "60" in str(errore.value)
+    assert "lms server start" in str(errore.value) and "porta 1234 occupata" in str(errore.value)
 
 
 def test_modello_mancante_non_tocca_lms():
@@ -457,7 +464,7 @@ def test_backend_che_non_parte_spegne_l_agente(scena, popen_registrati):
 
 @pytest.fixture
 def ambiente(monkeypatch):
-    monkeypatch.setattr(principale, "load_dotenv", lambda **k: None)  # niente .env reale
+    monkeypatch.setattr(principale, "dotenv_values", lambda *a, **k: {})  # niente .env reale
     for nome, valore in ENV.items():
         monkeypatch.setenv(nome, valore)
     monkeypatch.delenv("FRONTEND_PORTA", raising=False)
@@ -503,44 +510,132 @@ def test_main_ctrl_c_durante_l_avvio(ambiente, monkeypatch):
     assert principale.main([], io.StringIO("")) == 0
 
 
-# --- Nessun processo orfano, anche se il programma viene chiuso di colpo ---
+# --- Chiusura: i servizi si spengono, il resto resta acceso ---
 
 
-@pytest.mark.skipif(sys.platform != "win32", reason="i Job Object esistono solo su Windows")
-def test_se_il_programma_muore_muoiono_anche_i_figli(porta):
-    """Chiudere la finestra uccide il programma senza passare da «esci»: i figli non devono restare accesi."""
-    figlio = comando_finto(porta) + ["--durata", "40"]  # se la prova fallisce, il figlio non resta orfano a lungo
+def attendi(condizione, secondi: float, messaggio: str) -> None:
+    scadenza = time.monotonic() + secondi
+    while not condizione():
+        assert time.monotonic() < scadenza, messaggio
+        time.sleep(0.2)
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="la console di Windows")
+def test_chiudere_la_finestra_spegne_i_servizi(tmp_path):
+    """La X della finestra non passa da «esci»: Windows avvisa i processi attaccati alla console e li chiude.
+
+    Il servizio parte come nel programma vero (passi.servizio, quindi processo_in_attesa) dentro una console
+    classica nascosta; poi la console riceve WM_CLOSE, cioè quello che manda il pulsante X.
+    """
+    (porta,) = porte_libere(1)
+    titolo = f"prova-avvio-chat-{os.getpid()}-{porta}"
     codice = (
-        "import subprocess, sys, time\n"
-        "from avvio_chat.vita import lega_i_figli\n"
-        "print(lega_i_figli() is not None, flush=True)\n"
-        f"subprocess.Popen({figlio!r})\n"
-        "time.sleep(120)\n"
+        "import ctypes, sys, time\n"
+        "from pathlib import Path\n"
+        "from avvio_chat import passi\n"
+        f"ctypes.windll.kernel32.SetConsoleTitleW({titolo!r})\n"
+        f"comando = {comando_finto(porta) + ['--durata', '60']!r}\n"
+        f"with passi.servizio('servizio finto', comando, {porta}, 'PORTA_FINTA', Path({str(tmp_path / 's.log')!r}), print):\n"
+        "    time.sleep(120)\n"
     )
-    genitore = subprocess.Popen([sys.executable, "-c", codice], cwd=FILE_CMD.parent, stdout=subprocess.PIPE, text=True)
+    nascosta = subprocess.STARTUPINFO()
+    nascosta.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    nascosta.wShowWindow = 0  # SW_HIDE: la finestra esiste ma non compare sullo schermo
+    console = subprocess.Popen(["conhost.exe", sys.executable, "-c", codice], cwd=FILE_CMD.parent, startupinfo=nascosta)
     try:
-        assert genitore.stdout.readline().strip() == "True"  # il legame è riuscito
-        scadenza = time.monotonic() + 15
-        while not passi._in_ascolto(porta):
-            assert time.monotonic() < scadenza, "il figlio non è partito"
-            time.sleep(0.1)
-        genitore.kill()  # come la X della finestra: nessuna occasione di spegnere con ordine
-        genitore.wait()
-        scadenza = time.monotonic() + 8
-        while passi._in_ascolto(porta) and time.monotonic() < scadenza:
-            time.sleep(0.2)
-        assert not passi._in_ascolto(porta), "il figlio è rimasto acceso dopo la morte del programma"
+        attendi(lambda: passi._in_ascolto(porta), 30, "il servizio non è partito")
+        user32 = ctypes.WinDLL("user32", use_last_error=True)
+        user32.FindWindowW.restype = wintypes.HWND
+        user32.FindWindowW.argtypes = [wintypes.LPCWSTR, wintypes.LPCWSTR]
+        user32.PostMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+        attendi(lambda: bool(user32.FindWindowW(None, titolo)), 10, "la finestra della console non si trova")
+        assert user32.PostMessageW(user32.FindWindowW(None, titolo), 0x0010, 0, 0)  # WM_CLOSE
+        attendi(lambda: not passi._in_ascolto(porta), 15, "il servizio è rimasto acceso dopo la chiusura della finestra")
     finally:
-        if genitore.poll() is None:
-            genitore.kill()
-            genitore.wait()
+        try:
+            console.wait(10)
+        except subprocess.TimeoutExpired:
+            console.kill()
 
 
-def test_main_non_lega_i_figli_quando_viene_importato():
-    """Il legame si fa solo quando il modulo è il programma: dentro pytest legherebbe tutte le prove."""
-    sorgente = Path(principale.__file__).read_text(encoding="utf-8")
-    dopo_il_main = sorgente.split('if __name__ == "__main__":')[1]
-    assert "lega_i_figli()" in dopo_il_main and "lega_i_figli()" not in sorgente.split('if __name__ == "__main__":')[0]
+def test_il_programma_non_uccide_cio_che_lascia_acceso():
+    """Browser, Docker Desktop e LM Studio può avviarli il programma, ma gli devono sopravvivere.
+
+    Il programma vero (il blocco `if __name__ == "__main__"` di avvio_chat) avvia un processo finto, come
+    avvierebbe quelli, ed esce. Il processo deve rispondere ancora: un Job Object con «chiudi tutto alla
+    chiusura» in cui entra il programma lo ucciderebbe.
+    """
+    (porta,) = porte_libere(1)
+    lasciato = comando_finto(porta) + ["--durata", "30"]  # si spegne da solo: nessun orfano dopo la prova
+    codice = (
+        "import runpy, subprocess, sys, time\n"
+        "import dotenv\n"
+        "from avvio_chat import passi\n"
+        "dotenv.dotenv_values = lambda *a, **k: {}\n"
+        "dotenv.load_dotenv = lambda *a, **k: None\n"
+        "def finta(imp, ingresso, scrivi, **opzioni):\n"
+        f"    subprocess.Popen({lasciato!r})\n"
+        f"    while not passi._in_ascolto({porta}):\n"
+        "        time.sleep(0.1)\n"
+        "    return 0\n"
+        "passi.avvia_chat = finta\n"
+        "sys.argv = ['avvio_chat']\n"
+        "runpy.run_module('avvio_chat', run_name='__main__')\n"
+    )
+    programma = subprocess.run([sys.executable, "-c", codice], cwd=FILE_CMD.parent, env={**os.environ, **ENV}, timeout=60)
+    assert programma.returncode == 0
+    time.sleep(1.5)  # se qualcosa lo uccidesse alla fine del programma, a questo punto sarebbe già morto
+    assert passi._in_ascolto(porta), "il processo lasciato acceso è morto insieme al programma"
+
+
+def test_main_non_mette_la_password_nell_ambiente(monkeypatch):
+    """Le impostazioni vengono dal .env, ma la password non deve passare ai programmi che restano accesi."""
+    monkeypatch.setattr(principale, "dotenv_values", lambda *a, **k: {**ENV, "VUOTA": None})
+    for nome in ENV:
+        monkeypatch.delenv(nome, raising=False)
+    ricevute = []
+    monkeypatch.setattr(principale, "avvia_chat", lambda imp, ingresso, scrivi, **opzioni: ricevute.append(imp) or 0)
+    assert principale.main([], io.StringIO("")) == 0
+    assert ricevute[0].porta_backend == 8768
+    assert "POSTGRES_PASSWORD" not in os.environ
+
+
+def test_main_l_ambiente_vince_sul_file(monkeypatch):
+    monkeypatch.setattr(principale, "dotenv_values", lambda *a, **k: {**ENV, "FRONTEND_PORTA": "8790"})
+    for nome in ENV:
+        monkeypatch.delenv(nome, raising=False)
+    monkeypatch.setenv("FRONTEND_PORTA", "8791")
+    ricevute = []
+    monkeypatch.setattr(principale, "avvia_chat", lambda imp, ingresso, scrivi, **opzioni: ricevute.append(imp) or 0)
+    assert principale.main([], io.StringIO("")) == 0
+    assert ricevute[0].url_chat == "http://127.0.0.1:8791"
+
+
+def test_lmstudio_risponde_falso_se_non_e_http():
+    """Se sulla porta risponde qualcosa che non parla HTTP, niente traceback: semplicemente non è LM Studio."""
+    with socket.socket() as ascolto:
+        ascolto.bind(("127.0.0.1", 0))
+        ascolto.listen()
+        porta = ascolto.getsockname()[1]
+
+        def rispondi():
+            connessione, _ = ascolto.accept()
+            with connessione:
+                connessione.recv(1024)
+                connessione.sendall(b"questo non e' HTTP\r\n\r\n")
+
+        threading.Thread(target=rispondi, daemon=True).start()
+        assert passi.lmstudio_risponde(f"http://127.0.0.1:{porta}/v1", limite=3.0) is False
+
+
+def test_esegui_comando_non_aspetta_i_programmi_lasciati_accesi():
+    """`docker desktop start` e `lms server start` lasciano acceso un programma che eredita l'uscita:
+    leggendo da una pipe, il comando sembrerebbe finire solo quando quel programma si chiude."""
+    codice = "import subprocess, sys; subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(6)']); print('avviato')"
+    inizio = time.monotonic()
+    esito = passi.esegui_comando([sys.executable, "-c", codice], 20.0)
+    assert esito == Esito(0, "avviato\n")
+    assert time.monotonic() - inizio < 4
 
 
 # --- Il file del doppio clic ---
@@ -556,14 +651,37 @@ def test_cmd_solo_ascii_e_crlf():
     assert all(riga.endswith(b"\r") for riga in righe[:-1])
 
 
-def test_cmd_controlla_la_venv():
-    testo = FILE_CMD.read_text(encoding="ascii")
-    assert 'if not exist ".venv\\Scripts\\python.exe"' in testo
-    assert "pause" in testo and "AVVIO-RAPIDO.md" in testo
-
-
 def test_cmd_lancia_il_modulo():
     testo = FILE_CMD.read_text(encoding="ascii")
     assert 'cd /d "%~dp0"' in testo  # funziona da qualunque cartella, anche con spazi nel percorso
     assert '".venv\\Scripts\\python.exe" -m avvio_chat %*' in testo
-    assert "if errorlevel 1 pause" in testo  # dopo un errore la finestra resta aperta
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="file per Windows")
+def test_cmd_senza_venv_spiega_ed_esce_con_1(tmp_path):
+    cartella = tmp_path / "cartella con spazi"
+    cartella.mkdir()
+    shutil.copy(FILE_CMD, cartella / "avvia-chat.cmd")
+    fatto = subprocess.run(
+        ["cmd", "/c", str(cartella / "avvia-chat.cmd")], stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=30
+    )
+    assert fatto.returncode == 1
+    assert "Manca l'ambiente virtuale .venv" in fatto.stdout and "AVVIO-RAPIDO.md" in fatto.stdout
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="file per Windows")
+def test_cmd_dopo_un_errore_aspetta_un_tasto_e_conserva_il_codice(tmp_path):
+    """Con un ambiente virtuale vero ma senza il progetto, Python esce con un errore: la finestra deve
+    aspettare un tasto (qui l'ingresso è vuoto, quindi prosegue) e il file deve uscire con lo stesso codice."""
+    cartella = tmp_path / "copia"
+    (cartella / ".venv" / "Scripts").mkdir(parents=True)
+    shutil.copy(FILE_CMD, cartella / "avvia-chat.cmd")
+    ambiente_vero = Path(sys.executable).parent.parent
+    shutil.copy(ambiente_vero / "pyvenv.cfg", cartella / ".venv" / "pyvenv.cfg")
+    shutil.copy(sys.executable, cartella / ".venv" / "Scripts" / "python.exe")
+    fatto = subprocess.run(
+        ["cmd", "/c", str(cartella / "avvia-chat.cmd")], stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=60
+    )
+    assert "No module named avvio_chat" in fatto.stderr  # l'errore di Python resta visibile nella finestra
+    assert "Press any key" in fatto.stdout or "Premere un tasto" in fatto.stdout  # la pausa c'è stata
+    assert fatto.returncode == 1  # e il codice del programma non va perso

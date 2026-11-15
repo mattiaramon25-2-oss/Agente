@@ -8,4 +8,7 @@ if not exist ".venv\Scripts\python.exe" (
   exit /b 1
 )
 ".venv\Scripts\python.exe" -m avvio_chat %*
-if errorlevel 1 pause
+rem Dopo un errore, qualunque sia il codice, la finestra resta aperta finche' non premi un tasto.
+set "CODICE=%errorlevel%"
+if not "%CODICE%"=="0" pause
+exit /b %CODICE%

@@ -5,6 +5,7 @@ HTTP, orologio, scrittura nella finestra): così i test li provano senza Docker 
 Tutti gli errori sono ErroreAvvio, con un messaggio che dice che cosa sistemare.
 """
 
+import http.client
 import json
 import shutil
 import socket
@@ -109,6 +110,13 @@ def _ultime_righe(testo: str, quante: int = 8) -> str:
     return "\n".join(righe[-quante:])
 
 
+def _uscita_del_comando(nome: str, esito: Esito) -> str:
+    """Per i messaggi d'errore: che cosa ha risposto il comando di avvio, se non è andato a buon fine."""
+    if esito.codice == 0 or not esito.uscita.strip():
+        return ""
+    return f"\nIl comando {nome} ha risposto:\n{_ultime_righe(esito.uscita)}"
+
+
 def assicura_docker(
     esegui: Esegui,
     scrivi: Scrivi,
@@ -122,11 +130,12 @@ def assicura_docker(
         if esegui(COMANDO_DOCKER_INFO, 20.0).codice != 0:
             scrivi("      Docker è spento: lo accendo, può volerci un minuto...")
             scadenza = orologio() + attesa
-            esegui(COMANDO_DOCKER_AVVIO, attesa)
+            avvio = esegui(COMANDO_DOCKER_AVVIO, attesa)
             while esegui(COMANDO_DOCKER_INFO, 20.0).codice != 0:
                 if orologio() >= scadenza:
                     raise ErroreAvvio(
                         f"Docker Desktop non risponde dopo {attesa:g} secondi: aprilo a mano, aspetta che sia pronto e riprova."
+                        + _uscita_del_comando("docker desktop start", avvio)
                     )
                 pausa(2.0)
     except FileNotFoundError:
@@ -139,7 +148,7 @@ def lmstudio_risponde(base_url: str, limite: float = 3.0) -> bool:
     try:
         with urllib.request.urlopen(base_url.rstrip("/") + "/models", timeout=limite) as risposta:
             return risposta.status == 200
-    except (OSError, ValueError):
+    except (OSError, ValueError, http.client.HTTPException):  # anche una risposta che non è HTTP
         return False
 
 
@@ -176,12 +185,15 @@ def assicura_lmstudio(
         scrivi("      Il server di LM Studio è spento: lo accendo...")
         scadenza = orologio() + attesa
         try:
-            esegui([programma, "server", "start"], attesa)
+            avvio = esegui([programma, "server", "start"], attesa)
         except FileNotFoundError:
             raise ErroreAvvio(f"LM Studio non risponde su {imp.base_url} e il comando lms non parte: {aiuto}") from None
         while not risponde(imp.base_url):
             if orologio() >= scadenza:
-                raise ErroreAvvio(f"LM Studio non risponde su {imp.base_url} dopo {attesa:g} secondi: {aiuto}")
+                raise ErroreAvvio(
+                    f"LM Studio non risponde su {imp.base_url} dopo {attesa:g} secondi: {aiuto}"
+                    + _uscita_del_comando("lms server start", avvio)
+                )
             pausa(1.0)
     verifica(imp.base_url, imp.modello)
     scrivi(f"[2/5] LM Studio: risponde, modello {imp.modello} presente")
