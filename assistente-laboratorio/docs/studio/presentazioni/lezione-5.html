@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lezione 5 · Assistente del laboratorio</title>
+  <link rel="stylesheet" href="stile.css">
+  <script src="slide.js"></script>
+  <script src="schemi.js"></script>
+</head>
+<body class="mazzo">
+
+  <section class="slide titolo">
+    <p class="occhiello">Lezione 5 · 3–9 novembre 2026</p>
+    <h1>Gli strumenti via MCP</h1>
+    <p class="sottotitolo">Un server con dieci strumenti, tre modi di collegarli, log e diagnosi.</p>
+    <p class="fonte">Assistente del laboratorio · corso «Deep Learning e LLM: costruire chatbot e agenti»</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">Che cosa cambia</p>
+    <h2>Gli strumenti escono dal programma e vanno in un server</h2>
+    <ul class="punti">
+      <li>Un <strong>server MCP</strong>, scritto con FastMCP, che l'assistente avvia, scopre e spegne da solo</li>
+      <li><strong>Dieci strumenti</strong>, con la logica scritta una volta sola in <code>logica/</code></li>
+      <li><strong>Tre modi</strong> di collegare uno strumento: MCP, <code>@tool</code> locale, FastAPI con wrapper HTTP</li>
+      <li>Le <strong>note</strong> che restano tra le sessioni, in SQLite, e il <strong>meteo</strong> da Open-Meteo</li>
+      <li>I <strong>log</strong> su tre file e la <strong>diagnosi per livelli</strong></li>
+    </ul>
+    <aside class="note">
+      <p>Nella lezione 4 l'unico strumento, l'orologio, era una funzione dentro l'assistente. Nella lezione 5 gli strumenti diventano dieci e vanno in un processo separato, un server MCP. Il grafo non cambia: cambia il modo in cui il nodo strumenti ottiene il risultato.</p>
+    </aside>
+    <p class="fonte">Capitolo 00, «Lezione 5» · Capitolo 11, sezioni 4–7</p>
+  </section>
+
+  <section class="slide grande">
+    <p class="occhiello">Perché MCP</p>
+    <h2>Con uno standard i collegamenti si sommano, non si moltiplicano</h2>
+    <figure class="schema" data-schema="n-per-m"></figure>
+    <aside class="note">
+      <p>Tre applicazioni e dieci servizi. Senza uno standard ogni applicazione va collegata a ogni servizio: trenta collegamenti da scrivere e mantenere. Con MCP ognuno si collega una volta sola allo standard: tredici. Però MCP ha un prezzo: un processo in più, una porta, e un nuovo tipo di errore, quello di collegamento.</p>
+    </aside>
+    <p class="fonte">Capitolo 01, sezioni 7 e 8</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">Il vocabolario</p>
+    <h2>Host, client, server: chi è chi</h2>
+    <div class="schede">
+      <div class="scheda">
+        <h3>Host</h3>
+        <p>Il programma che ospita il modello: qui, l'assistente. <strong>Decide lui</strong> quali strumenti passare al modello.</p>
+      </div>
+      <div class="scheda">
+        <h3>Client</h3>
+        <p>La parte dell'assistente che parla MCP: <code>assistente/client_mcp.py</code>, con la discovery e il ponte.</p>
+      </div>
+      <div class="scheda">
+        <h3>Server</h3>
+        <p>Un altro processo, «Strumenti laboratorio»: pubblica il contratto dei dieci strumenti e li esegue.</p>
+      </div>
+    </div>
+    <p style="margin-top: 26px">Il server ascolta su <code>http://127.0.0.1:&lt;MCP_PORTA&gt;/mcp</code>: solo sul computer locale.</p>
+    <aside class="note">
+      <p>Tre parole da non confondere. L'host è il programma che ospita il modello, cioè l'assistente. Il client è la sua parte che parla il protocollo. Il server è un altro processo, che offre gli strumenti. Il server espone sempre tutti e dieci gli strumenti; è l'host a scegliere quali far vedere al modello.</p>
+    </aside>
+    <p class="fonte">Capitolo 01, sezione 7 · Capitolo 05, sezione 2</p>
+  </section>
+
+  <section class="slide grande">
+    <p class="occhiello">I componenti</p>
+    <h2>Tu avvii l'assistente, lui avvia il resto</h2>
+    <figure class="schema" data-schema="terminale"></figure>
+    <aside class="note">
+      <p>Un solo comando avvia tutto. L'assistente avvia il server MCP come processo figlio e, solo con la variante fastapi, anche il servizio delle scadenze. All'uscita li spegne sempre. LM Studio invece lo apro io. Open-Meteo è su Internet e lo chiama solo il server, per il meteo.</p>
+    </aside>
+    <p class="fonte">Capitolo 02, sezioni 1 e 2</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">Il server</p>
+    <h2>Il server pubblica il contratto, la logica sta altrove</h2>
+    <ul class="punti">
+      <li>Il <strong>contratto</strong> di uno strumento è nome, descrizione e schema degli argomenti</li>
+      <li>Il calcolo vero sta in <code>logica/</code>, che <strong>non sa nulla</strong> di MCP, FastAPI o LangChain</li>
+      <li>Un input sbagliato diventa una <strong>frase in italiano</strong> che aiuta a correggersi: il modello la legge e può riprovare</li>
+      <li>Un bug inatteso lo ferma una <strong>rete di sicurezza</strong>: il dettaglio va nel log, al client arriva <code>Errore interno dello strumento &lt;nome&gt;: &lt;Tipo&gt;.</code></li>
+    </ul>
+    <aside class="note">
+      <p>Il server è sottile: registra gli strumenti e scrive il log. Il calcolo lo fa la cartella logica, che si prova senza avviare nulla. Gli errori sono pensati per il modello: una frase chiara in italiano, che dice come rimediare. Così entro i tre giri il modello può correggersi da solo.</p>
+    </aside>
+    <p class="fonte">server_mcp/server.py · Capitolo 05, sezione 3 · Capitolo 07, sezione 3</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">Il client</p>
+    <h2>La discovery si fa una volta; il ponte rende sincroni gli strumenti</h2>
+    <div class="colonne">
+      <ul class="punti">
+        <li><strong>Discovery</strong>: all'avvio l'assistente chiede «quali strumenti hai?» (<code>tools/list</code>) e usa quel catalogo per tutta la sessione</li>
+        <li>Gli strumenti della libreria sono solo <strong>asincroni</strong>; il grafo è <strong>sincrono</strong></li>
+        <li>Il <strong>ponte</strong> li avvolge: stesso nome, stessa descrizione, stesso schema</li>
+      </ul>
+      <div>
+        <pre class="codice"><i>assistente/client_mcp.py</i>
+contenuto = <b>asyncio.run</b>(
+    asyncio.wait_for(
+        strumento.ainvoke(argomenti),
+        timeout))</pre>
+        <p class="avviso buono" style="font-size: 20px">È l'unico punto asincrono del progetto. Ogni chiamata aspetta al massimo <strong>10 secondi</strong>.</p>
+      </div>
+    </div>
+    <aside class="note">
+      <p>Nell'assistente non è scritto nulla del contratto degli strumenti: nome, descrizione e argomenti arrivano dal server con la discovery. Poi c'è un problema tecnico: la libreria dà strumenti asincroni, ma il nostro grafo è sincrono. Il ponte risolve con asyncio run, e restituisce sempre una stringa, mai un'eccezione.</p>
+    </aside>
+    <p class="fonte">assistente/client_mcp.py · Capitolo 05, sezioni 5.2 e 5.3</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">Gli errori</p>
+    <h2>Errore dello strumento o del collegamento?</h2>
+    <div class="schede" style="--n: 2">
+      <div class="scheda">
+        <h3><code>tipo: "strumento"</code></h3>
+        <p>Il server <strong>ha risposto</strong>, ma ha rifiutato la richiesta: per esempio un fuso che non esiste, <code>Mars/Olympus</code>.</p>
+        <p>Il modello legge il messaggio e può riprovare.</p>
+      </div>
+      <div class="scheda attenzione">
+        <h3><code>tipo: "collegamento"</code></h3>
+        <p>Il server <strong>non si raggiunge</strong> o non risponde in tempo: <code>Server MCP non raggiungibile</code>.</p>
+        <p>La chat continua, ma il server non viene riavviato.</p>
+      </div>
+    </div>
+    <aside class="note">
+      <p>Due errori da non confondere. Nel primo il server funziona e mi dice che la richiesta è sbagliata: è un problema dell'input. Nel secondo il server non c'è o è bloccato: è un problema del percorso. Nel log diventano due esiti diversi: errore tool ed errore collegamento.</p>
+    </aside>
+    <p class="fonte">Capitolo 05, sezione 5.5</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">Avvio e arresto</p>
+    <h2>«Pronto» vuol dire che risponde davvero</h2>
+    <div class="schede">
+      <div class="scheda">
+        <span class="numero">10 s</span>
+        <p>l'attesa massima dell'avvio: se il server non risponde, l'assistente si ferma</p>
+      </div>
+      <div class="scheda">
+        <span class="numero">0,25 s</span>
+        <p>la pausa tra una prova di discovery e la successiva</p>
+      </div>
+      <div class="scheda attenzione">
+        <span class="numero">5 s</span>
+        <p>l'attesa dell'arresto: poi il processo viene chiuso a forza</p>
+      </div>
+    </div>
+    <ul class="punti fitti" style="margin-top: 24px">
+      <li>Un processo acceso non basta, e nemmeno un HTTP 200: serve una <strong>discovery riuscita</strong></li>
+      <li>All'uscita i processi figli si spengono <strong>in ordine inverso</strong>, anche se l'avvio è fallito a metà</li>
+    </ul>
+    <aside class="note">
+      <p>Come fa l'assistente a sapere che il server è pronto? Non si fida del processo acceso. Ripete la discovery ogni quarto di secondo, per al massimo dieci secondi: è pronto quando risponde in MCP. All'uscita chiede al server di chiudersi, aspetta cinque secondi e solo dopo lo chiude a forza. Nessun processo resta acceso per sbaglio.</p>
+    </aside>
+    <p class="fonte">assistente/avvio_server.py · Capitolo 05, sezione 6</p>
+  </section>
+
+  <section class="slide grande">
+    <p class="occhiello">Il viaggio di una richiesta</p>
+    <h2>Una domanda, due giri del modello</h2>
+    <figure class="schema" data-schema="viaggio-mcp"></figure>
+    <aside class="note">
+      <p>Seguiamo «che ore sono a Tokyo?». Al primo giro il modello non risponde: chiede lo strumento. Il grafo controlla gli argomenti e chiama il ponte, che parla con il server. Il risultato torna in un ToolMessage. Al secondo giro il modello legge il risultato e scrive la risposta. Sul filo, il passo 5 sono quattro richieste HTTP, perché la libreria apre una sessione nuova a ogni chiamata.</p>
+    </aside>
+    <p class="fonte">Capitolo 03, sezione 2</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">Gli strumenti</p>
+    <h2>Dieci strumenti, sette famiglie</h2>
+    <table class="tabella fitta">
+      <thead>
+        <tr><th>Famiglia</th><th>Strumenti</th><th>Da sapere</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Orologio</td><td><code>ora_corrente</code></td><td>data e ora in un fuso, per esempio <code>Asia/Tokyo</code></td></tr>
+        <tr><td>Convertitore</td><td><code>converti_unita</code></td><td>unità metriche, gradi Celsius e Fahrenheit</td></tr>
+        <tr><td>Calcolatrice</td><td><code>calcola</code></td><td>senza <code>eval</code>, in aritmetica decimale esatta</td></tr>
+        <tr><td>Scadenze</td><td><code>calcola_scadenza</code></td><td>giorni di calendario o lavorativi; festività 2026–2028</td></tr>
+        <tr><td>Catalogo</td><td><code>search_catalog</code>, <code>get_item</code></td><td>i corsi dell'ITS: prima si cerca, poi si chiede il dettaglio</td></tr>
+        <tr><td>Note</td><td><code>add_note</code>, <code>list_notes</code>, <code>delete_note</code></td><td>restano in SQLite; un ID non viene mai riusato</td></tr>
+        <tr><td>Meteo</td><td><code>get_weather</code></td><td>Open-Meteo, senza chiavi; 8 secondi in tutto</td></tr>
+      </tbody>
+    </table>
+    <aside class="note">
+      <p>Il server offre sempre dieci strumenti. Il modello li vede tutti e sceglie da solo quale chiamare. Tre risposte di prova da sapere: tre più quattro per due fa 14; dal 23 dicembre 2026, tre giorni lavorativi scadono il 29 dicembre; il corso DLL-01 dura 120 ore.</p>
+    </aside>
+    <p class="fonte">Capitolo 07 · README</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">Le regole degli strumenti</p>
+    <h2>Regole rigide, limiti dichiarati</h2>
+    <div class="schede">
+      <div class="scheda">
+        <h3>Niente <code>eval</code></h3>
+        <p>La calcolatrice filtra i caratteri, costruisce un albero con <code>ast.parse</code> senza eseguirlo e valuta solo poche operazioni.</p>
+      </div>
+      <div class="scheda">
+        <h3>Numeri onesti</h3>
+        <p>Con <code>Decimal</code>, 0.1 + 0.2 dà proprio 0.3. Un risultato arrotondato non esce mai come intero: 1/3 × 3 dà <code>1.0</code>.</p>
+      </div>
+      <div class="scheda attenzione">
+        <h3>Meglio un rifiuto</h3>
+        <p>Fuori dagli anni 2026–2028 le scadenze lavorative rifiutano. Il meteo dichiara quale città ha scelto.</p>
+      </div>
+    </div>
+    <p class="avviso buono" style="margin-top: 24px">Meglio un rifiuto chiaro che una risposta sbagliata in silenzio.</p>
+    <aside class="note">
+      <p>Gli strumenti sono severi apposta. La calcolatrice non usa eval, che eseguirebbe qualsiasi codice Python. I numeri non fingono un'esattezza che non hanno. E quando uno strumento non sa rispondere, lo dice: le scadenze conoscono le festività solo per tre anni, e fuori da lì rifiutano invece di sbagliare.</p>
+    </aside>
+    <p class="fonte">Capitolo 07, sezioni 4, 7, 8 e 16</p>
+  </section>
+
+  <section class="slide grande">
+    <p class="occhiello">Le tre varianti</p>
+    <h2>Stesso strumento, tre strade</h2>
+    <figure class="schema" data-schema="varianti"></figure>
+    <aside class="note">
+      <p>La lezione chiede di confrontare tre modi di collegare uno strumento. Il primo è MCP, e vale per tutti e dieci. Il secondo è una funzione locale con il decoratore tool: solo per la calcolatrice. Il terzo è un servizio FastAPI chiamato da un wrapper scritto a mano: solo per le scadenze. Tutte e tre le strade finiscono nella stessa cartella logica.</p>
+    </aside>
+    <p class="fonte">Capitolo 06 · si sceglie nel .env: VARIANTE_CALCOLATRICE, VARIANTE_SCADENZE</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">Le tre varianti a confronto</p>
+    <h2>Per il modello le varianti sono uguali</h2>
+    <table class="tabella fitta">
+      <thead>
+        <tr><th></th><th>MCP</th><th><code>@tool</code> locale</th><th>FastAPI con wrapper</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>Vale per</strong></td><td>tutti e dieci</td><td>solo <code>calcola</code></td><td>solo <code>calcola_scadenza</code></td></tr>
+        <tr><td><strong>Chi scrive il contratto</strong></td><td>il server; l'agente lo scopre</td><td>la funzione: nome, firma, docstring</td><td>due: l'OpenAPI del servizio e il wrapper a mano</td></tr>
+        <tr><td><strong>Dove gira</strong></td><td>un altro processo</td><td>nel processo dell'assistente</td><td>un altro processo</td></tr>
+        <tr><td><strong>Attesa massima</strong></td><td>10 secondi</td><td>nessuna</td><td>5 secondi</td></tr>
+        <tr><td><strong>Lascia traccia in</strong></td><td><code>assistente.log</code> e <code>server_mcp.log</code></td><td>solo <code>assistente.log</code></td><td><code>assistente.log</code> e <code>servizio_api.log</code></td></tr>
+      </tbody>
+    </table>
+    <p style="margin-top: 18px; font-size: 21px">Una sola versione per nome: l'host toglie quella MCP e mette il sostituto. Se un nome compare due volte, l'avvio si ferma.</p>
+    <aside class="note">
+      <p>Il modello vede lo stesso nome, la stessa descrizione e gli stessi argomenti in tutte le varianti: non sa da dove arriva lo strumento. La differenza si vede nei log. Con la variante locale, per esempio, la chiamata compare solo nel log dell'assistente, perché non c'è un altro processo.</p>
+    </aside>
+    <p class="fonte">Capitolo 06 · assistente/varianti.py</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">I log</p>
+    <h2>Ogni processo scrive il suo file</h2>
+    <figure class="schema" data-schema="log"></figure>
+    <ul class="punti fitti">
+      <li>L'identificativo della chiamata <strong>non arriva al server</strong>: le righe dei due file si collegano per strumento, argomenti e ora</li>
+      <li>Il terminale mostra <strong>solo le chiamate riuscite</strong>: una chiamata fallita si vede soltanto nel log</li>
+    </ul>
+    <aside class="note">
+      <p>Ogni processo ha il suo file nella cartella logs. Nella lezione 5 i file sono tre; il quarto, quello del back-end, arriva con la lezione 6. Per seguire una chiamata da un processo all'altro non posso usare l'identificativo, che resta nell'assistente: confronto il nome dello strumento, gli argomenti e l'ora.</p>
+    </aside>
+    <p class="fonte">Capitolo 10, sezioni 1 e 5</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">La riga di una chiamata</p>
+    <h2>Una chiamata, una riga con sette campi</h2>
+    <pre class="codice"><i>logs/assistente.log · 2026-11-12 12:56:42</i>
+<b>origine</b>=mcp <b>tool</b>=ora_corrente <b>call_id</b>=CvrV…7Z
+<b>argomenti</b>={"fuso":"Asia/Tokyo"}
+<b>esito</b>=ok
+<b>risultato</b>={"fuso":"Asia/Tokyo","data_ora":"2026-11-12T20:56:42+09:00", …}
+<b>tool_message.call_id</b>=CvrV…7Z</pre>
+    <p style="font-size: 22px">Cinque esiti possibili: <code>ok</code> · <code>errore_tool</code> · <code>errore_collegamento</code> · <code>strumento_sconosciuto</code> · <code>limite</code></p>
+    <aside class="note">
+      <p>Questa è una riga vera, andata a capo per leggerla. Dice quale variante ha risposto, che cosa ha chiesto il modello e che cosa è tornato. I due identificativi, il primo e l'ultimo campo, devono coincidere: vuol dire che il risultato è tornato alla richiesta giusta.</p>
+    </aside>
+    <p class="fonte">Capitolo 10, sezione 2 · riga del 12 novembre 2026, con l'identificativo accorciato</p>
+  </section>
+
+  <section class="slide grande">
+    <p class="occhiello">La diagnosi</p>
+    <h2>I guasti si cercano dal basso</h2>
+    <figure class="schema" data-schema="diagnosi"></figure>
+    <aside class="note">
+      <p>Quando qualcosa non va, si parte dal livello più basso. Prima la configurazione, poi LM Studio, poi il server, e così via. Il modello si sospetta per ultimo. Un errore di un livello basso non si risolve cambiando le istruzioni al modello: se LM Studio è spento, nessuna frase lo accende.</p>
+    </aside>
+    <p class="fonte">README «Diagnosi» · Capitolo 10, sezione 6</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">Il limite noto</p>
+    <h2>Che cosa il codice non può impedire</h2>
+    <p class="avviso">Con dieci strumenti il modello piccolo a volte risponde «Ho salvato la nota» <strong>senza aver chiamato</strong> <code>add_note</code>: nelle prove, circa una volta su tre. La nota non esiste.</p>
+    <ul class="punti">
+      <li>Nel terminale <strong>manca</strong> la riga <code>[add_note · mcp: …]</code></li>
+      <li>In <code>logs/server_mcp.log</code> <strong>manca</strong> <code>modifica note operazione=aggiunta</code></li>
+      <li>Si può riprovare la domanda, o scegliere un modello più grande cambiando solo <code>LMSTUDIO_MODEL</code></li>
+    </ul>
+    <aside class="note">
+      <p>È il limite più importante emerso dalle prove reali. Nessun test automatico poteva scoprirlo, perché nei test il comportamento del modello lo scrive chi scrive il test. Il codice non può impedire al modello di dichiarare un'azione senza farla. Può però renderlo visibile: mancano le righe.</p>
+    </aside>
+    <p class="fonte">README «Diagnosi» · Capitolo 10, sezione 7</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">Se te lo chiedono all'orale</p>
+    <h2>Tre domande, tre risposte brevi</h2>
+    <div class="domanda">
+      <p class="q">Perché serve il ponte?</p>
+      <p class="r">Gli strumenti della libreria sono solo asincroni, mentre il grafo è sincrono. Il ponte li avvolge con <code>asyncio.run</code>, senza cambiare nome, descrizione e schema.</p>
+    </div>
+    <div class="domanda">
+      <p class="q">Come dimostri che una chiamata è passata dalla variante locale?</p>
+      <p class="r">In <code>assistente.log</code> c'è la riga <code>origine=locale tool=calcola</code>. In <code>server_mcp.log</code> non compare nessuna riga nuova.</p>
+    </div>
+    <div class="domanda">
+      <p class="q">Perché la calcolatrice non usa <code>eval</code>?</p>
+      <p class="r"><code>eval</code> eseguirebbe qualsiasi codice, per esempio <code>__import__('os')</code>. La calcolatrice costruisce un albero senza eseguirlo e valuta solo poche operazioni ammesse.</p>
+    </div>
+    <aside class="note">
+      <p>Prova a rispondere a voce prima di leggere. Per ogni risposta chiediti anche: dove lo vedo nel codice o nei log?</p>
+    </aside>
+    <p class="fonte">Schede dei capitoli 05, 06 e 07</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">Da ricordare</p>
+    <h2>La lezione 5 in cinque frasi</h2>
+    <ol class="punti grandi">
+      <li>Gli strumenti stanno in un <strong>server MCP</strong>, un altro processo.</li>
+      <li>Il contratto si <strong>scopre</strong>; la logica è scritta <strong>una volta sola</strong>.</li>
+      <li>Tre strade, <strong>un solo nome</strong> per strumento: MCP, locale, FastAPI.</li>
+      <li>«Pronto» vuol dire che <strong>risponde davvero</strong>.</li>
+      <li>La prova che lo strumento è stato usato è <strong>nei log</strong>.</li>
+    </ol>
+    <aside class="note">
+      <p>Alla fine della lezione 5 l'assistente ha dieci strumenti veri e si lascia controllare: ogni chiamata lascia una traccia. Resta un programma da terminale. La lezione 6 gli aggiunge un filtro davanti, un servizio HTTP e una chat nel browser.</p>
+    </aside>
+    <p class="fonte">Prossima presentazione: Lezione 6 · Evolvere l'agente</p>
+  </section>
+
+</body>
+</html>
