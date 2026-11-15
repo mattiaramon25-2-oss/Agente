@@ -30,7 +30,7 @@
 
 ## Stato attuale
 
-- **Branch:** `dev-docs-avvio-studio`, da `dev` (`8061ac1`). Nessun merge, nessun push.
+- **Branch:** `dev-docs-avvio-studio`, da `dev` (`8061ac1`), unito in `dev` il 15 novembre 2026 su richiesta dell'utente, dopo che ha guardato il materiale. Non unito in `main`. Nessun push.
 - **Codice dell'applicazione:** non modificato. `git diff --stat 8061ac1..HEAD` tocca solo `AVVIO-RAPIDO.md`, `README.md`, `CLAUDE.md` e file sotto `docs/`.
 - **Schemi:** 18, uno in più dei 17 del piano (`markdown-sicuro`). Le presentazioni hanno 16, 20 e 21 slide invece di circa 14, 18 e 18.
 - **Test:** `python -m pytest -q` il 15 novembre 2026: 625 passati, 74 saltati, come il 12 novembre.
@@ -49,4 +49,4 @@
   - le pagine in Edge e in Firefox: sono state aperte solo con Chromium di Playwright;
   - lo schermo intero (`F`) e la stampa su carta: della stampa è stato contato solo il numero di pagine del PDF;
   - il comando `ALTER USER` con una password che contiene apici.
-- **Servizi:** i container `database` e `frontend` sono accesi come prima della sessione; agente e back-end sono spenti (avviati e fermati solo per la verifica).
+- **Servizi:** i container `database` e `frontend` sono rimasti accesi per tutta la sessione. Agente e back-end sono stati avviati e fermati per la verifica; dopo l'unione in `dev` l'utente ha chiesto di avviare la chat nel browser.
