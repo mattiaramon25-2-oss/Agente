@@ -32,7 +32,7 @@ Un revisore indipendente ha letto codice, test e documenti. Un riscontro critico
 
 ## Stato attuale
 
-- **Branch:** `dev-avvio-chat`, da `dev` (`162babc`). Nessun merge, nessun push.
+- **Branch:** `dev-avvio-chat`, da `dev` (`162babc`), unito in `dev` il 15 novembre 2026 su richiesta dell'utente, dopo che l'ha provato. Non unito in `main`. Nessun push.
 - **Codice esistente:** non modificato. `git diff --stat 162babc..HEAD` aggiunge `avvio_chat/`, `avvia-chat.cmd`, `.gitattributes`, due file in `tests/` e tocca solo documenti.
 - **Test:** `python -m pytest -q` il 15 novembre 2026: 667 passati, 74 saltati (erano 625 e 74: i 42 in più sono quelli di `tests/test_avvio_chat.py`).
 - **Prove reali** il 15 novembre 2026, sull'ambiente dell'utente, con `--senza-browser`:
