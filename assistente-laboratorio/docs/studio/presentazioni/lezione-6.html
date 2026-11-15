@@ -1,0 +1,388 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lezione 6 · Assistente del laboratorio</title>
+  <link rel="stylesheet" href="stile.css">
+  <script src="slide.js"></script>
+  <script src="schemi.js"></script>
+</head>
+<body class="mazzo">
+
+  <section class="slide titolo">
+    <p class="occhiello">Lezione 6 · 9–12 novembre 2026 · in corso</p>
+    <h1>Evolvere l'agente</h1>
+    <p class="sottotitolo">Dal terminale alla chat nel browser: router, servizio HTTP, back-end con PostgreSQL, front-end.</p>
+    <p class="fonte">Assistente del laboratorio · corso «Deep Learning e LLM: costruire chatbot e agenti»</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">Il programma della lezione</p>
+    <h2>Nove step: quattro fatti, cinque da fare</h2>
+    <table class="tabella fitta">
+      <thead>
+        <tr><th>Step</th><th>Che cosa</th><th>Stato</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>1 · Router</td><td>un nodo LLM decide se la domanda rientra nell'ambito dell'agente</td><td class="si">fatto</td></tr>
+        <tr><td>2 · Revisore</td><td>un nodo LLM controlla che la risposta sia coerente con la domanda</td><td class="no">da fare</td></tr>
+        <tr><td>3 · Riassunto</td><td>un nodo LLM comprime la cronologia oltre una soglia</td><td class="no">da fare</td></tr>
+        <tr><td>4 · Resource</td><td>preferenze dell'utente lette dal server MCP a inizio sessione</td><td class="no">da fare</td></tr>
+        <tr><td>5 · Prompt</td><td>comandi <code>/prompts</code> e <code>/prompt</code> nel terminale</td><td class="no">da fare</td></tr>
+        <tr><td>6 · Agente come servizio</td><td>l'agente risponde anche via HTTP</td><td class="si">fatto</td></tr>
+        <tr><td>7 · Back-end</td><td>API per le chat, salvate in PostgreSQL</td><td class="si">fatto</td></tr>
+        <tr><td>8 · Front-end</td><td>chat nel browser, installabile come app</td><td class="si">fatto</td></tr>
+        <tr><td>9 · Docker Compose</td><td>quattro container avviati con un solo comando</td><td class="no">da fare</td></tr>
+      </tbody>
+    </table>
+    <aside class="note">
+      <p>Le slide del docente dividono la lezione in nove step. Ognuno parte dal precedente funzionante e si chiude con un'evidenza. Al 12 novembre sono fatti e uniti in main gli step 1, 6, 7 e 8. Restano il revisore, il riassunto, le resource, i prompt e lo step 9, che mette tutto in quattro container.</p>
+    </aside>
+    <p class="fonte">Capitolo 00, «Lezione 6» · stato al 12 novembre 2026</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">La storia</p>
+    <h2>Quattro step in quattro giorni</h2>
+    <figure class="schema" data-schema="lezioni"></figure>
+    <ul class="punti fitti">
+      <li>Ogni step ha la sua <strong>specifica</strong>, il suo <strong>piano</strong>, il suo <strong>branch</strong> e il suo <strong>checkpoint</strong></li>
+      <li>Il merge in <code>main</code> avviene solo con l'approvazione dell'utente, step per step</li>
+    </ul>
+    <aside class="note">
+      <p>L'ultima riga dello schema è la lezione 6. Il 9 novembre il router, con in più lo streaming della risposta. Il 10 l'agente come servizio HTTP, anche in Docker. L'11 il back-end con PostgreSQL. Il 12 la chat nel browser. Il metodo è sempre lo stesso delle lezioni precedenti: prima la specifica e il piano, poi il codice.</p>
+    </aside>
+    <p class="fonte">Capitolo 11, sezione 8</p>
+  </section>
+
+  <section class="slide grande">
+    <p class="occhiello">Step 1 · il router</p>
+    <h2>Prima dell'agente c'è un router</h2>
+    <figure class="schema" data-schema="grafo"></figure>
+    <aside class="note">
+      <p>Il grafo passa da tre a cinque nodi. Davanti all'agente c'è il router: usa lo stesso modello, ma senza strumenti, e classifica la domanda. Se è in ambito si prosegue come prima. Se è fuori ambito risponde il nodo rifiuto, con un testo fisso, e l'agente non parte. Domanda e rifiuto restano comunque nella cronologia.</p>
+    </aside>
+    <p class="fonte">assistente/grafo.py, assistente/router.py · Capitolo 04, sezione 21</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">Step 1 · l'ambito</p>
+    <h2>Ambito e rifiuto stanno in un file, non nel codice</h2>
+    <div class="colonne">
+      <ul class="punti">
+        <li>Il router risponde con un <strong>output strutturato</strong>: <code>conversazione</code> o <code>fuori_ambito</code>, con un motivo</li>
+        <li>Per cambiare l'ambito si modifica <code>risorse/ambito.json</code> e si riavvia</li>
+        <li>Se l'output del router non è valido, la domanda <strong>passa comunque</strong> all'agente</li>
+      </ul>
+      <div>
+        <pre class="codice"><i>risorse/ambito.json, accorciato</i>
+"in_ambito": ["data e ora, …", "calcoli",
+  "meteo", "conversazione normale: …"],
+"fuori_ambito": ["poesie e testi creativi",
+  "cultura generale", "sport", "ricette", …],
+"rifiuto": "Questo agente è costruito
+  per compiti specifici: …"</pre>
+        <pre class="codice"><i>l'evidenza, in logs/assistente.log</i>
+nodo=router <b>categoria=fuori_ambito</b>
+<b>nodo=rifiuto</b></pre>
+      </div>
+    </div>
+    <aside class="note">
+      <p>L'evidenza richiesta dalle slide: una domanda fuori ambito viene rifiutata senza passare dall'agente. Si vede nel log: c'è la riga del router con la categoria fuori ambito, poi la riga del nodo rifiuto, e nessuna riga del nodo modello. Per «che ore sono a Tokyo?» invece la categoria è conversazione e poi parte l'agente.</p>
+    </aside>
+    <p class="fonte">README «Ambito e router» · Capitolo 04, sezione 21</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">Insieme al router · lo streaming</p>
+    <h2>La risposta arriva a pezzi, mentre il modello la scrive</h2>
+    <ul class="punti">
+      <li>Nel terminale la risposta compare <strong>in streaming</strong>, man mano che LM Studio la genera</li>
+      <li>Le righe degli strumenti, come <code>[ora_corrente · mcp: …]</code>, compaiono <strong>prima</strong> del testo</li>
+      <li>Il rifiuto e il messaggio del limite sono <strong>testi fissi</strong>: si stampano interi</li>
+      <li>Il router <strong>non va mai in streaming</strong>: la sua risposta è per il programma, non per l'utente</li>
+    </ul>
+    <aside class="note">
+      <p>Lo streaming è arrivato insieme al router, il 9 novembre. Serve soprattutto con il modello attuale, che ragiona prima di rispondere: un turno può durare uno o due minuti, e vedere il testo che arriva fa capire che il programma sta lavorando. Lo stesso meccanismo servirà poi alla chat nel browser.</p>
+    </aside>
+    <p class="fonte">README «Avvio diretto» · Capitolo 04, scaletta, slide 12</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">Step 6 · l'agente come servizio</p>
+    <h2>Un solo agente, due porte d'ingresso</h2>
+    <div class="colonne">
+      <ul class="punti">
+        <li>Terminale e servizio costruiscono il grafo con la stessa funzione: <code>crea_agente</code></li>
+        <li>Il servizio è <strong>senza stato</strong>: per continuare una conversazione si rimanda la cronologia ricevuta</li>
+        <li><strong>Un turno alla volta</strong>: un <code>threading.Lock</code> mette in fila le richieste</li>
+      </ul>
+      <table class="tabella fitta">
+        <thead>
+          <tr><th>Endpoint</th><th>Che cosa fa</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>GET /salute</code></td><td>modello, fuso e strumenti con la loro origine</td></tr>
+          <tr><td><code>POST /chat</code></td><td>messaggio e cronologia in ingresso; risposta, strumenti usati e nuova cronologia in uscita</td></tr>
+          <tr><td><code>POST /chat/stream</code></td><td>la stessa richiesta, con la risposta in eventi SSE; <code>409</code> se un turno è in corso</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <aside class="note">
+      <p>Con python -m servizio_agente lo stesso agente del terminale risponde via HTTP, solo su 127.0.0.1. Non conserva le conversazioni: chi lo chiama gli manda la cronologia a ogni turno, come fa il terminale. È una scelta: così lo step 7 può salvare le chat in PostgreSQL senza toccare l'agente.</p>
+    </aside>
+    <p class="fonte">servizio_agente/app.py · Capitolo 13</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">Step 6 · l'evidenza</p>
+    <h2>Stessa risposta dal terminale e dall'API</h2>
+    <div class="schede" style="--n: 2">
+      <div class="scheda attenzione">
+        <h3>Un rifiuto</h3>
+        <p>«scrivimi una poesia sul mare» al terminale e a <code>POST /chat</code>: lo <strong>stesso testo</strong>, identico, perché è fisso.</p>
+      </div>
+      <div class="scheda">
+        <h3>Un calcolo</h3>
+        <p>«Quanto fa (3+4)*2?»: <strong>14</strong> in entrambe, con una chiamata a <code>calcola</code>.</p>
+      </div>
+    </div>
+    <p style="margin-top: 24px">Gli errori sono sempre <code>{"errore": "..."}</code>, in italiano: <code>400</code> richiesta non valida, <code>503</code> LM Studio non raggiungibile, <code>500</code> altro errore.</p>
+    <aside class="note">
+      <p>Che cosa vuol dire stessa risposta? Con il modello vero il testo può cambiare da un'esecuzione all'altra. Per questo la prova confronta due cose stabili: il rifiuto, che è un testo fisso, e per un calcolo il risultato e lo strumento chiamato. Con il modello finto, invece, risposta e cronologia sono identiche.</p>
+    </aside>
+    <p class="fonte">tests/test_reale_servizio_agente.py · Capitolo 13, sezione 5</p>
+  </section>
+
+  <section class="slide grande">
+    <p class="occhiello">Step 7 · il back-end</p>
+    <h2>Tre servizi, ognuno con un compito</h2>
+    <figure class="schema" data-schema="sistema"></figure>
+    <aside class="note">
+      <p>Con lo step 7 arriva il back-end delle chat. Il database ricorda. L'agente ragiona, senza stato. Il back-end tiene insieme le due cose: legge la cronologia, la passa all'agente, salva la risposta. Il browser, che arriva con lo step 8, parla solo con il back-end, passando da nginx.</p>
+    </aside>
+    <p class="fonte">Capitolo 14, sezione 1 · le porte sono quelle di .env.example</p>
+  </section>
+
+  <section class="slide grande">
+    <p class="occhiello">Step 7 · i dati</p>
+    <h2>Tre tabelle: la cronologia è separata dai messaggi</h2>
+    <figure class="schema" data-schema="tabelle"></figure>
+    <p style="margin: 10px 0 0; font-size: 21px">La <code>cronologia</code> serve all'agente per continuare la conversazione. I <code>messaggi</code> sono il testo pulito, da mostrare e da cercare.</p>
+    <aside class="note">
+      <p>Perché due posti per la stessa conversazione? La cronologia è nel formato dell'agente e contiene anche le richieste e i risultati degli strumenti: non è adatta né da mostrare né da cercare. I messaggi sono domanda e risposta in chiaro. Le tabelle si creano all'avvio del back-end, se mancano.</p>
+    </aside>
+    <p class="fonte">servizio_backend/schema.sql · Capitolo 14, sezione 2</p>
+  </section>
+
+  <section class="slide grande">
+    <p class="occhiello">Step 7 · il turno</p>
+    <h2>Il turno si salva solo a risposta completa</h2>
+    <figure class="schema" data-schema="turno-chat"></figure>
+    <aside class="note">
+      <p>Un thread del back-end legge gli eventi dell'agente e li passa al browser. Il salvataggio è al passo 8: uno solo, in una transazione, dopo la fine della risposta. Dopo un errore non si salva nulla, nemmeno la domanda. Se il browser si scollega a metà, il thread arriva alla fine e salva lo stesso: lo strumento, magari una nota, ormai è stato eseguito.</p>
+    </aside>
+    <p class="fonte">servizio_backend/turni.py · Capitolo 14, sezioni 3–5</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">Step 7 · gli eventi</p>
+    <h2>Quattro eventi, e gli errori prima del flusso</h2>
+    <div class="colonne">
+      <table class="tabella fitta">
+        <thead>
+          <tr><th>Evento SSE</th><th>Che cosa porta</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>testo</code></td><td>un pezzo della risposta</td></tr>
+          <tr><td><code>strumento</code></td><td>nome, origine e argomenti dello strumento usato</td></tr>
+          <tr><td><code>fine</code></td><td>la risposta definitiva e il titolo; arriva <strong>dopo</strong> il salvataggio</td></tr>
+          <tr><td><code>errore</code></td><td>il turno non è stato salvato</td></tr>
+        </tbody>
+      </table>
+      <table class="tabella fitta">
+        <thead>
+          <tr><th>Prima del flusso</th><th>Perché</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>404</code></td><td>la chat non esiste</td></tr>
+          <tr><td><code>400</code></td><td>il messaggio è vuoto</td></tr>
+          <tr><td><code>409</code></td><td>c'è già una risposta in corso nella stessa chat</td></tr>
+          <tr><td><code>503</code></td><td>l'agente non risponde, o è occupato con un altro turno</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <aside class="note">
+      <p>SSE vuol dire Server-Sent Events: il server tiene aperta la risposta e manda un evento alla volta. Bastano perché i dati vanno in una sola direzione, dal server al browser. Prima di aprire il flusso il back-end controlla la richiesta e, se serve, risponde subito con un errore normale in JSON.</p>
+    </aside>
+    <p class="fonte">README «Il turno in streaming» · Capitolo 14, sezione 6</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">Step 7 · l'evidenza</p>
+    <h2>Le chat ci sono ancora dopo il riavvio</h2>
+    <ul class="punti">
+      <li>Prova automatica: back-end vero e database di prova <strong>fermati e riavviati</strong>; progetti, chat e messaggi identici</li>
+      <li>A mano, sul database dell'utente: dopo <code>docker compose stop database</code> e un nuovo avvio, il progetto «Prova manuale» c'è ancora, con la sua chat</li>
+      <li>I dati stanno nel volume <code>dati_postgres</code>, che sopravvive a <code>docker compose down</code></li>
+    </ul>
+    <p class="avviso"><code>docker compose down -v</code> cancella il volume, e quindi tutte le chat e i progetti.</p>
+    <aside class="note">
+      <p>L'evidenza richiesta dalle slide è semplice da dire e delicata da provare: spengo tutto, riaccendo, e le chat ci sono ancora. Le prove usano un database separato da quello dell'utente, in un altro progetto Compose, e alla fine cancellano solo quello.</p>
+    </aside>
+    <p class="fonte">tests/test_reale_docker_backend.py · Capitolo 14, sezione 9</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">Step 8 · il front-end</p>
+    <h2>Una pagina che si installa come app</h2>
+    <div class="schede">
+      <div class="scheda">
+        <h3>Una PWA</h3>
+        <p>Una pagina web con manifest e service worker minimo. Edge la installa: finestra e icona sue, niente store.</p>
+      </div>
+      <div class="scheda">
+        <h3>Svelte 5</h3>
+        <p>Lo stato sta in una classe, <code>StatoApp</code>, con <code>$state</code>. I componenti leggono e la pagina si aggiorna da sola.</p>
+      </div>
+      <div class="scheda">
+        <h3>nginx</h3>
+        <p>Serve i file e inoltra <code>/api</code> al back-end. Stessa origine, niente CORS. Con <code>proxy_buffering off</code>.</p>
+      </div>
+    </div>
+    <p style="margin-top: 26px">Si apre su <code>http://127.0.0.1:8780</code>. Il programma da terminale resta com'è.</p>
+    <aside class="note">
+      <p>L'utente voleva un'app. Una chat nel browser installabile dà la finestra e l'icona di un'app, senza costruire un programma per ogni sistema. nginx fa due lavori: serve i file compilati e inoltra le richieste al back-end. Senza proxy buffering off, gli eventi arriverebbero tutti insieme alla fine: lo streaming non sarebbe più uno streaming.</p>
+    </aside>
+    <p class="fonte">Capitolo 15, sezioni 1, 2 e 5</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">Step 8 · la sicurezza</p>
+    <h2>Il testo del modello non è fidato</h2>
+    <figure class="schema" data-schema="markdown-sicuro"></figure>
+    <ul class="punti fitti">
+      <li>Passa sempre da <code>rendiMarkdown</code>: niente immagini, audio, video, SVG, moduli e stili</li>
+      <li>Il browser riceve byte, non eventi: <code>LettoreSse</code> ricompone gli eventi anche se un pezzo arriva spezzato a metà di una lettera accentata</li>
+    </ul>
+    <aside class="note">
+      <p>Il modello può scrivere HTML, o indicare un'immagine su un altro sito: sarebbe un modo per far uscire dati. Per questo il suo testo non entra mai nella pagina così com'è. Passa da due filtri, e in più nginx manda una Content Security Policy che vieta al browser di contattare altri siti.</p>
+    </aside>
+    <p class="fonte">frontend/src/lib/markdown.ts, sse.ts · Capitolo 15, sezioni 3 e 4</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">Step 8 · gli errori</p>
+    <h2>Gli errori si vedono e la domanda non si perde</h2>
+    <table class="tabella">
+      <thead>
+        <tr><th>Che cosa succede</th><th>Che cosa vedi</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Il back-end è spento</td><td>una striscia rossa: «Il back-end non risponde: avvialo con python -m servizio_backend.» Sparisce da sola</td></tr>
+        <tr><td>Il turno si interrompe</td><td>«La risposta si è interrotta: il messaggio non è stato salvato.» La domanda torna nella casella</td></tr>
+        <tr><td>Cambi chat mentre il modello risponde</td><td>la risposta <strong>non</strong> compare nella chat sbagliata</td></tr>
+      </tbody>
+    </table>
+    <aside class="note">
+      <p>L'evidenza dello step 8 ha due parti: una conversazione completa dal browser, e gli errori mostrati. Se un turno fallisce, il back-end non ha salvato niente, quindi la domanda non deve andare persa: torna nella casella, pronta per essere rimandata.</p>
+    </aside>
+    <p class="fonte">frontend/src/lib/api.ts · Capitolo 15, sezioni 6 e 7</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">Le prove</p>
+    <h2>Vitest per la logica, Playwright nel browser vero</h2>
+    <div class="schede" style="--n: 4">
+      <div class="scheda"><span class="numero">108</span><p>test Vitest del front-end, in 11 file</p></div>
+      <div class="scheda"><span class="numero">625</span><p>test <code>pytest</code> passati; 74 saltati</p></div>
+      <div class="scheda"><span class="numero">9</span><p>prove nel browser e di Compose, con <code>--docker</code></p></div>
+      <div class="scheda llm"><span class="numero">5</span><p>prove con LM Studio e Docker insieme</p></div>
+    </div>
+    <ul class="punti fitti" style="margin-top: 24px">
+      <li>Le prove nel browser usano un nginx di prova, il back-end vero, un database di prova e un agente finto</li>
+      <li>Le 5 prove con LM Studio sono state eseguite prima delle ultime correzioni dello step 8, non dopo</li>
+    </ul>
+    <aside class="note">
+      <p>La logica del front-end si prova senza browser, con Vitest. Le prove nel browser vero usano Playwright con Chromium, contro il container nginx. Sono sette: conversazione completa, progetto con istruzioni, ricerca ed eliminazione, agente spento, back-end spento, app installabile, intestazioni di sicurezza.</p>
+    </aside>
+    <p class="fonte">Capitolo 09, sezione 10.5 · Capitolo 15, sezione 9 · esiti del 12 novembre 2026</p>
+  </section>
+
+  <section class="slide grande">
+    <p class="occhiello">Che cosa resta, e dove</p>
+    <h2>Dal terminale al browser cambia la memoria</h2>
+    <figure class="schema" data-schema="dati"></figure>
+    <p style="margin: 10px 0 0; font-size: 21px">Una nota salvata durante una chat sta in SQLite: resta anche se cancelli la chat. Il log del back-end non contiene mai il testo dei messaggi.</p>
+    <aside class="note">
+      <p>Fino alla lezione 5 l'unica cosa che restava tra una sessione e l'altra erano le note. Con il back-end restano anche le conversazioni. I due archivi sono separati: una nota salvata durante una chat sta in SQLite e resta anche se cancello la chat.</p>
+    </aside>
+    <p class="fonte">Capitolo 00, «Cosa sapere a memoria» · Capitolo 14</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">Con onestà</p>
+    <h2>Che cosa manca, e tre cose da sapere</h2>
+    <div class="schede" style="--n: 2">
+      <div class="scheda spenta">
+        <h3>Da fare</h3>
+        <ul class="punti fitti">
+          <li>Step 9: oggi l'agente e il back-end si avviano a mano; il database e la chat con Compose</li>
+          <li>Step 2–5: revisore, riassunto, resource, prompt</li>
+        </ul>
+      </div>
+      <div class="scheda attenzione">
+        <h3>Da sapere</h3>
+        <ul class="punti fitti">
+          <li>Nessuna autenticazione: tutto ascolta solo su <code>127.0.0.1</code></li>
+          <li>Con il modello che ragiona, un turno dura 1–2 minuti</li>
+          <li>Le formule LaTeX compaiono come testo grezzo</li>
+        </ul>
+      </div>
+    </div>
+    <aside class="note">
+      <p>Un buon resoconto dice anche che cosa manca. Per usare la chat oggi servono quattro comandi: lo step 9 li ridurrà a uno. E alcune cose sono scelte dichiarate, non dimenticanze: non c'è autenticazione, quindi nessun servizio è raggiungibile da altri computer.</p>
+    </aside>
+    <p class="fonte">Checkpoint del 12 novembre 2026 · README «La chat nel browser»</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">Se te lo chiedono all'orale</p>
+    <h2>Tre domande, tre risposte brevi</h2>
+    <div class="domanda">
+      <p class="q">Perché il servizio dell'agente non conserva le conversazioni?</p>
+      <p class="r">Le chat le salva il back-end, in PostgreSQL. Un agente senza stato si può riavviare o duplicare senza perdere nulla.</p>
+    </div>
+    <div class="domanda">
+      <p class="q">Perché non si salva la domanda appena arriva?</p>
+      <p class="r">Un turno fallito non deve lasciare una domanda senza risposta. È lo stesso comportamento del terminale, dove un turno fallito non entra nella cronologia.</p>
+    </div>
+    <div class="domanda">
+      <p class="q">Perché nginx inoltra <code>/api</code>, invece di far parlare il browser con il back-end?</p>
+      <p class="r">Pagina e API hanno la stessa origine, quindi niente CORS, e il back-end resta su <code>127.0.0.1</code>. Serve però <code>proxy_buffering off</code>.</p>
+    </div>
+    <aside class="note">
+      <p>Prova a rispondere a voce prima di leggere. Le tre risposte hanno la stessa forma: una scelta, il suo perché, e che cosa costa.</p>
+    </aside>
+    <p class="fonte">Schede dei capitoli 13, 14 e 15</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">Da ricordare</p>
+    <h2>La lezione 6 in cinque frasi</h2>
+    <ol class="punti grandi">
+      <li>Il <strong>router</strong> rifiuta le domande fuori ambito prima dell'agente.</li>
+      <li>L'agente è un <strong>servizio senza stato</strong>: stessa risposta dal terminale e dall'API.</li>
+      <li>Il back-end salva il turno <strong>solo a risposta completa</strong>.</li>
+      <li>Il browser parla <strong>solo con nginx</strong>; il testo del modello è <strong>non fidato</strong>.</li>
+      <li>Ogni step si chiude con un'<strong>evidenza</strong>, non con un'impressione.</li>
+    </ol>
+    <aside class="note">
+      <p>La lezione 6 non cambia l'agente: gli costruisce intorno i pezzi che servono per usarlo davvero. Un filtro davanti, una porta HTTP, una memoria in un database e un'interfaccia nel browser. Ogni pezzo ha un solo compito e parla solo con il vicino.</p>
+    </aside>
+    <p class="fonte">Per i dettagli: capitoli 04, 13, 14 e 15 di docs/studio</p>
+  </section>
+
+</body>
+</html>
