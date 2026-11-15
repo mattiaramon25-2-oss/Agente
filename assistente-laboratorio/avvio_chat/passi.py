@@ -5,24 +5,31 @@ HTTP, orologio, scrittura nella finestra): così i test li provano senza Docker 
 Tutti gli errori sono ErroreAvvio, con un messaggio che dice che cosa sistemare.
 """
 
+import json
 import shutil
+import socket
 import subprocess
+import sys
 import tempfile
 import time
 import urllib.request
+import webbrowser
+from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Mapping
+from typing import Callable, Iterator, Mapping, TextIO
 
-from assistente.avvio_server import CARTELLA_PROGETTO
+from assistente.avvio_server import CARTELLA_PROGETTO, processo_in_attesa
 from assistente.configurazione import carica_configurazione, leggi_porta, leggi_porta_agente
 from assistente.errori import ErroreAvvio
 from assistente.modello import verifica_server
+from assistente.registro import CARTELLA_LOG
 from servizio_backend.configurazione import carica_configurazione_backend
 
 ATTESA_DOCKER = 180.0
 ATTESA_LMSTUDIO = 60.0
 ATTESA_CONTAINER = 600.0  # la prima volta l'immagine della pagina va costruita
+ATTESA_SERVIZIO = 60.0
 PORTA_FRONTEND_PREDEFINITA = 8780
 CODICE_SCADUTO = 124
 
@@ -189,3 +196,137 @@ def assicura_container(esegui: Esegui, scrivi: Scrivi) -> None:
             "docker compose up non è riuscito per database e frontend. Ultime righe:\n" + _ultime_righe(esito.uscita)
         )
     scrivi("[3/5] Database e pagina: accesi")
+
+
+def leggi_salute(url: str, limite: float) -> dict:
+    """GET <url>/salute: restituisce la risposta solo se dice `"stato": "ok"`, altrimenti solleva."""
+    with urllib.request.urlopen(url + "/salute", timeout=limite) as risposta:
+        dati = json.load(risposta)
+    if not isinstance(dati, dict) or dati.get("stato") != "ok":
+        raise ValueError(f"risposta inattesa da {url}/salute: {dati!r}")
+    return dati
+
+
+def _in_ascolto(porta: int, limite: float = 0.3) -> bool:
+    """Vero se qualcuno accetta connessioni sulla porta. Su Windows una porta chiusa risponde solo
+    dopo un paio di secondi: con questo controllo breve non li si aspetta a ogni tentativo."""
+    try:
+        with socket.create_connection(("127.0.0.1", porta), timeout=limite):
+            return True
+    except OSError:
+        return False
+
+
+def _risponde(porta: int, salute: Callable[[str, float], dict]) -> bool:
+    if not _in_ascolto(porta):
+        return False
+    try:
+        salute(f"http://127.0.0.1:{porta}", 2.0)
+    except Exception:
+        return False
+    return True
+
+
+@contextmanager
+def servizio(
+    descrizione: str,
+    comando: list[str],
+    porta: int,
+    variabile_porta: str,
+    log: Path,
+    scrivi: Scrivi,
+    *,
+    salute: Callable[[str, float], dict] = leggi_salute,
+    attesa: float = ATTESA_SERVIZIO,
+) -> Iterator[bool]:
+    """Un servizio HTTP con /salute: se risponde già non lo tocca, altrimenti lo avvia e all'uscita lo spegne.
+
+    Restituisce True solo se l'ha avviato questa funzione: ciò che era già acceso resta acceso.
+    """
+    if _risponde(porta, salute):
+        yield False
+        return
+
+    def pronto(limite: float) -> dict:
+        if not _in_ascolto(porta):
+            raise ConnectionError(f"nessuno in ascolto sulla porta {porta}")
+        return salute(f"http://127.0.0.1:{porta}", limite)
+
+    scrivi(f"      Avvio il {descrizione}...")
+    with processo_in_attesa(
+        comando, porta, log, pronto, descrizione=descrizione, variabile_porta=variabile_porta, attesa=attesa
+    ):
+        yield True
+
+
+def avvia_chat(
+    imp: Impostazioni,
+    ingresso: TextIO,
+    scrivi: Scrivi,
+    *,
+    esegui: Esegui = esegui_comando,
+    apri: Callable[[str], object] = webbrowser.open,
+    comando_agente: list[str] | None = None,
+    comando_backend: list[str] | None = None,
+    cartella_log: Path = CARTELLA_LOG,
+    senza_browser: bool = False,
+    risponde: Callable[[str], bool] = lmstudio_risponde,
+    verifica: Callable[[str, str], None] = verifica_server,
+    lms: Callable[[], str | None] = trova_lms,
+    pausa: Callable[[float], None] = time.sleep,
+    orologio: Callable[[], float] = time.monotonic,
+    salute: Callable[[str, float], dict] = leggi_salute,
+) -> int:
+    """Accende ciò che manca, apre la chat nel browser e aspetta «esci»; poi spegne solo ciò che ha avviato."""
+    scrivi("Assistente del laboratorio · avvio della chat")
+    assicura_docker(esegui, scrivi, pausa=pausa, orologio=orologio)
+    assicura_lmstudio(imp, esegui, scrivi, risponde=risponde, verifica=verifica, lms=lms, pausa=pausa, orologio=orologio)
+    assicura_container(esegui, scrivi)
+    with ExitStack() as pila:  # all'uscita spegne in ordine inverso: prima il back-end, poi l'agente
+        if _in_ascolto(imp.porta_mcp) and not _risponde(imp.porta_agente, salute):
+            raise ErroreAvvio(
+                f"La porta {imp.porta_mcp} (MCP_PORTA) è occupata ma il servizio dell'agente è spento: "
+                "probabilmente è aperta la chat da terminale (python -m assistente). Chiudila e riprova."
+            )
+        agente_avviato = pila.enter_context(
+            servizio(
+                "servizio dell'agente",
+                comando_agente or [sys.executable, "-m", "servizio_agente"],
+                imp.porta_agente,
+                "AGENTE_PORTA",
+                cartella_log / "avvio_agente.log",
+                scrivi,
+                salute=salute,
+            )
+        )
+        scrivi(f"[4/5] Agente: {'pronto su' if agente_avviato else 'già acceso su'} {imp.url_agente}")
+        backend_avviato = pila.enter_context(
+            servizio(
+                "back-end delle chat",
+                comando_backend or [sys.executable, "-m", "servizio_backend"],
+                imp.porta_backend,
+                "BACKEND_PORTA",
+                cartella_log / "avvio_backend.log",
+                scrivi,
+                salute=salute,
+            )
+        )
+        scrivi(f"[5/5] Back-end: {'pronto su' if backend_avviato else 'già acceso su'} {imp.url_backend}")
+        if senza_browser:
+            scrivi(f"La chat risponde su {imp.url_chat} (browser non aperto).")
+        else:
+            scrivi(f"Apro {imp.url_chat}")
+            apri(imp.url_chat)
+        if not (agente_avviato or backend_avviato):
+            scrivi("Agente e back-end erano già accesi: non li ho avviati io, quindi restano accesi.")
+            return 0
+        scrivi("La chat è accesa. Per spegnerla scrivi «esci» e premi Invio, oppure chiudi questa finestra.")
+        try:
+            for riga in ingresso:
+                if riga.strip().lower() == "esci":
+                    break
+        except KeyboardInterrupt:
+            pass
+        scrivi("Spengo ciò che ho avviato...")
+    scrivi("Spento. Database e pagina restano accesi in Docker: per fermarli, docker compose stop.")
+    return 0
