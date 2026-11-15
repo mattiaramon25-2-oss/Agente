@@ -6,6 +6,8 @@ il nodo `strumenti` esegue lo strumento che il modello chiede, il nodo `limite` 
 dopo 3 giri di strumento. La cronologia resta in memoria per la sessione e si perde alla chiusura;
 le uniche informazioni che restano tra una sessione e l'altra sono le note (vedi sotto).
 
+> **Vuoi solo farlo partire?** La guida di una pagina è [AVVIO-RAPIDO.md](AVVIO-RAPIDO.md).
+
 Gli strumenti stanno in un **server MCP** («Strumenti laboratorio», scritto con FastMCP) che
 l'assistente avvia da solo, interroga con la discovery (`tools/list`) e spegne all'uscita:
 
