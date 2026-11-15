@@ -176,12 +176,25 @@ Attenzione: è una risposta simulata. Mostra come funziona il grafo, ma non dimo
 
 ---
 
-## Come preparare una presentazione
+## Presentazioni e schemi pronti
 
-1. **Scegli l'argomento.** Per un argomento solo, usa la scaletta in fondo al suo capitolo. Per una lezione intera, prendi i capitoli elencati in «Il progetto lezione per lezione» e unisci le loro scalette, togliendo le slide ripetute.
-2. **Controlla i «Da mostrare».** Ogni slide indica un diagramma, una tabella o un pezzo di codice che esiste già nel capitolo o nel progetto. Copialo da lì, non ridisegnarlo a memoria.
-3. **Con Claude.** Chiedi di creare una presentazione partendo dalla scaletta del capitolo N: titoli, punti e materiali da mostrare sono già scritti.
-4. **Regola d'oro.** Ogni numero e ogni nome nelle slide deve venire dal capitolo, che a sua volta viene dal codice. Se una slide dice qualcosa che il capitolo non dice, va controllata nel codice.
+Le presentazioni esistono già: sono pagine HTML nella cartella [`presentazioni/`](presentazioni/index.html). Si aprono con doppio clic su `index.html` e funzionano senza Internet.
+
+| Pagina | Che cosa contiene |
+|---|---|
+| [`progetto-in-15-minuti.html`](presentazioni/progetto-in-15-minuti.html) | tutto il progetto, 15 slide |
+| [`lezione-4.html`](presentazioni/lezione-4.html) | l'assistente di base, 16 slide |
+| [`lezione-5.html`](presentazioni/lezione-5.html) | gli strumenti via MCP, 20 slide |
+| [`lezione-6.html`](presentazioni/lezione-6.html) | evolvere l'agente, 21 slide |
+| [`atlante.html`](presentazioni/atlante.html) | 18 schemi su una pagina, ognuno con che cosa guardare e il capitolo dove approfondire |
+
+**Tasti.** `→` e `←` per muoversi, `N` per le note «Da dire a voce», `E` per vedere tutte le slide in elenco, `F` per lo schermo intero, `T` per il tema chiaro o scuro. Con `Ctrl+P` il browser stampa una slide per pagina.
+
+**Come sono fatte.** Tre file comuni: `stile.css` (aspetto), `slide.js` (navigazione) e `schemi.js` (gli schemi, descritti una volta sola e disegnati nel browser). Nessuna libreria e nessuna richiesta di rete. Per correggere uno schema si cambia la sua descrizione in `schemi.js`: atlante e presentazioni si aggiornano insieme.
+
+**Per farne una nuova.** Copia una presentazione, tieni lo scheletro e parti dalla «Scaletta per le slide» in fondo al capitolo: titoli, punti e materiali da mostrare sono già scritti.
+
+**Regola d'oro.** Ogni numero e ogni nome nelle slide deve venire dal capitolo, che a sua volta viene dal codice. Se una slide dice qualcosa che il capitolo non dice, va controllata nel codice. Quando cambia il codice, insieme ai capitoli si aggiornano anche le slide e gli schemi che ne parlano.
 
 ---
 
@@ -190,6 +203,7 @@ Attenzione: è una risposta simulata. Mostra come funziona il grafo, ma non dimo
 | Fonte | Che cosa contiene | Quando usarla |
 |---|---|---|
 | `README.md` | comandi verificati, variabili del `.env`, log, diagnosi | per eseguire davvero qualcosa |
+| `AVVIO-RAPIDO.md` | la guida di una pagina: tre modi di avvio, che cosa si deve vedere, gli errori più comuni | per far partire il progetto senza cercare nel README |
 | `../CLAUDE.md` | obiettivo, confini, scelte tecniche, regole Git e di metodo | per spiegare *perché* il progetto è fatto così e che cosa non fa |
 | [`docs/superpowers/`](../superpowers/README.md) | specifiche, piani e checkpoint, con un indice per lezione | per i contratti degli strumenti, l'ordine di costruzione e gli esiti reali delle prove |
 | `git log` | 172 commit in `main` al 12/11/2026, in Conventional Commits italiani; 16 sono unioni `chore: unisci …` (passi 1–7, revisione e lezione 6) | per ricostruire la storia (11); `git show <hash>` per vedere una singola modifica |
