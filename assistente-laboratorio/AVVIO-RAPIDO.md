@@ -144,11 +144,19 @@ La chat è la stessa del modo A, ma gira in un container. LM Studio resta sul co
 | `Variabili d'ambiente mancanti: …` | manca il file `.env` o una riga è vuota: confrontalo con `.env.example` |
 | `Porta … già in uso` oppure `La porta … è occupata` | un altro programma, o un avvio precedente rimasto acceso, usa quella porta: chiudilo o cambia la porta nel `.env` |
 | `Il database PostgreSQL non risponde su 127.0.0.1:…` | il database è spento: `docker compose up -d database` |
-| lo stesso messaggio, con `password authentication failed` | la password nel `.env` è diversa da quella con cui il database è stato creato: rimetti quella vecchia. In alternativa `docker compose down -v`, che però **cancella tutte le chat** |
+| lo stesso messaggio, con `password authentication failed` | la password nel `.env` è diversa da quella con cui il database è stato creato. Rimetti quella vecchia, oppure dai al database quella nuova (vedi sotto): in tutti e due i casi le chat restano. `docker compose down -v` invece **cancella tutte le chat** |
 | striscia rossa «Il back-end non risponde: avvialo con python -m servizio_backend.» | il back-end è spento: avvialo (comando 3). La striscia sparisce da sola |
 | `required variable … is missing a value` | Docker Compose non trova una variabile: aggiungila al `.env` come in `.env.example` |
 | `.\avvia.ps1` non può essere eseguito perché l'esecuzione di script è disabilitata | `powershell -NoProfile -ExecutionPolicy Bypass -File .\avvia.ps1` |
 | la prima risposta è molto lenta | LM Studio sta caricando il modello in memoria: aspetta |
+
+**Cambiare la password del database senza perdere le chat.** Con il database acceso, scrivi la password nuova nel `.env` e poi dalla stessa cartella (al posto di `la-password-nuova` metti la tua, senza apici dentro):
+
+```powershell
+docker compose exec -T database psql -U assistente -d assistente -c "ALTER USER assistente WITH PASSWORD 'la-password-nuova';"
+```
+
+La risposta è `ALTER ROLE`. `assistente` è il valore di `POSTGRES_USER` e di `POSTGRES_DB` in `.env.example`: se nel tuo `.env` sono diversi, usa i tuoi.
 
 Per tutto il resto: sezione «Diagnosi» del [README](README.md#diagnosi).
 
@@ -160,4 +168,4 @@ Per tutto il resto: sezione «Diagnosi» del [README](README.md#diagnosi).
 
 ---
 
-*Comandi presi dal README. Rieseguiti il 15 novembre 2026: l'avvio e l'uscita del modo A; nel modo B il servizio dell'agente con `/salute`, e la pagina su `http://127.0.0.1:8780` con database e `frontend` già accesi. Non rieseguiti il 15 novembre: l'avvio del back-end (verificato il 10–12 novembre, vedi README) e il modo C. Per il modo C il README segnala che l'avvio con la tastiera va ancora confermato: finora è stato provato con l'ingresso da una pipe.*
+*Comandi presi dal README. Rieseguiti il 15 novembre 2026: l'avvio e l'uscita del modo A; nel modo B il servizio dell'agente e il back-end, con `/salute` che risponde `ok` sia direttamente sia attraverso nginx (`http://127.0.0.1:8780/api/salute`), con database e `frontend` già accesi; il cambio della password del database, dopo il quale le chat c'erano ancora. Non rieseguiti il 15 novembre: una conversazione completa con il modello, i comandi 1 e 4 del modo B (i due container erano già accesi) e il modo C. Per il modo C il README segnala che l'avvio con la tastiera va ancora confermato: finora è stato provato con l'ingresso da una pipe.*
