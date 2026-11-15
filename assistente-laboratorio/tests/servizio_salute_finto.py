@@ -2,6 +2,8 @@
 
 import argparse
 import json
+import os
+import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 
@@ -24,4 +26,10 @@ class Gestore(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--porta", type=int, required=True)
-    HTTPServer(("127.0.0.1", parser.parse_args().porta), Gestore).serve_forever()
+    parser.add_argument("--durata", type=float, help="si spegne da solo dopo questi secondi: una prova fallita non lascia orfani")
+    opzioni = parser.parse_args()
+    if opzioni.durata:
+        timer = threading.Timer(opzioni.durata, os._exit, [0])
+        timer.daemon = True
+        timer.start()
+    HTTPServer(("127.0.0.1", opzioni.porta), Gestore).serve_forever()

@@ -17,6 +17,7 @@ from assistente.console import configura_flussi
 from assistente.errori import ErroreAvvio
 from assistente.modello import ErroreServer
 from avvio_chat.passi import avvia_chat, carica_impostazioni
+from avvio_chat.vita import lega_i_figli
 
 
 def scrivi(testo: str) -> None:
@@ -46,4 +47,7 @@ def main(argomenti: list[str] | None = None, ingresso: TextIO | None = None) -> 
 
 
 if __name__ == "__main__":
+    # Chiudere la finestra uccide questo programma senza passare da «esci»: con questo legame
+    # Windows chiude anche i processi che ha avviato. La maniglia resta viva fino alla fine.
+    legame = lega_i_figli()
     sys.exit(main())

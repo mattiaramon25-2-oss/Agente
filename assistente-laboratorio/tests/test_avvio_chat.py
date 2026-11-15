@@ -501,3 +501,69 @@ def test_main_ctrl_c_durante_l_avvio(ambiente, monkeypatch):
 
     monkeypatch.setattr(principale, "avvia_chat", interrotto)
     assert principale.main([], io.StringIO("")) == 0
+
+
+# --- Nessun processo orfano, anche se il programma viene chiuso di colpo ---
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="i Job Object esistono solo su Windows")
+def test_se_il_programma_muore_muoiono_anche_i_figli(porta):
+    """Chiudere la finestra uccide il programma senza passare da «esci»: i figli non devono restare accesi."""
+    figlio = comando_finto(porta) + ["--durata", "40"]  # se la prova fallisce, il figlio non resta orfano a lungo
+    codice = (
+        "import subprocess, sys, time\n"
+        "from avvio_chat.vita import lega_i_figli\n"
+        "print(lega_i_figli() is not None, flush=True)\n"
+        f"subprocess.Popen({figlio!r})\n"
+        "time.sleep(120)\n"
+    )
+    genitore = subprocess.Popen([sys.executable, "-c", codice], cwd=FILE_CMD.parent, stdout=subprocess.PIPE, text=True)
+    try:
+        assert genitore.stdout.readline().strip() == "True"  # il legame è riuscito
+        scadenza = time.monotonic() + 15
+        while not passi._in_ascolto(porta):
+            assert time.monotonic() < scadenza, "il figlio non è partito"
+            time.sleep(0.1)
+        genitore.kill()  # come la X della finestra: nessuna occasione di spegnere con ordine
+        genitore.wait()
+        scadenza = time.monotonic() + 8
+        while passi._in_ascolto(porta) and time.monotonic() < scadenza:
+            time.sleep(0.2)
+        assert not passi._in_ascolto(porta), "il figlio è rimasto acceso dopo la morte del programma"
+    finally:
+        if genitore.poll() is None:
+            genitore.kill()
+            genitore.wait()
+
+
+def test_main_non_lega_i_figli_quando_viene_importato():
+    """Il legame si fa solo quando il modulo è il programma: dentro pytest legherebbe tutte le prove."""
+    sorgente = Path(principale.__file__).read_text(encoding="utf-8")
+    dopo_il_main = sorgente.split('if __name__ == "__main__":')[1]
+    assert "lega_i_figli()" in dopo_il_main and "lega_i_figli()" not in sorgente.split('if __name__ == "__main__":')[0]
+
+
+# --- Il file del doppio clic ---
+
+FILE_CMD = Path(__file__).resolve().parent.parent / "avvia-chat.cmd"
+
+
+def test_cmd_solo_ascii_e_crlf():
+    grezzo = FILE_CMD.read_bytes()
+    assert all(byte < 128 for byte in grezzo)  # niente lettere accentate: cmd le rovinerebbe
+    righe = grezzo.split(b"\n")
+    assert righe[-1] == b""  # il file finisce con un a capo
+    assert all(riga.endswith(b"\r") for riga in righe[:-1])
+
+
+def test_cmd_controlla_la_venv():
+    testo = FILE_CMD.read_text(encoding="ascii")
+    assert 'if not exist ".venv\\Scripts\\python.exe"' in testo
+    assert "pause" in testo and "AVVIO-RAPIDO.md" in testo
+
+
+def test_cmd_lancia_il_modulo():
+    testo = FILE_CMD.read_text(encoding="ascii")
+    assert 'cd /d "%~dp0"' in testo  # funziona da qualunque cartella, anche con spazi nel percorso
+    assert '".venv\\Scripts\\python.exe" -m avvio_chat %*' in testo
+    assert "if errorlevel 1 pause" in testo  # dopo un errore la finestra resta aperta
