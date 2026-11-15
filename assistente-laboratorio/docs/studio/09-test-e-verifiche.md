@@ -34,7 +34,7 @@ flowchart LR
 | Il modello finto | `ModelloFinto`: risposte preparate, restituite in ordine | `tests/finti.py:13-25` |
 | Giri massimi con gli strumenti in un turno | `MAX_GIRI_STRUMENTO = 3` | `assistente/grafo.py:20` |
 | Esito dello step 7, 2026-11-10 | `python -m pytest`: 625 passati, 64 saltati (dopo la revisione finale); `--docker -m docker`: 23 passati; `--lmstudio --docker tests/test_reale_backend.py`: 4 passati | → sezione 10.4 |
-| Esito dello step 8, 2026-11-12 | `python -m pytest`: 625 passati, 73 saltati; `--docker -m docker`: 31 passati; `--lmstudio --docker -m "lmstudio and docker"`: 5 passati; `npm test`: 85 passati in 9 file | → sezione 10.5 |
+| Esito dello step 8, 2026-11-12 | dopo le correzioni della revisione finale, `python -m pytest`: 625 passati, 74 saltati; `npm test`: 108 passati in 11 file; prove nel browser e di Compose con `--docker`: 9 passate. Prima di quelle correzioni, e non rieseguite dopo: `--docker -m docker`: 31 passati; `--lmstudio --docker -m "lmstudio and docker"`: 5 passati | → sezione 10.5 |
 | Ambiente comune delle prove reali | `ambiente_reale()`, con archivio delle note temporaneo | `tests/reale.py:32-63` |
 
 **Se te lo chiedono all'orale**
@@ -881,10 +881,10 @@ Il front-end ha due livelli di prova, più il contratto di Compose ([15, sezione
 
 | Livello | Dove | Che cosa prova | Come si lancia |
 |---|---|---|---|
-| **Vitest** | `frontend/src/**/*.test.ts`, 9 file e 85 test | lettore SSE, API con un `fetch` finto, markdown sicuro, temi, `StatoApp` con un'API finta, manifest, sorgenti in UTF-8; senza browser e senza rete | `cd frontend; npm test` |
+| **Vitest** | `frontend/src/**/*.test.ts`, 11 file e 108 test | lettore SSE, API con un `fetch` finto, markdown sicuro, temi, `StatoApp` con un'API finta, manifest, sorgenti in UTF-8; senza browser e senza rete | `cd frontend; npm test` |
 | **Tipi** | `svelte-check` | 231 file, 0 errori, 0 avvisi | `npm run check` |
 | **Contratto di Compose** | `tests/test_compose_frontend.py` (marcatore `docker`) | porta solo su `127.0.0.1`, valore predefinito di `FRONTEND_PORTA` | `python -m pytest --docker tests/test_compose_frontend.py` |
-| **Playwright, agente finto** | `tests/test_reale_browser.py` (marcatore `docker`), 6 prove | conversazione completa, progetto con istruzioni, ricerca ed eliminazione, agente spento, striscia del back-end spento, app installabile | `python -m pytest --docker tests/test_reale_browser.py -v -s` |
+| **Playwright, agente finto** | `tests/test_reale_browser.py` (marcatore `docker`), 7 prove | conversazione completa, progetto con istruzioni, ricerca ed eliminazione, agente spento, striscia del back-end spento, app installabile, intestazioni di sicurezza | `python -m pytest --docker tests/test_reale_browser.py -v -s` |
 | **Playwright, LM Studio** | `tests/test_reale_browser_lmstudio.py` (marcatori `lmstudio` **e** `docker`) | «Quanto fa (3+4)*2?» con l'agente vero: riga di `calcola`, risposta a pezzi | `python -m pytest --lmstudio --docker tests/test_reale_browser_lmstudio.py -v -s` |
 
 - **Marcatori combinati.** Come `test_reale_backend.py`, l'ultima prova ha due marcatori: con la sola
