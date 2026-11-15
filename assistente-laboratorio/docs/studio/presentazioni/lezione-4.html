@@ -191,7 +191,7 @@ config = carica_configurazione(os.environ)</pre>
       <li><code>FUSO_ORARIO</code>, scritto a mano nel file <code>.env</code></li>
       <li><code>UTC</code>, con un <strong>avviso ben visibile</strong> nella riga di benvenuto</li>
     </ol>
-    <p class="avviso buono" style="margin-top: 12px"><code>Europe/Berlin</code> in Italia è normale: è il nome che Windows dà al fuso dell'Europa centrale, con la stessa ora di Roma.</p>
+    <p class="avviso buono" style="margin-top: 12px"><code>Europe/Berlin</code> in Italia è normale: Windows chiama il fuso dell'Europa centrale <code>W. Europe Standard Time</code>, che la tabella standard traduce in <code>Europe/Berlin</code>. È la stessa ora di Roma.</p>
     <aside class="note">
       <p>L'orologio deve sapere dove si trova l'utente. Fuori da Docker basta chiedere al computer. Dentro un container, però, il fuso del sistema è UTC. Per questo lo script di avvio legge il fuso di Windows e lo passa al container. Se nessun posto dà una risposta, il programma usa UTC, ma lo dice sempre.</p>
     </aside>

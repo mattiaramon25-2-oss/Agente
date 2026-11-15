@@ -82,6 +82,7 @@
       cornice.appendChild(tela);
       var nota = sezione.querySelector('aside.note');
       if (nota) cornice.appendChild(nota);
+      else cornice.classList.add('senza-nota');
       sezione.dataset.n = String(i + 1);
       sezione.dataset.tot = String(totale);
       cornice.dataset.n = String(i + 1);

@@ -49,7 +49,7 @@
     <div class="schede">
       <div class="scheda">
         <h3>Host</h3>
-        <p>Il programma che ospita il modello: qui, l'assistente. <strong>Decide lui</strong> quali strumenti passare al modello.</p>
+        <p>L'applicazione che usa il modello: qui, l'assistente. <strong>Decide</strong> quali strumenti passare al modello.</p>
       </div>
       <div class="scheda">
         <h3>Client</h3>
@@ -62,7 +62,7 @@
     </div>
     <p style="margin-top: 26px">Il server ascolta su <code>http://127.0.0.1:&lt;MCP_PORTA&gt;/mcp</code>: solo sul computer locale.</p>
     <aside class="note">
-      <p>Tre parole da non confondere. L'host è il programma che ospita il modello, cioè l'assistente. Il client è la sua parte che parla il protocollo. Il server è un altro processo, che offre gli strumenti. Il server espone sempre tutti e dieci gli strumenti; è l'host a scegliere quali far vedere al modello.</p>
+      <p>Tre parole da non confondere. L'host è l'applicazione che usa il modello, cioè l'assistente. Il client è la sua parte che parla il protocollo. Il server è un altro processo, che offre gli strumenti. Il server espone sempre tutti e dieci gli strumenti; è l'host a scegliere quali far vedere al modello.</p>
     </aside>
     <p class="fonte">Capitolo 01, sezione 7 · Capitolo 05, sezione 2</p>
   </section>
@@ -107,7 +107,7 @@ contenuto = <b>asyncio.run</b>(
     asyncio.wait_for(
         strumento.ainvoke(argomenti),
         timeout))</pre>
-        <p class="avviso buono" style="font-size: 20px">È l'unico punto asincrono del progetto. Ogni chiamata aspetta al massimo <strong>10 secondi</strong>.</p>
+        <p class="avviso buono" style="font-size: 20px">È l'unico punto in cui il nostro codice usa <code>asyncio</code>. Ogni chiamata aspetta al massimo <strong>10 secondi</strong>.</p>
       </div>
     </div>
     <aside class="note">
@@ -127,7 +127,7 @@ contenuto = <b>asyncio.run</b>(
       </div>
       <div class="scheda attenzione">
         <h3><code>tipo: "collegamento"</code></h3>
-        <p>Il server <strong>non si raggiunge</strong> o non risponde in tempo: <code>Server MCP non raggiungibile</code>.</p>
+        <p>Il server <strong>non si raggiunge</strong> (<code>Server MCP non raggiungibile: …</code>) o non risponde in tempo (<code>Server MCP: nessuna risposta entro 10 secondi.</code>).</p>
         <p>La chat continua, ma il server non viene riavviato.</p>
       </div>
     </div>
@@ -169,7 +169,7 @@ contenuto = <b>asyncio.run</b>(
     <h2>Una domanda, due giri del modello</h2>
     <figure class="schema" data-schema="viaggio-mcp"></figure>
     <aside class="note">
-      <p>Seguiamo «che ore sono a Tokyo?». Al primo giro il modello non risponde: chiede lo strumento. Il grafo controlla gli argomenti e chiama il ponte, che parla con il server. Il risultato torna in un ToolMessage. Al secondo giro il modello legge il risultato e scrive la risposta. Sul filo, il passo 5 sono quattro richieste HTTP, perché la libreria apre una sessione nuova a ogni chiamata.</p>
+      <p>Seguiamo «che ore sono a Tokyo?». Al primo giro il modello non risponde: chiede lo strumento. Il grafo controlla gli argomenti e chiama il ponte, che parla con il server. Il ponte restituisce un testo; il nodo strumenti lo mette in un ToolMessage e scrive la riga nel log. Al secondo giro il modello legge il risultato e scrive la risposta. La libreria apre una sessione nuova a ogni chiamata: sul filo, se la chiamata riesce, il passo 5 sono quattro richieste HTTP.</p>
     </aside>
     <p class="fonte">Capitolo 03, sezione 2</p>
   </section>

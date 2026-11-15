@@ -573,7 +573,7 @@ body.mazzo.pronto.intero .slide {
 }
 
 /* Pannello delle note (tasto N) */
-body.mazzo.pronto.con-note:not(.elenco) .cornice.attiva .tela {
+body.mazzo.pronto.con-note:not(.elenco) .cornice.attiva:not(.senza-nota) .tela {
   bottom: calc(24vh + 12px);
 }
 
@@ -805,6 +805,12 @@ svg.sch {
 
 .sch .piano .sch-forma {
   fill: var(--superficie);
+}
+
+.sch .evidenza .sch-forma {
+  fill: var(--superficie);
+  stroke: var(--accento);
+  stroke-width: 2.8;
 }
 
 .sch .sch-freccia {
@@ -1107,6 +1113,11 @@ kbd {
   border-style: dashed;
 }
 
+.pagina .legenda i.evidenza {
+  border: 2.8px solid var(--accento);
+  background: var(--superficie);
+}
+
 .pagina figure.schema {
   margin: 14px 0 10px;
   padding: 18px;
@@ -1135,9 +1146,15 @@ kbd {
 /* ───────────── Stampa: una slide per pagina, in chiaro ───────────── */
 
 @media print {
-  @page {
+  /* Solo le presentazioni si stampano su pagine 16:9 senza margini: indice e atlante no. */
+  @page slide {
     size: 1280px 720px;
     margin: 0;
+  }
+
+  body.mazzo > .slide,
+  body.mazzo .cornice {
+    page: slide;
   }
 
   :root,

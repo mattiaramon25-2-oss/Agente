@@ -23,7 +23,8 @@
       <li><i class="llm"></i> chi ragiona: il modello</li>
       <li><i class="esegue"></i> chi esegue gli strumenti</li>
       <li><i class="dati"></i> dove restano i dati</li>
-      <li><i class="attenzione"></i> testo fisso: rifiuto, limite</li>
+      <li><i class="attenzione"></i> attenzione: rifiuto, limite, testo non fidato</li>
+      <li><i class="evidenza"></i> bordo spesso: il punto da guardare</li>
       <li><i class="esterno"></i> tratteggiato: fuori dal progetto</li>
       <li><i></i> il resto del programma</li>
     </ul>
@@ -52,7 +53,7 @@
     <section>
       <h2 id="sistema"><span class="n">1</span> Tutto il sistema, oggi</h2>
       <figure class="schema" data-schema="sistema"></figure>
-      <p>Il browser parla solo con nginx, che inoltra <code>/api</code> al back-end. Il back-end tiene insieme il database, che ricorda, e l'agente, che ragiona e resta senza stato. Il terminale e il servizio dell'agente costruiscono lo stesso agente con <code>crea_agente</code>: stesso modello, stesso router, stessi strumenti. Ognuno dei due avvia un suo server MCP.</p>
+      <p>Il browser parla solo con nginx, che inoltra <code>/api</code> al back-end. Il back-end tiene insieme il database, che ricorda, e l'agente, che ragiona e resta senza stato. Il terminale e il servizio dell'agente costruiscono lo stesso agente con <code>crea_agente</code>: stesso modello, stesso router, stessi strumenti. Ognuno dei due avvia un suo server MCP, sulla stessa porta: per questo terminale e servizio dell'agente non si usano insieme con lo stesso <code>.env</code>.</p>
       <p class="leggi">Le porte sono quelle di <code>.env.example</code>. Tutto ascolta solo su <code>127.0.0.1</code>. Approfondisci: <a href="../02-architettura.md">capitolo 02</a>, sezione 1.5 ter.</p>
     </section>
 
@@ -101,21 +102,21 @@
     <section>
       <h2 id="viaggio-mcp"><span class="n">8</span> Il viaggio di una richiesta</h2>
       <figure class="schema" data-schema="viaggio-mcp"></figure>
-      <p>Due giri del modello: al primo chiede lo strumento, al secondo legge il risultato e risponde. Per ogni chiamata la libreria MCP apre una sessione nuova, quindi il passo 5 sul filo sono quattro richieste: <code>initialize</code>, <code>notifications/initialized</code>, <code>tools/call</code> e <code>tools/list</code>. Con le varianti locale e FastAPI cambiano solo i passi dal 4 al 7.</p>
+      <p>Due giri dell'agente: al primo il modello chiede lo strumento, al secondo legge il risultato e risponde. Oggi, prima dei due giri, c'è anche la chiamata del router. La libreria MCP apre una sessione nuova a ogni chiamata: per una chiamata riuscita il passo 5 sul filo sono quattro richieste, <code>initialize</code>, <code>notifications/initialized</code>, <code>tools/call</code> e <code>tools/list</code>. Con le varianti locale e FastAPI cambiano solo i passi dal 4 all'8.</p>
       <p class="leggi">Approfondisci: <a href="../03-viaggio-di-una-richiesta.md">capitolo 03</a> e <a href="../05-mcp-in-pratica.md">capitolo 05</a>.</p>
     </section>
 
     <section>
       <h2 id="varianti"><span class="n">9</span> Tre strade, una sola logica</h2>
       <figure class="schema" data-schema="varianti"></figure>
-      <p>La strada si sceglie nel <code>.env</code>, con <code>VARIANTE_CALCOLATRICE</code> e <code>VARIANTE_SCADENZE</code>. Il modello vede lo stesso nome, la stessa descrizione e gli stessi argomenti: l'<code>origine</code> resta al programma e compare solo nel terminale e nel log.</p>
+      <p>La strada si sceglie nel <code>.env</code>, con <code>VARIANTE_CALCOLATRICE</code> e <code>VARIANTE_SCADENZE</code>. Il modello vede lo stesso nome, la stessa descrizione e gli stessi argomenti. L'<code>origine</code> non arriva mai al modello: la vedi nel terminale, nei log e nelle risposte dell'API.</p>
       <p class="leggi">Approfondisci: <a href="../06-tre-varianti.md">capitolo 06</a>.</p>
     </section>
 
     <section>
       <h2 id="processi"><span class="n">10</span> Chi avvia chi</h2>
       <figure class="schema stretto" data-schema="processi"></figure>
-      <p>LM Studio, la chat da terminale, il servizio dell'agente, il back-end e i due container li avvii tu. Il server MCP no: lo avviano e lo spengono la chat da terminale e il servizio dell'agente, ciascuno il suo. Con la variante <code>fastapi</code> avviano anche il servizio delle scadenze.</p>
+      <p>LM Studio, la chat da terminale, il servizio dell'agente, il back-end e i due container li avvii tu: sei cose. Il server MCP no: lo avviano e lo spengono la chat da terminale e il servizio dell'agente, ciascuno il suo, sulla stessa porta. Per questo i due non si usano insieme: il secondo si ferma con <code>Porta … già in uso</code>. Con la variante <code>fastapi</code> avviano anche il servizio delle scadenze.</p>
       <p class="leggi">Le porte sono quelle di <code>.env.example</code>. I comandi sono nella guida <a href="../../../AVVIO-RAPIDO.md">AVVIO-RAPIDO.md</a>. Approfondisci: <a href="../02-architettura.md">capitolo 02</a>, sezione 2.</p>
     </section>
 

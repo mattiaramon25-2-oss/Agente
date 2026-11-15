@@ -6,7 +6,8 @@
    - «sequenza»: attori in colonna e messaggi numerati dall'alto in basso.
 
    Colori dei nodi (classi in stile.css): llm = chi ragiona, esegue = chi esegue gli strumenti,
-   dati = dove restano i dati, attenzione = testo fisso o rifiuto, esterno = fuori dal progetto.
+   dati = dove restano i dati, attenzione = rifiuto, limite o testo non fidato,
+   esterno = fuori dal progetto, evidenza = il punto da guardare.
 
    Per correggere uno schema si cambia la sua descrizione in SCHEMI, più sotto: l'atlante e le
    presentazioni si aggiornano insieme. */
@@ -472,7 +473,8 @@
       { da: 'ponte', a: 'server', e: 'POST /mcp · tools/call' },
       { su: 'server', nota: 'logica/orologio.py', stile: 'esegue' },
       { da: 'server', a: 'ponte', e: 'risultato in JSON', ritorno: true },
-      { da: 'ponte', a: 'grafo', e: 'ToolMessage con lo stesso id + riga nel log', ritorno: true },
+      { da: 'ponte', a: 'grafo', e: 'risultato come testo JSON', ritorno: true },
+      { su: 'grafo', nota: ['ToolMessage, stesso id', '+ riga nel log'] },
       { da: 'grafo', a: 'lm', e: '2° giro: con il risultato' },
       { da: 'lm', a: 'grafo', e: '«A Tokyo sono le 05:13.»', ritorno: true },
       { da: 'grafo', a: 'term', e: 'riga strumento + risposta', ritorno: true }
@@ -537,7 +539,7 @@
 
   SCHEMI.processi = {
     tipo: 'flusso',
-    titolo: 'Chi avvia chi: tu avvii cinque cose, e due di loro avviano e spengono da sole il server MCP',
+    titolo: 'Chi avvia chi: tu avvii sei cose, e due di loro avviano e spengono da sole il server MCP, ciascuna il suo',
     griglia: { col: [84, 262, 224], riga: 70, dx: 128, dy: 14 },
     nodi: [
       { id: 'tu', c: 0, r: 0, ar: 6, t: 'Tu', forma: 'pillola' },
@@ -549,7 +551,7 @@
       { id: 'fe', c: 1, r: 5, t: 'Chat nel browser', s: ['docker compose up -d', '--build frontend · :8780'] },
       { id: 'api', c: 2, r: 0, t: 'Servizio FastAPI', s: ['solo variante fastapi', ':8766'], stile: 'esegue' },
       { id: 'mcp1', c: 2, r: 1, t: 'Server MCP', s: [':8765'], stile: 'esegue' },
-      { id: 'mcp2', c: 2, r: 2, t: 'Server MCP', s: ['uno suo · :8765'], stile: 'esegue' }
+      { id: 'mcp2', c: 2, r: 2, t: 'Server MCP', s: ['uno suo, stessa porta'], stile: 'esegue' }
     ],
     frecce: [
       { da: 'tu', a: 'lm' },
@@ -558,9 +560,10 @@
       { da: 'tu', a: 'be' },
       { da: 'tu', a: 'db' },
       { da: 'tu', a: 'fe' },
-      { da: 'cli', a: 'mcp1', sd: 10, e: 'avvia e spegne' },
-      { da: 'cli', a: 'api', via: 'hvh', sd: -16, sa: 10, stile: 'tratteggio' },
-      { da: 'ag', a: 'mcp2', e: 'avvia e spegne' }
+      { da: 'cli', a: 'mcp1', sd: 10, e: ['avvia e', 'spegne'] },
+      { da: 'cli', a: 'api', via: 'hvh', sd: -16, sa: -4, stile: 'tratteggio' },
+      { da: 'ag', a: 'mcp2', sd: 10, e: ['avvia e', 'spegne'] },
+      { da: 'ag', a: 'api', via: 'hvh', sd: -16, sa: 18, mx: 36, stile: 'tratteggio' }
     ]
   };
 
@@ -573,7 +576,7 @@
       { id: 'n2', c: 1, r: 0, t: '2 · Configurazione', s: ['.env: gli errori', 'tutti insieme'] },
       { id: 'n3', c: 2, r: 0, t: '3 · Log e ambito', s: ['logs/assistente.log', 'risorse/ambito.json'] },
       { id: 'n4', c: 3, r: 0, t: '4 · LM Studio', s: ['risponde? il modello', 'è nell\'elenco?'], stile: 'llm' },
-      { id: 'n5', c: 3, r: 1, t: '5 · Fuso dell\'utente', s: ['quattro posti, poi UTC'] },
+      { id: 'n5', c: 3, r: 1, t: '5 · Fuso dell\'utente', s: ['tre posti, poi UTC'] },
       { id: 'n6', c: 2, r: 1, t: '6 · Processi figli', s: ['server MCP, FastAPI:', 'pronti entro 10 s'], stile: 'esegue' },
       { id: 'n7', c: 1, r: 1, t: '7 · Modello e grafo', s: ['crea_agente'] },
       { id: 'n8', c: 0, r: 1, t: '8 · Chat', s: ['un turno alla volta'] }
@@ -658,7 +661,7 @@
       { id: 'l2', c: 1, r: 5, t: '2 · LM Studio', s: ['«Impossibile raggiungere LM Studio all\'indirizzo …»'], stile: 'llm esterno' },
       { id: 'l1', c: 1, r: 6, t: '1 · Configurazione', s: ['«Variabili d\'ambiente mancanti: …»'] },
       { id: 'fine', c: 0, r: 0, t: 'per ultimo', forma: 'pillola', a: 44 },
-      { id: 'inizio', c: 0, r: 6, t: 'parti da qui', forma: 'pillola', a: 44, stile: 'esegue' }
+      { id: 'inizio', c: 0, r: 6, t: 'parti da qui', forma: 'pillola', a: 44, stile: 'evidenza' }
     ],
     frecce: [
       { da: 'inizio', a: 'fine', e: ['dal basso', 'verso l\'alto'] }
@@ -674,7 +677,7 @@
       { c: 1, r: 0, lc: 3, t: 'solo se le chiedi: altrimenti risultano skipped' }
     ],
     nodi: [
-      { id: 'auto', c: 0, r: 0, t: 'Test automatici', s: ['python -m pytest', '', 'modello finto, niente rete:', 'il codice fa la cosa giusta,', 'dato un copione del modello?'], stile: 'esegue' },
+      { id: 'auto', c: 0, r: 0, t: 'Test automatici', s: ['python -m pytest', '', 'modello finto, niente rete:', 'il codice fa la cosa giusta,', 'dato un copione del modello?'] },
       { id: 'lm', c: 1, r: 0, t: 'Prove con LM Studio', s: ['--lmstudio -m lmstudio', '', 'il modello vero', 'chiama davvero', 'lo strumento?'], stile: 'llm' },
       { id: 'docker', c: 2, r: 0, t: 'Prove con Docker', s: ['--docker -m docker', '', 'container, fuso, volumi:', 'funziona anche lì?'] },
       { id: 'browser', c: 3, r: 0, t: 'Prove nel browser', s: ['Playwright con Chromium', '', 'la chat regge', 'in un browser vero?'] }
@@ -691,12 +694,12 @@
       { id: 'd1', c: 0, r: 1, t: 'Note', s: ['add_note, list_notes, delete_note'] },
       { id: 'd2', c: 0, r: 2, t: 'Progetti, chat e messaggi', s: ['li salva il back-end'] },
       { id: 'd3', c: 0, r: 3, t: 'Log', s: ['una riga per ogni chiamata'] },
-      { id: 'd4', c: 0, r: 4, t: 'Catalogo e festività', s: ['letti quando parte il server'] },
+      { id: 'd4', c: 0, r: 4, t: 'Catalogo, festività, ambito', s: ['letti all\'avvio o al primo uso'] },
       { id: 'p0', c: 1, r: 0, t: 'Memoria del processo', s: ['niente su disco'], stile: 'esterno' },
       { id: 'p1', c: 1, r: 1, t: 'archivio/note.sqlite3', s: ['SQLite, fuori da Git'], forma: 'cilindro', stile: 'dati' },
       { id: 'p2', c: 1, r: 2, t: 'PostgreSQL', s: ['volume Docker dati_postgres'], forma: 'cilindro', stile: 'dati' },
       { id: 'p3', c: 1, r: 3, t: 'logs/', s: ['quattro file, fuori da Git'], forma: 'cilindro', stile: 'dati' },
-      { id: 'p4', c: 1, r: 4, t: 'risorse/', s: ['due file JSON, in Git'], forma: 'cilindro', stile: 'dati' }
+      { id: 'p4', c: 1, r: 4, t: 'risorse/', s: ['tre file JSON, in Git'], forma: 'cilindro', stile: 'dati' }
     ],
     frecce: [
       { da: 'd0', a: 'p0', e: 'si perde all\'uscita' },
@@ -712,9 +715,9 @@
     titolo: 'La storia del progetto dal 2 al 12 novembre: lezione 4, lezione 5 e i quattro step fatti della lezione 6',
     griglia: { col: [128, 222, 222, 222, 222], riga: 78, dx: 44, dy: 26 },
     nodi: [
-      { id: 'z4', c: 0, r: 0, t: 'Lezione 4', forma: 'pillola', a: 48, stile: 'esegue' },
-      { id: 'z5', c: 0, r: 1, t: 'Lezione 5', forma: 'pillola', a: 48, stile: 'esegue' },
-      { id: 'z6', c: 0, r: 2, t: 'Lezione 6', forma: 'pillola', a: 48, stile: 'esegue' },
+      { id: 'z4', c: 0, r: 0, t: 'Lezione 4', forma: 'pillola', a: 48, stile: 'evidenza' },
+      { id: 'z5', c: 0, r: 1, t: 'Lezione 5', forma: 'pillola', a: 48, stile: 'evidenza' },
+      { id: 'z6', c: 0, r: 2, t: 'Lezione 6', forma: 'pillola', a: 48, stile: 'evidenza' },
       { id: 'a1', c: 1, r: 0, t: '2 nov', s: ['assistente di base:', 'grafo, orologio, Docker'] },
       { id: 'b1', c: 1, r: 1, t: '3 nov', s: ['convertitore via MCP'] },
       { id: 'b2', c: 2, r: 1, t: '8 nov', s: ['sette passi,', 'dieci strumenti'] },
@@ -739,9 +742,9 @@
     nodi: [
       { id: 'testo', c: 0, r: 0, t: 'Testo del modello', s: ['non fidato'], stile: 'attenzione' },
       { id: 'marked', c: 1, r: 0, t: 'marked', s: ['da Markdown a HTML'] },
-      { id: 'purify', c: 2, r: 0, t: 'DOMPurify', s: ['solo i tag ammessi'], stile: 'esegue' },
+      { id: 'purify', c: 2, r: 0, t: 'DOMPurify', s: ['solo i tag ammessi'], stile: 'evidenza' },
       { id: 'pagina', c: 3, r: 0, t: 'Pagina', s: ['l\'unico {@html}', 'del progetto'] },
-      { id: 'csp', c: 3, r: 1, t: 'CSP di nginx', s: ['niente richieste', 'ad altri siti'], stile: 'esegue' }
+      { id: 'csp', c: 3, r: 1, t: 'CSP di nginx', s: ['niente richieste', 'ad altri siti'], stile: 'evidenza' }
     ],
     frecce: [
       { da: 'testo', a: 'marked', e: 'Markdown' },

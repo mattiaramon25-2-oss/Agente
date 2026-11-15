@@ -116,7 +116,7 @@ nodo=router <b>categoria=fuori_ambito</b>
       <ul class="punti">
         <li>Terminale e servizio costruiscono il grafo con la stessa funzione: <code>crea_agente</code></li>
         <li>Il servizio è <strong>senza stato</strong>: per continuare una conversazione si rimanda la cronologia ricevuta</li>
-        <li><strong>Un turno alla volta</strong>: un <code>threading.Lock</code> mette in fila le richieste</li>
+        <li><strong>Un turno alla volta</strong>: in <code>/chat</code> un <code>threading.Lock</code> mette in fila le richieste</li>
       </ul>
       <table class="tabella fitta">
         <thead>

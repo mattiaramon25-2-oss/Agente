@@ -14,6 +14,8 @@ Tutti i comandi si scrivono in **PowerShell**, dalla cartella `assistente-labora
 
 Se vuoi solo provarlo, parti da **A**.
 
+**Uno alla volta.** Non usare A e B insieme: usano la stessa porta per il server degli strumenti (`MCP_PORTA`), e il secondo che parte si ferma con `Porta … già in uso`. Non usare C insieme ad A o a B: condividono l'archivio delle note.
+
 ## La prima volta (si fa una volta sola)
 
 Servono Python 3.14 e LM Studio con un modello scaricato. Docker Desktop serve solo per B e C.
@@ -67,13 +69,13 @@ Prova con `che ore sono a Tokyo?`. Prima della risposta compare la riga dello st
 
 **Per uscire:** scrivi `esci` oppure premi `Ctrl+C`. Il server degli strumenti si spegne da solo.
 
-`Europe/Berlin` è normale anche in Italia: è il nome che Windows dà al fuso dell'Europa centrale, con la stessa ora di Roma.
+`Europe/Berlin` è normale anche in Italia: Windows chiama il fuso dell'Europa centrale `W. Europe Standard Time`, che la tabella standard traduce in `Europe/Berlin`. È la stessa ora di Roma.
 
 ---
 
 ## B · Chat nel browser
 
-I pezzi sono quattro. Ognuno parla solo con il vicino:
+I pezzi da avviare sono quattro. Ognuno parla solo con il vicino:
 
 ```text
 Browser ──► nginx :8780 ──► back-end :8768 ──► agente :8767 ──► LM Studio :1234
@@ -142,7 +144,7 @@ La chat è la stessa del modo A, ma gira in un container. LM Studio resta sul co
 | `Impossibile raggiungere LM Studio all'indirizzo …` | LM Studio è chiuso o il suo server non è attivo: aprilo e attiva il server |
 | `Il modello '…' non è disponibile su LM Studio` | `LMSTUDIO_MODEL` nel `.env` non è tra i modelli di LM Studio: il messaggio li elenca, copiane uno |
 | `Variabili d'ambiente mancanti: …` | manca il file `.env` o una riga è vuota: confrontalo con `.env.example` |
-| `Porta … già in uso` oppure `La porta … è occupata` | un altro programma, o un avvio precedente rimasto acceso, usa quella porta: chiudilo o cambia la porta nel `.env` |
+| `Porta … già in uso` oppure `La porta … è occupata` | un altro programma, o un avvio precedente rimasto acceso, usa quella porta: chiudilo o cambia la porta nel `.env`. Succede anche se provi il modo A con il servizio dell'agente del modo B acceso: usane uno alla volta |
 | `Il database PostgreSQL non risponde su 127.0.0.1:…` | il database è spento: `docker compose up -d database` |
 | lo stesso messaggio, con `password authentication failed` | la password nel `.env` è diversa da quella con cui il database è stato creato. Rimetti quella vecchia, oppure dai al database quella nuova (vedi sotto): in tutti e due i casi le chat restano. `docker compose down -v` invece **cancella tutte le chat** |
 | striscia rossa «Il back-end non risponde: avvialo con python -m servizio_backend.» | il back-end è spento: avvialo (comando 3). La striscia sparisce da sola |
@@ -156,7 +158,7 @@ La chat è la stessa del modo A, ma gira in un container. LM Studio resta sul co
 docker compose exec -T database psql -U assistente -d assistente -c "ALTER USER assistente WITH PASSWORD 'la-password-nuova';"
 ```
 
-La risposta è `ALTER ROLE`. `assistente` è il valore di `POSTGRES_USER` e di `POSTGRES_DB` in `.env.example`: se nel tuo `.env` sono diversi, usa i tuoi.
+La risposta è `ALTER ROLE`. Se il back-end è acceso, riavvialo: legge la password solo all'avvio. `assistente` è il valore di `POSTGRES_USER` e di `POSTGRES_DB` in `.env.example`: se nel tuo `.env` sono diversi, usa i tuoi.
 
 Per tutto il resto: sezione «Diagnosi» del [README](README.md#diagnosi).
 
@@ -168,4 +170,4 @@ Per tutto il resto: sezione «Diagnosi» del [README](README.md#diagnosi).
 
 ---
 
-*Comandi presi dal README. Rieseguiti il 15 novembre 2026: l'avvio e l'uscita del modo A; nel modo B il servizio dell'agente e il back-end, con `/salute` che risponde `ok` sia direttamente sia attraverso nginx (`http://127.0.0.1:8780/api/salute`), con database e `frontend` già accesi; il cambio della password del database, dopo il quale le chat c'erano ancora. Non rieseguiti il 15 novembre: una conversazione completa con il modello, i comandi 1 e 4 del modo B (i due container erano già accesi) e il modo C. Per il modo C il README segnala che l'avvio con la tastiera va ancora confermato: finora è stato provato con l'ingresso da una pipe.*
+*Comandi presi dal README. Rieseguiti il 15 novembre 2026: l'avvio e l'uscita del modo A; nel modo B il servizio dell'agente e il back-end, con `/salute` che risponde `ok` sia direttamente sia attraverso nginx (`http://127.0.0.1:8780/api/salute`), con database e `frontend` già accesi; il cambio della password del database, dopo il quale le chat c'erano ancora; il modo A con il servizio dell'agente acceso, che si ferma con `Porta 8765 già in uso`. Non rieseguiti il 15 novembre: una conversazione completa con il modello, i comandi 1 e 4 del modo B (i due container erano già accesi) e il modo C. Per il modo C il README segnala che l'avvio con la tastiera va ancora confermato: finora è stato provato con l'ingresso da una pipe.*
