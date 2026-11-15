@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Atlante degli schemi · Assistente del laboratorio</title>
+  <link rel="stylesheet" href="stile.css">
+  <script src="slide.js"></script>
+  <script src="schemi.js"></script>
+</head>
+<body class="pagina">
+  <header class="testata">
+    <a class="pulsante" href="index.html">Indice</a>
+    <span class="spazio"></span>
+    <button class="pulsante" type="button" data-azione="tema">Tema chiaro / scuro</button>
+  </header>
+
+  <main>
+    <h1>Atlante degli schemi</h1>
+    <p class="sommario">Diciotto disegni per vedere come è fatto l'assistente del laboratorio: i pezzi, chi parla con chi, che strada fa una domanda, dove restano i dati. Sotto ogni disegno c'è che cosa guardare e il capitolo dove approfondire.</p>
+
+    <ul class="legenda" aria-label="Legenda dei colori">
+      <li><i class="llm"></i> chi ragiona: il modello</li>
+      <li><i class="esegue"></i> chi esegue gli strumenti</li>
+      <li><i class="dati"></i> dove restano i dati</li>
+      <li><i class="attenzione"></i> testo fisso: rifiuto, limite</li>
+      <li><i class="esterno"></i> tratteggiato: fuori dal progetto</li>
+      <li><i></i> il resto del programma</li>
+    </ul>
+
+    <ul class="indice-schemi" aria-label="Indice degli schemi">
+      <li><a href="#sistema">1 · Il sistema</a></li>
+      <li><a href="#lezioni">2 · La storia</a></li>
+      <li><a href="#tool-calling">3 · Tool calling</a></li>
+      <li><a href="#grafo-base">4 · Grafo, lezione 4</a></li>
+      <li><a href="#grafo">5 · Grafo di oggi</a></li>
+      <li><a href="#terminale">6 · Terminale</a></li>
+      <li><a href="#n-per-m">7 · Perché MCP</a></li>
+      <li><a href="#viaggio-mcp">8 · Viaggio di una richiesta</a></li>
+      <li><a href="#varianti">9 · Tre varianti</a></li>
+      <li><a href="#processi">10 · Chi avvia chi</a></li>
+      <li><a href="#avvio">11 · Ordine dell'avvio</a></li>
+      <li><a href="#turno-chat">12 · Turno della chat</a></li>
+      <li><a href="#tabelle">13 · Tabelle</a></li>
+      <li><a href="#markdown-sicuro">14 · Testo non fidato</a></li>
+      <li><a href="#dati">15 · Dove vivono i dati</a></li>
+      <li><a href="#log">16 · Log</a></li>
+      <li><a href="#diagnosi">17 · Diagnosi</a></li>
+      <li><a href="#test">18 · Verifiche</a></li>
+    </ul>
+
+    <section>
+      <h2 id="sistema"><span class="n">1</span> Tutto il sistema, oggi</h2>
+      <figure class="schema" data-schema="sistema"></figure>
+      <p>Il browser parla solo con nginx, che inoltra <code>/api</code> al back-end. Il back-end tiene insieme il database, che ricorda, e l'agente, che ragiona e resta senza stato. Il terminale e il servizio dell'agente costruiscono lo stesso agente con <code>crea_agente</code>: stesso modello, stesso router, stessi strumenti. Ognuno dei due avvia un suo server MCP.</p>
+      <p class="leggi">Le porte sono quelle di <code>.env.example</code>. Tutto ascolta solo su <code>127.0.0.1</code>. Approfondisci: <a href="../02-architettura.md">capitolo 02</a>, sezione 1.5 ter.</p>
+    </section>
+
+    <section>
+      <h2 id="lezioni"><span class="n">2</span> Come ci si è arrivati</h2>
+      <figure class="schema" data-schema="lezioni"></figure>
+      <p>Tre lezioni in undici giorni. La lezione 5 è la più lunga: sette passi, un branch ciascuno, poi una revisione con nove correzioni. Della lezione 6 sono fatti gli step 1, 6, 7 e 8; restano gli step dal 2 al 5 (revisore, riassunto, resource, prompt) e il 9 (quattro container con un solo comando).</p>
+      <p class="leggi">Approfondisci: <a href="../11-storia-del-progetto.md">capitolo 11</a>.</p>
+    </section>
+
+    <section>
+      <h2 id="tool-calling"><span class="n">3</span> Il modello propone, il programma esegue</h2>
+      <figure class="schema" data-schema="tool-calling"></figure>
+      <p>Il modello non esegue niente: scrive una richiesta con il nome dello strumento e gli argomenti. Il programma la controlla, la esegue e rimanda il risultato in un <code>ToolMessage</code> con lo stesso identificativo. Solo allora il modello scrive la risposta.</p>
+      <p class="leggi">L'ora dell'esempio viene dalla prova con il modello finto del capitolo 00: è simulata. Approfondisci: <a href="../01-panoramica-e-concetti.md">capitolo 01</a>, sezioni 4 e 5.</p>
+    </section>
+
+    <section>
+      <h2 id="grafo-base"><span class="n">4</span> Il grafo della lezione 4</h2>
+      <figure class="schema" data-schema="grafo-base"></figure>
+      <p>Tre nodi e una sola decisione, presa dalla funzione <code>instrada_dopo_modello</code>. Da <code>strumenti</code> si torna sempre al modello, che legge i risultati. In un turno i giri di strumento sono al massimo 3 (<code>MAX_GIRI_STRUMENTO</code>): alla quarta richiesta scatta <code>limite</code>, che chiude le richieste aperte e risponde con un testo fisso.</p>
+      <p class="leggi">Approfondisci: <a href="../04-grafo-langgraph.md">capitolo 04</a>, sezioni 3, 8 e 12.</p>
+    </section>
+
+    <section>
+      <h2 id="grafo"><span class="n">5</span> Il grafo di oggi</h2>
+      <figure class="schema" data-schema="grafo"></figure>
+      <p>Dalla lezione 6 davanti all'agente c'è il <code>router</code>: usa lo stesso modello, senza strumenti, e classifica la domanda come <code>conversazione</code> o <code>fuori_ambito</code>. Fuori ambito risponde il nodo <code>rifiuto</code>, con il testo scritto in <code>risorse/ambito.json</code>, e l'agente non parte.</p>
+      <p class="leggi">Approfondisci: <a href="../04-grafo-langgraph.md">capitolo 04</a>, sezione 21.</p>
+    </section>
+
+    <section>
+      <h2 id="terminale"><span class="n">6</span> L'assistente da terminale e i suoi vicini</h2>
+      <figure class="schema" data-schema="terminale"></figure>
+      <p>Tu avvii solo l'assistente. È lui ad avviare il server MCP e, solo con <code>VARIANTE_SCADENZE=fastapi</code>, il servizio FastAPI; all'uscita li spegne sempre. LM Studio lo apri tu. Open-Meteo è su Internet: lo chiama solo il server MCP, e solo per il meteo.</p>
+      <p class="leggi">Approfondisci: <a href="../02-architettura.md">capitolo 02</a>, sezioni 1 e 2.</p>
+    </section>
+
+    <section>
+      <h2 id="n-per-m"><span class="n">7</span> Perché uno standard</h2>
+      <figure class="schema" data-schema="n-per-m"></figure>
+      <p>Senza uno standard ogni app va collegata a ogni servizio: i collegamenti si moltiplicano. Con MCP ogni app e ogni servizio si collega una volta sola: i collegamenti si sommano. Il prezzo è un processo in più, una porta e un nuovo tipo di errore.</p>
+      <p class="leggi">Approfondisci: <a href="../01-panoramica-e-concetti.md">capitolo 01</a>, sezioni 7 e 8.</p>
+    </section>
+
+    <section>
+      <h2 id="viaggio-mcp"><span class="n">8</span> Il viaggio di una richiesta</h2>
+      <figure class="schema" data-schema="viaggio-mcp"></figure>
+      <p>Due giri del modello: al primo chiede lo strumento, al secondo legge il risultato e risponde. Per ogni chiamata la libreria MCP apre una sessione nuova, quindi il passo 5 sul filo sono quattro richieste: <code>initialize</code>, <code>notifications/initialized</code>, <code>tools/call</code> e <code>tools/list</code>. Con le varianti locale e FastAPI cambiano solo i passi dal 4 al 7.</p>
+      <p class="leggi">Approfondisci: <a href="../03-viaggio-di-una-richiesta.md">capitolo 03</a> e <a href="../05-mcp-in-pratica.md">capitolo 05</a>.</p>
+    </section>
+
+    <section>
+      <h2 id="varianti"><span class="n">9</span> Tre strade, una sola logica</h2>
+      <figure class="schema" data-schema="varianti"></figure>
+      <p>La strada si sceglie nel <code>.env</code>, con <code>VARIANTE_CALCOLATRICE</code> e <code>VARIANTE_SCADENZE</code>. Il modello vede lo stesso nome, la stessa descrizione e gli stessi argomenti: l'<code>origine</code> resta al programma e compare solo nel terminale e nel log.</p>
+      <p class="leggi">Approfondisci: <a href="../06-tre-varianti.md">capitolo 06</a>.</p>
+    </section>
+
+    <section>
+      <h2 id="processi"><span class="n">10</span> Chi avvia chi</h2>
+      <figure class="schema stretto" data-schema="processi"></figure>
+      <p>LM Studio, la chat da terminale, il servizio dell'agente, il back-end e i due container li avvii tu. Il server MCP no: lo avviano e lo spengono la chat da terminale e il servizio dell'agente, ciascuno il suo. Con la variante <code>fastapi</code> avviano anche il servizio delle scadenze.</p>
+      <p class="leggi">Le porte sono quelle di <code>.env.example</code>. I comandi sono nella guida <a href="../../../AVVIO-RAPIDO.md">AVVIO-RAPIDO.md</a>. Approfondisci: <a href="../02-architettura.md">capitolo 02</a>, sezione 2.</p>
+    </section>
+
+    <section>
+      <h2 id="avvio"><span class="n">11</span> L'ordine dell'avvio</h2>
+      <figure class="schema" data-schema="avvio"></figure>
+      <p>Prima i controlli che costano poco. Se manca una variabile o LM Studio è spento, il programma si ferma subito e dice che cosa fare, senza aver avviato niente. Un processo figlio è «pronto» solo quando risponde davvero: per il server MCP, quando la discovery riesce.</p>
+      <p class="leggi">Approfondisci: <a href="../08-configurazione-avvio-docker.md">capitolo 08</a>, sezione 5.</p>
+    </section>
+
+    <section>
+      <h2 id="turno-chat"><span class="n">12</span> Un turno della chat nel browser</h2>
+      <figure class="schema" data-schema="turno-chat"></figure>
+      <p>Il back-end salva una volta sola, quando l'agente ha finito: dopo un errore o un'interruzione non resta nulla, nemmeno la domanda. L'evento <code>fine</code> arriva al browser dopo il salvataggio. Se il browser si scollega a metà, il back-end continua a leggere l'agente e salva lo stesso.</p>
+      <p class="leggi">Prima di aprire il flusso il back-end può rispondere subito con un errore: <code>404</code> chat inesistente, <code>400</code> messaggio vuoto, <code>409</code> risposta già in corso nella stessa chat, <code>503</code> agente non raggiungibile o occupato. Approfondisci: <a href="../14-backend-delle-chat.md">capitolo 14</a>.</p>
+    </section>
+
+    <section>
+      <h2 id="tabelle"><span class="n">13</span> Le tre tabelle</h2>
+      <figure class="schema" data-schema="tabelle"></figure>
+      <p>Cronologia e messaggi sono separati. La <code>cronologia</code> è nel formato dell'agente, con richieste e risultati degli strumenti: serve per continuare la conversazione. I <code>messaggi</code> sono domanda e risposta in chiaro: si mostrano e si cercano. Cancellando un progetto si cancellano le sue chat, e con una chat i suoi messaggi.</p>
+      <p class="leggi">Approfondisci: <a href="../14-backend-delle-chat.md">capitolo 14</a>, sezione 2.</p>
+    </section>
+
+    <section>
+      <h2 id="markdown-sicuro"><span class="n">14</span> Il testo del modello non è fidato</h2>
+      <figure class="schema" data-schema="markdown-sicuro"></figure>
+      <p>Il modello può scrivere HTML o indicare immagini remote, che sarebbero un modo per far uscire dati. La funzione <code>rendiMarkdown</code> lascia passare solo un elenco di tag ammessi: niente immagini, audio, video, SVG, moduli e stili. In più nginx manda una Content-Security-Policy: il browser non carica niente da altri siti.</p>
+      <p class="leggi">Approfondisci: <a href="../15-chat-nel-browser.md">capitolo 15</a>, sezione 4.</p>
+    </section>
+
+    <section>
+      <h2 id="dati"><span class="n">15</span> Dove vive ogni dato</h2>
+      <figure class="schema stretto" data-schema="dati"></figure>
+      <p>Nel terminale la conversazione vive solo in memoria. Tra una sessione e l'altra restano le note. Nella chat nel browser restano anche progetti, chat e messaggi. Attenzione: <code>docker compose down -v</code> cancella il volume, e quindi tutte le chat.</p>
+      <p class="leggi">Approfondisci: <a href="../00-indice.md">capitolo 00</a>, tabella «Cosa sapere a memoria».</p>
+    </section>
+
+    <section>
+      <h2 id="log"><span class="n">16</span> Chi scrive quale log</h2>
+      <figure class="schema" data-schema="log"></figure>
+      <p>Una risposta plausibile non prova che lo strumento sia stato usato. La prova è la riga in <code>assistente.log</code> con <code>origine</code>, <code>tool</code>, argomenti ed <code>esito</code>. L'identificativo della chiamata non arriva al server: le righe dei due file si collegano per strumento, argomenti e ora.</p>
+      <p class="leggi">Approfondisci: <a href="../10-log-e-diagnosi.md">capitolo 10</a>.</p>
+    </section>
+
+    <section>
+      <h2 id="diagnosi"><span class="n">17</span> La diagnosi per livelli</h2>
+      <figure class="schema stretto" data-schema="diagnosi"></figure>
+      <p>Si parte dal basso. Un errore di un livello basso non si risolve cambiando le istruzioni al modello: se LM Studio è spento, nessuna frase lo accende. Le frasi tra virgolette sono i messaggi che il programma stampa davvero.</p>
+      <p class="leggi">Per la chat nel browser si aggiungono database, back-end e nginx: le tabelle sono nel <a href="../../../README.md">README</a>, sezione «Diagnosi». Approfondisci: <a href="../10-log-e-diagnosi.md">capitolo 10</a>, sezione 6.</p>
+    </section>
+
+    <section>
+      <h2 id="test"><span class="n">18</span> Quattro tipi di verifica</h2>
+      <figure class="schema" data-schema="test"></figure>
+      <p>I test automatici usano un modello finto che recita un copione: provano il codice, non il modello. Che il modello vero sappia usare gli strumenti lo dicono solo le prove reali. Il front-end ha in più i test Vitest, per la logica.</p>
+      <p class="leggi">Al 12 novembre 2026: <code>python -m pytest</code> 625 passati e 74 saltati; <code>npm test</code> 108 passati. Approfondisci: <a href="../09-test-e-verifiche.md">capitolo 09</a>.</p>
+    </section>
+  </main>
+</body>
+</html>
