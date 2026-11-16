@@ -8,25 +8,14 @@ import socket
 import subprocess
 from contextlib import contextmanager
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Iterator
 
 import psycopg
 from psycopg.conninfo import make_conninfo
 
+from tests.compose_prova import CARTELLA, ENV_FINTO, LIMITE_COMPOSE, _porta_libera  # noqa: F401
+
 PROGETTO_PROVA = "assistente-laboratorio-prova"
-CARTELLA = Path(__file__).resolve().parent.parent
-# Valori finti per le variabili `:?` degli altri servizi: Compose controlla tutto il file.
-ENV_FINTO = {
-    "MCP_PORTA": "8765",
-    "VARIANTE_CALCOLATRICE": "mcp",
-    "VARIANTE_SCADENZE": "mcp",
-    "AGENTE_PORTA": "8767",
-    "LMSTUDIO_BASE_URL_DOCKER": "http://host.docker.internal:1234/v1",
-    "LMSTUDIO_BASE_URL": "http://127.0.0.1:1234/v1",
-    "LMSTUDIO_MODEL": "prova",
-}
-LIMITE_COMPOSE = 300
 
 
 @dataclass(frozen=True)
@@ -35,12 +24,6 @@ class DatabaseProva:
 
     dsn: str
     env: dict
-
-
-def _porta_libera() -> int:
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
 
 
 def _compose(env: dict, *argomenti: str, controlla: bool = True) -> subprocess.CompletedProcess:

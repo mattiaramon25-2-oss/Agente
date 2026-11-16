@@ -80,5 +80,15 @@ services:
       # Il back-end ascolta su 127.0.0.1 dell'host: dal container si raggiunge con questo nome.
       - "host.docker.internal:host-gateway"
 
+  # Lezione 6, step 9: la suite automatica in un container Linux (sull'host psycopg non si carica).
+  # Avvio: docker compose run --rm test
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    profiles: ["test"]
+    volumes:
+      - ".:/app"
+
 volumes:
   dati_postgres:

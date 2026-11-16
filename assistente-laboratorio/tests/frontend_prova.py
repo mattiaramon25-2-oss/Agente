@@ -12,7 +12,7 @@ from typing import Iterator
 
 import uvicorn
 
-from tests.postgres_prova import CARTELLA, ENV_FINTO, LIMITE_COMPOSE, _porta_libera
+from tests.compose_prova import CARTELLA, ENV_FINTO, LIMITE_COMPOSE, _porta_libera
 
 PROGETTO_FRONTEND_PROVA = "assistente-laboratorio-prova-frontend"
 ATTESA_PRONTO = 60
