@@ -1,78 +1,86 @@
-"""I passi dell'avvio della chat nel browser: Docker, LM Studio, container, agente, back-end.
+"""I passi dell'avvio della chat nel browser: Docker, LM Studio, container, la chat che risponde.
 
 Ogni passo riceve come parametri ciò che tocca il mondo esterno (esecuzione dei comandi, richieste
 HTTP, orologio, scrittura nella finestra): così i test li provano senza Docker e senza LM Studio.
 Tutti gli errori sono ErroreAvvio, con un messaggio che dice che cosa sistemare.
+
+Solo libreria standard (più i moduli di configurazione, che non importano altro): su Windows Smart
+App Control può bloccare le DLL di psycopg, e il launcher deve partire lo stesso. Agente e back-end
+girano nei container, quindi qui non servono né psycopg né langchain né httpx.
 """
 
 import http.client
 import json
+import re
 import shutil
-import socket
 import subprocess
-import sys
 import tempfile
 import time
 import urllib.request
 import webbrowser
-from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Iterator, Mapping, TextIO
+from typing import Callable, Mapping, TextIO
 
-from assistente.avvio_server import CARTELLA_PROGETTO, processo_in_attesa
 from assistente.configurazione import carica_configurazione, leggi_porta, leggi_porta_agente
 from assistente.errori import ErroreAvvio
-from assistente.modello import verifica_server
-from assistente.registro import CARTELLA_LOG
-from servizio_backend.configurazione import carica_configurazione_backend
+from assistente.lmstudio import verifica_server
+from avvio_chat.console import installa_chiusura_console
+from servizio_backend.configurazione import leggi_valori_backend
+
+CARTELLA_PROGETTO = Path(__file__).resolve().parent.parent
 
 ATTESA_DOCKER = 180.0
 ATTESA_LMSTUDIO = 60.0
-ATTESA_CONTAINER = 600.0  # la prima volta l'immagine della pagina va costruita
-ATTESA_SERVIZIO = 60.0
+ATTESA_CONTAINER = 600.0  # la prima volta le immagini vanno costruite
+ATTESA_CHAT = 90.0  # l'agente deve scoprire gli strumenti MCP
+LIMITE_COMPOSE = 120.0  # docker compose ps e docker compose stop
+LIMITE_SALUTE = 5.0
 PORTA_FRONTEND_PREDEFINITA = 8780
 CODICE_SCADUTO = 124
 
 COMANDO_DOCKER_INFO = ["docker", "info", "--format", "{{.ServerVersion}}"]
 COMANDO_DOCKER_AVVIO = ["docker", "desktop", "start"]
-COMANDO_CONTAINER = ["docker", "compose", "up", "-d", "--wait", "database", "frontend"]
+COMANDO_SERVIZI_ACCESI = ["docker", "compose", "ps", "--status", "running", "--services"]
+COMANDO_CONTAINER = ["docker", "compose", "up", "-d", "--wait"]
+COMANDO_FERMA = ["docker", "compose", "stop"]
+
+# I servizi che il launcher spegne se li ha accesi lui; database e pagina restano accesi.
+SERVIZI_DELLA_CHAT = ("agente", "backend")
+PORTA_OCCUPATA = ("port is already allocated", "ports are not available")
 
 
 @dataclass(frozen=True)
 class Impostazioni:
     base_url: str
     modello: str
-    porta_mcp: int
     porta_agente: int
-    porta_backend: int
     porta_frontend: int
-
-    @property
-    def url_agente(self) -> str:
-        return f"http://127.0.0.1:{self.porta_agente}"
-
-    @property
-    def url_backend(self) -> str:
-        return f"http://127.0.0.1:{self.porta_backend}"
 
     @property
     def url_chat(self) -> str:
         return f"http://127.0.0.1:{self.porta_frontend}"
 
+    @property
+    def url_salute(self) -> str:
+        """Lo stato del back-end attraverso nginx, cioè lo stesso percorso che usa la pagina."""
+        return self.url_chat + "/api/salute"
+
 
 def carica_impostazioni(env: Mapping[str, str]) -> Impostazioni:
-    """Le stesse variabili che leggono l'agente e il back-end, più FRONTEND_PORTA (predefinita 8780)."""
+    """Controlla le stesse variabili dell'agente e del back-end, più FRONTEND_PORTA (predefinita 8780).
+
+    Agente e back-end le leggono da soli nei container: qui si controllano prima di accenderli, così
+    un .env incompleto si scopre subito e con il messaggio della configurazione.
+    """
     config = carica_configurazione(env)
     porta_agente = leggi_porta_agente(env, config)
-    backend = carica_configurazione_backend(env)
+    leggi_valori_backend(env)
     testo = (env.get("FRONTEND_PORTA") or "").strip() or str(PORTA_FRONTEND_PREDEFINITA)
     return Impostazioni(
         base_url=config.base_url,
         modello=config.modello,
-        porta_mcp=config.porta_mcp,
         porta_agente=porta_agente,
-        porta_backend=backend.porta,
         porta_frontend=leggi_porta("FRONTEND_PORTA", testo),
     )
 
@@ -140,7 +148,7 @@ def assicura_docker(
                 pausa(2.0)
     except FileNotFoundError:
         raise ErroreAvvio("Docker non è installato o non è nel PATH: installa Docker Desktop e riprova.") from None
-    scrivi("[1/5] Docker: acceso")
+    scrivi("[1/4] Docker: acceso")
 
 
 def lmstudio_risponde(base_url: str, limite: float = 3.0) -> bool:
@@ -196,79 +204,97 @@ def assicura_lmstudio(
                 )
             pausa(1.0)
     verifica(imp.base_url, imp.modello)
-    scrivi(f"[2/5] LM Studio: risponde, modello {imp.modello} presente")
+    scrivi(f"[2/4] LM Studio: risponde, modello {imp.modello} presente")
 
 
-def assicura_container(esegui: Esegui, scrivi: Scrivi) -> None:
-    """Accende i container del database e della pagina e aspetta che siano pronti."""
-    scrivi("      Accendo database e pagina (la prima volta ci vuole qualche minuto)...")
-    esito = esegui(COMANDO_CONTAINER, ATTESA_CONTAINER)
+def servizi_accesi(esegui: Esegui) -> set[str]:
+    """I servizi di Compose in esecuzione: `docker compose ps` ne stampa uno per riga."""
+    esito = esegui(COMANDO_SERVIZI_ACCESI, LIMITE_COMPOSE)
     if esito.codice != 0:
-        raise ErroreAvvio(
-            "docker compose up non è riuscito per database e frontend. Ultime righe:\n" + _ultime_righe(esito.uscita)
-        )
-    scrivi("[3/5] Database e pagina: accesi")
+        raise ErroreAvvio("docker compose ps non è riuscito. Ultime righe:\n" + _ultime_righe(esito.uscita))
+    return {riga.strip() for riga in esito.uscita.splitlines() if riga.strip()}
+
+
+def assicura_container(esegui: Esegui, scrivi: Scrivi, *, ricostruisci: bool = False, porta_agente: int | None = None) -> None:
+    """Accende i quattro container (database, agente, back-end, pagina) e aspetta che siano pronti.
+
+    Con `ricostruisci` le immagini si ricostruiscono: serve dopo un aggiornamento del codice. Se
+    Compose dice che la porta dell'agente (`porta_agente`) è occupata, il messaggio dice perché di solito lo è.
+    """
+    scrivi("      Accendo i container (la prima volta ci vuole qualche minuto)...")
+    esito = esegui(COMANDO_CONTAINER + (["--build"] if ricostruisci else []), ATTESA_CONTAINER)
+    if esito.codice != 0:
+        messaggio = "docker compose up non è riuscito. Ultime righe:\n" + _ultime_righe(esito.uscita)
+        occupata = any(frase in esito.uscita.lower() for frase in PORTA_OCCUPATA)
+        if occupata and porta_agente is not None and re.search(rf":{porta_agente}\b", esito.uscita):
+            messaggio += (
+                f"\nLa porta {porta_agente} (AGENTE_PORTA) è occupata: probabilmente c'è ancora un agente acceso "
+                "fuori da Docker (python -m servizio_agente). Chiudilo e riprova."
+            )
+        raise ErroreAvvio(messaggio)
+    scrivi("[3/4] Container: accesi")
 
 
 def leggi_salute(url: str, limite: float) -> dict:
-    """GET <url>/salute: restituisce la risposta solo se dice `"stato": "ok"`, altrimenti solleva."""
-    with urllib.request.urlopen(url + "/salute", timeout=limite) as risposta:
+    """GET `url` e la risposta JSON, che deve essere un oggetto."""
+    with urllib.request.urlopen(url, timeout=limite) as risposta:
         dati = json.load(risposta)
-    if not isinstance(dati, dict) or dati.get("stato") != "ok":
-        raise ValueError(f"risposta inattesa da {url}/salute: {dati!r}")
+    if not isinstance(dati, dict):
+        raise ValueError(f"risposta inattesa da {url}: {dati!r}")
     return dati
 
 
-def _in_ascolto(porta: int, limite: float = 0.3) -> bool:
-    """Vero se qualcuno accetta connessioni sulla porta. Su Windows una porta chiusa risponde solo
-    dopo un paio di secondi: con questo controllo breve non li si aspetta a ogni tentativo."""
-    try:
-        with socket.create_connection(("127.0.0.1", porta), timeout=limite):
-            return True
-    except OSError:
-        return False
+def _log(servizio: str) -> str:
+    return f"docker compose logs --tail 30 {servizio}"
 
 
-def _risponde(porta: int, salute: Callable[[str, float], dict]) -> bool:
-    if not _in_ascolto(porta):
-        return False
-    try:
-        salute(f"http://127.0.0.1:{porta}", 2.0)
-    except Exception:
-        return False
-    return True
+def _chat_che_non_risponde(imp: Impostazioni, attesa: float, dati: dict | None, errore: Exception | None) -> str:
+    """Che cosa manca, dopo l'attesa, e il comando per leggerne il log."""
+    inizio = f"La chat non risponde del tutto dopo {attesa:g} secondi ({imp.url_salute}): "
+    if dati is None or dati.get("stato") != "ok":
+        motivo = f"{errore}" if dati is None else f"risposta {dati!r}"
+        return inizio + f"il back-end non è pronto ({motivo}). Per leggerne il log: {_log('backend')}"
+    mancanti = [nome for nome in ("database", "agente") if dati.get(nome) != "ok"]
+    dettagli = ", ".join(f"{nome} {dati.get(nome)}" for nome in mancanti)
+    comandi = " e ".join(_log(nome) for nome in mancanti)
+    return inizio + f"{dettagli}. Per leggerne il log: {comandi}"
 
 
-@contextmanager
-def servizio(
-    descrizione: str,
-    comando: list[str],
-    porta: int,
-    variabile_porta: str,
-    log: Path,
+def attendi_chat(
+    imp: Impostazioni,
     scrivi: Scrivi,
     *,
     salute: Callable[[str, float], dict] = leggi_salute,
-    attesa: float = ATTESA_SERVIZIO,
-) -> Iterator[bool]:
-    """Un servizio HTTP con /salute: se risponde già non lo tocca, altrimenti lo avvia e all'uscita lo spegne.
+    attesa: float = ATTESA_CHAT,
+    pausa: Callable[[float], None] = time.sleep,
+    orologio: Callable[[], float] = time.monotonic,
+) -> None:
+    """Aspetta che /api/salute, attraverso nginx, dica `stato`, `database` e `agente` tutti "ok"."""
+    scadenza = orologio() + attesa
+    while True:
+        dati, errore = None, None
+        try:
+            dati = salute(imp.url_salute, LIMITE_SALUTE)
+        except (OSError, ValueError, http.client.HTTPException) as eccezione:  # anche il 502 di nginx
+            errore = eccezione
+        if isinstance(dati, dict) and all(dati.get(nome) == "ok" for nome in ("stato", "database", "agente")):
+            scrivi("[4/4] Chat: risponde (database ok, agente ok)")
+            return
+        if orologio() >= scadenza:
+            raise ErroreAvvio(_chat_che_non_risponde(imp, attesa, dati if isinstance(dati, dict) else None, errore))
+        pausa(1.0)
 
-    Restituisce True solo se l'ha avviato questa funzione: ciò che era già acceso resta acceso.
-    """
-    if _risponde(porta, salute):
-        yield False
-        return
 
-    def pronto(limite: float) -> dict:
-        if not _in_ascolto(porta):
-            raise ConnectionError(f"nessuno in ascolto sulla porta {porta}")
-        return salute(f"http://127.0.0.1:{porta}", limite)
-
-    scrivi(f"      Avvio il {descrizione}...")
-    with processo_in_attesa(
-        comando, porta, log, pronto, descrizione=descrizione, variabile_porta=variabile_porta, attesa=attesa
-    ):
-        yield True
+def ferma_servizi(servizi: list[str], esegui: Esegui) -> None:
+    """`docker compose stop` dei servizi indicati: i container restano, pronti per la prossima volta."""
+    comando = COMANDO_FERMA + list(servizi)
+    esito = esegui(comando, LIMITE_COMPOSE)
+    if esito.codice != 0:
+        raise ErroreAvvio(
+            "docker compose stop non è riuscito. Ultime righe:\n"
+            + _ultime_righe(esito.uscita)
+            + f"\nPer fermarli a mano: {' '.join(comando)}"
+        )
 
 
 def avvia_chat(
@@ -278,59 +304,35 @@ def avvia_chat(
     *,
     esegui: Esegui = esegui_comando,
     apri: Callable[[str], object] = webbrowser.open,
-    comando_agente: list[str] | None = None,
-    comando_backend: list[str] | None = None,
-    cartella_log: Path = CARTELLA_LOG,
     senza_browser: bool = False,
+    ricostruisci: bool = False,
     risponde: Callable[[str], bool] = lmstudio_risponde,
     verifica: Callable[[str, str], None] = verifica_server,
     lms: Callable[[], str | None] = trova_lms,
     pausa: Callable[[float], None] = time.sleep,
     orologio: Callable[[], float] = time.monotonic,
     salute: Callable[[str, float], dict] = leggi_salute,
+    alla_chiusura: Callable[[list[str]], None] = installa_chiusura_console,
 ) -> int:
-    """Accende ciò che manca, apre la chat nel browser e aspetta «esci»; poi spegne solo ciò che ha avviato."""
+    """Accende ciò che manca, apre la chat nel browser e aspetta «esci»; poi ferma solo ciò che ha acceso."""
     scrivi("Assistente del laboratorio · avvio della chat")
     assicura_docker(esegui, scrivi, pausa=pausa, orologio=orologio)
     assicura_lmstudio(imp, esegui, scrivi, risponde=risponde, verifica=verifica, lms=lms, pausa=pausa, orologio=orologio)
-    assicura_container(esegui, scrivi)
-    with ExitStack() as pila:  # all'uscita spegne in ordine inverso: prima il back-end, poi l'agente
-        if _in_ascolto(imp.porta_mcp) and not _risponde(imp.porta_agente, salute):
-            raise ErroreAvvio(
-                f"La porta {imp.porta_mcp} (MCP_PORTA) è occupata ma il servizio dell'agente è spento: "
-                "probabilmente è aperta la chat da terminale (python -m assistente). Chiudila e riprova."
-            )
-        agente_avviato = pila.enter_context(
-            servizio(
-                "servizio dell'agente",
-                comando_agente or [sys.executable, "-m", "servizio_agente"],
-                imp.porta_agente,
-                "AGENTE_PORTA",
-                cartella_log / "avvio_agente.log",
-                scrivi,
-                salute=salute,
-            )
-        )
-        scrivi(f"[4/5] Agente: {'pronto su' if agente_avviato else 'già acceso su'} {imp.url_agente}")
-        backend_avviato = pila.enter_context(
-            servizio(
-                "back-end delle chat",
-                comando_backend or [sys.executable, "-m", "servizio_backend"],
-                imp.porta_backend,
-                "BACKEND_PORTA",
-                cartella_log / "avvio_backend.log",
-                scrivi,
-                salute=salute,
-            )
-        )
-        scrivi(f"[5/5] Back-end: {'pronto su' if backend_avviato else 'già acceso su'} {imp.url_backend}")
+    prima = servizi_accesi(esegui)
+    # Prima il back-end, poi l'agente da cui dipende.
+    accesi_da_me = [servizio for servizio in reversed(SERVIZI_DELLA_CHAT) if servizio not in prima]
+    assicura_container(esegui, scrivi, ricostruisci=ricostruisci, porta_agente=imp.porta_agente)
+    try:
+        if accesi_da_me:
+            alla_chiusura(COMANDO_FERMA + accesi_da_me)  # anche chiudendo la finestra con la X
+        attendi_chat(imp, scrivi, salute=salute, pausa=pausa, orologio=orologio)
         if senza_browser:
             scrivi(f"La chat risponde su {imp.url_chat} (browser non aperto).")
         else:
             scrivi(f"Apro {imp.url_chat}")
             apri(imp.url_chat)
-        if not (agente_avviato or backend_avviato):
-            scrivi("Agente e back-end erano già accesi: non li ho avviati io, quindi restano accesi.")
+        if not accesi_da_me:
+            scrivi("Agente e back-end erano già accesi: non li ho accesi io, quindi restano accesi.")
             return 0
         scrivi("La chat è accesa. Per spegnerla scrivi «esci» e premi Invio, oppure chiudi questa finestra.")
         try:
@@ -339,6 +341,9 @@ def avvia_chat(
                     break
         except KeyboardInterrupt:
             pass
-        scrivi("Spengo ciò che ho avviato...")
-    scrivi("Spento. Database e pagina restano accesi in Docker: per fermarli, docker compose stop.")
+    finally:
+        if accesi_da_me:
+            scrivi(f"Fermo ciò che ho acceso ({', '.join(accesi_da_me)})...")
+            ferma_servizi(accesi_da_me, esegui)
+    scrivi("Fermato. Database e pagina restano accesi in Docker: per fermarli, docker compose stop.")
     return 0
