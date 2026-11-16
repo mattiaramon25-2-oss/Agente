@@ -4,11 +4,13 @@ import io
 import json
 import os
 import shutil
+import signal
 import socket
 import subprocess
 import sys
 import threading
 import time
+import urllib.error
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from types import SimpleNamespace
@@ -128,23 +130,84 @@ def porte_libere(quante: int) -> list[int]:
             presa.close()
 
 
+def aspetta_che(condizione, limite: float = 3.0) -> bool:
+    scadenza = time.monotonic() + limite
+    while time.monotonic() < scadenza:
+        if condizione():
+            return True
+        time.sleep(0.1)
+    return condizione()
+
+
+def padre_con_figlio(porta: int) -> list[str]:
+    """Un comando che lascia acceso un figlio in ascolto su `porta`, scrive «avviato <pid del figlio>» e non finisce."""
+    figlio = [sys.executable, str(Path(__file__).parent / "servizio_salute_finto.py"), "--porta", str(porta), "--durata", "30"]
+    codice = (
+        "import socket, subprocess, time\n"
+        f"figlio = subprocess.Popen({figlio!r})\n"
+        "while True:\n"
+        "    try:\n"
+        f"        socket.create_connection(('127.0.0.1', {porta}), timeout=0.3).close()\n"
+        "        break\n"
+        "    except OSError:\n"
+        "        time.sleep(0.1)\n"
+        "print('avviato', figlio.pid, flush=True)\n"
+        "time.sleep(30)\n"
+    )
+    return [sys.executable, "-c", codice]
+
+
+def spegni_il_figlio(uscita: str) -> None:
+    """Spegne il figlio di `padre_con_figlio`, se è ancora acceso: il suo pid è nella riga «avviato»."""
+    for riga in uscita.splitlines():
+        parole = riga.split()
+        if len(parole) == 2 and parole[0] == "avviato":
+            try:
+                os.kill(int(parole[1]), signal.SIGTERM)
+            except OSError:
+                pass  # già spento
+
+
+def errore_http(stato: int, corpo: dict | None = None) -> urllib.error.HTTPError:
+    """L'errore che `urllib` solleva per una risposta `stato`, con il corpo JSON che manda il back-end."""
+    dati = json.dumps(corpo or {}).encode("utf-8")
+    return urllib.error.HTTPError("http://127.0.0.1:8780/api/salute", stato, "Errore", None, io.BytesIO(dati))
+
+
 SALUTE_OK = {"stato": "ok", "database": "ok", "agente": "ok"}
+SALUTE_SENZA_AGENTE = {"stato": "ok", "database": "ok", "agente": "non raggiungibile"}
+DATABASE_SPENTO = {"errore": "Il database non risponde: riprova tra poco."}  # il 503 di servizio_backend/app.py
+MODULI_AMMESSI = {"dotenv", "avvio_chat", "assistente", "servizio_backend"}
 
 
 # --- Nessuna libreria che Smart App Control può bloccare ---
 
 
 def test_nessuna_libreria_bloccabile_dopo_l_import():
-    """Su Windows Smart App Control può bloccare le DLL di psycopg: il launcher non deve caricarle."""
+    """Su Windows Smart App Control può bloccare le DLL di psycopg: il launcher non deve caricarle.
+
+    Il launcher carica solo la libreria standard, python-dotenv e i moduli di questo progetto, sia
+    all'import sia leggendo le impostazioni. Non contano i moduli che l'interprete ha già caricato
+    prima (i file .pth dell'ambiente virtuale) e quelli interni, con il nome che comincia per «_».
+    """
     codice = (
-        "import sys, avvio_chat.__main__; "
-        "print(sorted(m for m in ('psycopg', 'langchain_core', 'langchain_openai', 'httpx') if m in sys.modules))"
+        "import json, os, sys\n"
+        "prima = {nome.partition('.')[0] for nome in sys.modules}\n"
+        "import avvio_chat.__main__\n"
+        "from avvio_chat import passi\n"
+        "passi.carica_impostazioni(dict(os.environ))\n"
+        "print(json.dumps(sorted({nome.partition('.')[0] for nome in sys.modules} - prima)))\n"
     )
     fatto = subprocess.run(
-        [sys.executable, "-c", codice], cwd=CARTELLA_PROGETTO, capture_output=True, text=True, timeout=60
+        [sys.executable, "-c", codice], cwd=CARTELLA_PROGETTO, env={**os.environ, **ENV}, capture_output=True, text=True, timeout=60
     )
     assert fatto.returncode == 0, fatto.stderr
-    assert fatto.stdout.strip() == "[]"
+    caricati = set(json.loads(fatto.stdout))
+    assert {"avvio_chat", "dotenv"} <= caricati  # la prova guarda davvero i moduli del launcher
+    estranei = {
+        nome for nome in caricati if nome not in sys.stdlib_module_names and nome not in MODULI_AMMESSI and not nome.startswith("_")
+    }
+    assert estranei == set()
 
 
 # --- Impostazioni ---
@@ -225,7 +288,9 @@ def test_lmstudio_acceso_non_chiama_lms():
     assert "[2/4] LM Studio: risponde, modello finto presente" in righe.testo
 
 
-def test_lmstudio_verifica_predefinita_senza_langchain():
+def test_lmstudio_verifica_predefinita_e_quella_comune():
+    """La verifica predefinita è `verifica_server` di assistente.lmstudio; che non porti con sé langchain
+    lo controlla test_nessuna_libreria_bloccabile_dopo_l_import."""
     from assistente import lmstudio
 
     assert passi.assicura_lmstudio.__kwdefaults__["verifica"] is lmstudio.verifica_server
@@ -308,6 +373,7 @@ def test_servizi_accesi_una_riga_per_servizio():
     esegui = EseguiFinto({COMPOSE_PS: [Esito(0, "agente\n\ndatabase\r\n  frontend  \n")]})
     assert passi.servizi_accesi(esegui) == {"agente", "database", "frontend"}
     assert esegui.comandi == [["docker", "compose", "ps", "--status", "running", "--services"]]
+    assert esegui.limiti == [120.0]
 
 
 def test_servizi_accesi_compose_che_fallisce():
@@ -338,10 +404,70 @@ def test_container_che_falliscono():
     assert "servizio_agente" not in str(errore.value)
 
 
+def test_container_scaduti_mostrano_le_righe_di_compose():
+    esegui = EseguiFinto({COMPOSE_UP: [Esito(124, "riga di compose\nnessuna risposta entro 600 secondi")]})
+    with pytest.raises(ErroreAvvio) as errore:
+        passi.assicura_container(esegui, Righe())
+    assert "riga di compose\nnessuna risposta entro 600 secondi" in str(errore.value)
+
+
 def test_ferma_servizi():
     esegui = EseguiFinto({COMPOSE_STOP: [Esito(0, "")]})
     passi.ferma_servizi(["backend", "agente"], esegui)
     assert esegui.comandi == [["docker", "compose", "stop", "backend", "agente"]]
+    assert esegui.limiti == [120.0]
+
+
+@pytest.mark.parametrize(
+    "esito",
+    [Esito(1, "riga inutile\nCannot connect to the Docker daemon\n"), Esito(124, "nessuna risposta entro 120 secondi")],
+    ids=["codice-1", "scaduto"],
+)
+def test_ferma_servizi_che_fallisce(esito):
+    esegui = EseguiFinto({COMPOSE_STOP: [esito]})
+    with pytest.raises(ErroreAvvio) as errore:
+        passi.ferma_servizi(["backend", "agente"], esegui)
+    assert "docker compose stop non è riuscito" in str(errore.value)
+    assert esito.uscita.splitlines()[-1] in str(errore.value)
+    assert "Per fermarli a mano: docker compose stop backend agente" in str(errore.value)
+
+
+def test_solo_docker_compose_up_ferma_anche_i_figli():
+    assert passi._ferma_i_figli(passi.COMANDO_CONTAINER)
+    assert passi._ferma_i_figli(passi.COMANDO_CONTAINER + ["--build"])
+    for comando in (passi.COMANDO_FERMA + ["backend"], passi.COMANDO_DOCKER_AVVIO, passi.COMANDO_SERVIZI_ACCESI, ["lms", "server", "start"]):
+        assert not passi._ferma_i_figli(comando)
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="l'albero dei processi si chiude con taskkill")
+def test_esegui_comando_scaduto_ferma_anche_i_figli():
+    """`docker compose up` è docker.exe più il plugin docker-compose.exe: alla scadenza devono morire
+    tutti e due, altrimenti il plugin accende i container dopo che il launcher ha rinunciato."""
+    (porta,) = porte_libere(1)
+    esito = Esito(0, "")
+    try:
+        esito = passi.esegui_comando(padre_con_figlio(porta), 5.0, con_i_figli=True)
+        assert esito.codice == 124
+        assert "avviato" in esito.uscita  # il figlio era acceso, e ciò che il comando ha scritto non va perso
+        assert esito.uscita.splitlines()[-1] == "nessuna risposta entro 5 secondi"
+        assert aspetta_che(lambda: not in_ascolto(porta)), "il figlio è sopravvissuto alla scadenza"
+    finally:
+        spegni_il_figlio(esito.uscita)
+
+
+def test_esegui_comando_scaduto_senza_figli_li_lascia_accesi():
+    """Per gli altri comandi resta come prima: `docker desktop start` e `lms server start` lasciano
+    accesi i loro programmi, e una scadenza non deve spegnerli."""
+    (porta,) = porte_libere(1)
+    esito = Esito(0, "")
+    try:
+        esito = passi.esegui_comando(padre_con_figlio(porta), 5.0)
+        assert esito.codice == 124
+        assert "avviato" in esito.uscita and "5 secondi" in esito.uscita
+        time.sleep(1.5)  # se la scadenza lo avesse spento, a questo punto sarebbe già morto
+        assert in_ascolto(porta), "il programma lasciato acceso è morto alla scadenza"
+    finally:
+        spegni_il_figlio(esito.uscita)
 
 
 def test_esegui_comando_vero():
@@ -416,7 +542,7 @@ def test_attendi_chat_riprova_finche_tutto_ok():
     assert "[4/4] Chat: risponde (database ok, agente ok)" in righe.testo
 
 
-def test_attendi_chat_database_che_non_risponde():
+def test_attendi_chat_database_non_ok_nella_risposta():
     tempo = Tempo()
     with pytest.raises(ErroreAvvio) as errore:
         passi.attendi_chat(
@@ -424,7 +550,81 @@ def test_attendi_chat_database_che_non_risponde():
             pausa=tempo.pausa, orologio=tempo.orologio,
         )
     assert "database" in str(errore.value) and "docker compose logs --tail 30 database" in str(errore.value)
-    assert tempo.adesso >= passi.ATTESA_CHAT
+
+
+def test_attendi_chat_aspetta_novanta_secondi():
+    tempo = Tempo()
+    passi.attendi_chat(
+        impostazioni(), Righe(), salute=lambda url, limite: SALUTE_OK if tempo.adesso >= 89 else SALUTE_SENZA_AGENTE,
+        pausa=tempo.pausa, orologio=tempo.orologio,
+    )
+    assert tempo.adesso == 89.0  # dopo 89 secondi aspetta ancora
+
+    tempo = Tempo()
+    with pytest.raises(ErroreAvvio) as errore:
+        passi.attendi_chat(impostazioni(), Righe(), salute=lambda url, limite: SALUTE_SENZA_AGENTE, pausa=tempo.pausa, orologio=tempo.orologio)
+    assert tempo.adesso == 90.0  # e a 90 rinuncia
+    assert "dopo 90 secondi" in str(errore.value)
+
+
+def test_attendi_chat_database_spento_il_back_end_risponde_503():
+    """Con il back-end vero un database spento non arriva come `database: non raggiungibile`: /salute
+    risponde 503 con il messaggio nel corpo. Il launcher deve dire che manca il database."""
+    tempo = Tempo()
+
+    def salute(url, limite):
+        raise errore_http(503, DATABASE_SPENTO)
+
+    with pytest.raises(ErroreAvvio) as errore:
+        passi.attendi_chat(impostazioni(), Righe(), salute=salute, pausa=tempo.pausa, orologio=tempo.orologio)
+    messaggio = str(errore.value)
+    assert "database non raggiungibile" in messaggio
+    assert "503" in messaggio and "Il database non risponde" in messaggio
+    assert "docker compose logs --tail 30 database" in messaggio and "docker compose logs --tail 30 backend" in messaggio
+
+
+def test_attendi_chat_database_spento_con_un_server_vero():
+    """Lo stesso, ma con `leggi_salute` vera contro un server che risponde come il back-end."""
+    corpo = json.dumps(DATABASE_SPENTO).encode("utf-8")
+
+    class Gestore(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(503)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(corpo)))
+            self.end_headers()
+            self.wfile.write(corpo)
+
+        def log_message(self, *argomenti):
+            pass
+
+    server = HTTPServer(("127.0.0.1", 0), Gestore)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        with pytest.raises(ErroreAvvio) as errore:
+            passi.attendi_chat(impostazioni(porta_frontend=server.server_port), Righe(), attesa=0.0)
+    finally:
+        server.shutdown()
+        server.server_close()
+    messaggio = str(errore.value)
+    assert "database non raggiungibile" in messaggio and "Il database non risponde" in messaggio
+    assert "docker compose logs --tail 30 database" in messaggio
+
+
+@pytest.mark.parametrize("stato", [502, 504])
+def test_attendi_chat_il_502_di_nginx_non_accusa_il_database(stato):
+    """502 e 504 li risponde nginx quando il back-end non c'è o non risponde: manca il back-end, non il database."""
+    tempo = Tempo()
+
+    def salute(url, limite):
+        raise errore_http(stato)
+
+    with pytest.raises(ErroreAvvio) as errore:
+        passi.attendi_chat(impostazioni(), Righe(), salute=salute, pausa=tempo.pausa, orologio=tempo.orologio)
+    messaggio = str(errore.value)
+    assert "il back-end non è pronto" in messaggio and str(stato) in messaggio
+    assert "docker compose logs --tail 30 backend" in messaggio
+    assert "database" not in messaggio
 
 
 # --- Il programma intero, con Docker, LM Studio e la chat finti ---
@@ -481,6 +681,31 @@ def test_avvio_completo_ed_esci():
     assert s.esegui.comandi[-1] == ["docker", "compose", "stop", "backend", "agente"]
     assert s.esegui.chiamati(COMPOSE_STOP) == 1
     assert s.chiusure == [["docker", "compose", "stop", "backend", "agente"]]
+    # `ps` prima di `up`: dopo, agente e back-end risulterebbero sempre «già accesi».
+    assert [comando[:3] for comando in s.esegui.comandi] == [
+        ["docker", "info", "--format"], ["docker", "compose", "ps"], ["docker", "compose", "up"], ["docker", "compose", "stop"],
+    ]
+    assert s.righe.righe[-1].startswith("Fermato.")
+
+
+def test_la_chiusura_della_finestra_si_prepara_prima_di_accendere_i_container():
+    """`up` è la fase più lunga (fino a 10 minuti): chi chiude la finestra lì non deve lasciare container accesi."""
+    s = scena()
+    eventi: list[str] = []
+
+    def esegui(comando, limite):
+        eventi.append(" ".join(comando[:3]))
+        return s.esegui(comando, limite)
+
+    opzioni = {**s.opzioni, "esegui": esegui, "alla_chiusura": lambda comando: eventi.append("chiusura: " + " ".join(comando))}
+    assert passi.avvia_chat(s.imp, io.StringIO("esci\n"), s.righe, **opzioni) == 0
+    assert eventi == [
+        "docker info --format",
+        "docker compose ps",
+        "chiusura: docker compose stop backend agente",
+        "docker compose up",
+        "docker compose stop",
+    ]
 
 
 def test_tutto_gia_acceso_apre_solo_il_browser():
@@ -498,6 +723,8 @@ def test_agente_gia_acceso_si_ferma_solo_il_backend():
     assert passi.avvia_chat(s.imp, io.StringIO("esci\n"), s.righe, **s.opzioni) == 0
     assert s.esegui.con_inizio(COMPOSE_STOP) == [["docker", "compose", "stop", "backend"]]
     assert s.chiusure == [["docker", "compose", "stop", "backend"]]
+    inizi = [tuple(comando[:3]) for comando in s.esegui.comandi]
+    assert inizi.index(COMPOSE_PS) < inizi.index(COMPOSE_UP)
 
 
 def test_avvia_chat_ricostruisci():
@@ -509,14 +736,162 @@ def test_avvia_chat_ricostruisci():
     assert s.esegui.con_inizio(COMPOSE_UP) == [["docker", "compose", "up", "-d", "--wait"]]
 
 
-def test_chat_che_non_risponde_spegne_cio_che_ho_acceso():
-    s = scena(salute=lambda url, limite: {"stato": "ok", "database": "ok", "agente": "non raggiungibile"})
+@pytest.mark.parametrize(
+    "accesi, fermati",
+    [
+        ("", [["docker", "compose", "stop", "backend", "agente"]]),
+        ("agente\ndatabase\n", [["docker", "compose", "stop", "backend"]]),
+        ("backend\n", [["docker", "compose", "stop", "agente"]]),
+        ("agente\nbackend\n", []),
+    ],
+    ids=["nessuno-acceso", "agente-acceso", "backend-acceso", "tutti-e-due-accesi"],
+)
+def test_chat_che_non_risponde_spegne_cio_che_ho_acceso(accesi, fermati):
+    s = scena(accesi=accesi, salute=lambda url, limite: SALUTE_SENZA_AGENTE)
     with pytest.raises(ErroreAvvio) as errore:
         passi.avvia_chat(s.imp, io.StringIO("esci\n"), s.righe, **s.opzioni)
-    assert "agente" in str(errore.value) and "docker compose logs --tail 30 agente" in str(errore.value)
+    assert "agente non raggiungibile" in str(errore.value) and "docker compose logs --tail 30 agente" in str(errore.value)
+    assert "dopo 90 secondi" in str(errore.value) and s.tempo.adesso == 90.0
+    assert s.esegui.con_inizio(COMPOSE_STOP) == fermati
+    assert s.chiusure == fermati  # la chiusura della finestra era pronta anche se la chat non ha risposto
+    assert s.aperti == []
+    assert "Fermato." not in s.righe.testo
+
+
+@pytest.mark.parametrize(
+    "accesi, fermati",
+    [
+        ("", [["docker", "compose", "stop", "backend", "agente"]]),
+        ("agente\n", [["docker", "compose", "stop", "backend"]]),
+        ("agente\nbackend\n", []),
+    ],
+    ids=["nessuno-acceso", "agente-acceso", "tutti-e-due-accesi"],
+)
+def test_up_fallito_spegne_cio_che_ho_acceso(accesi, fermati):
+    """Un `up` fallito a metà può aver già acceso l'agente: va fermato come dopo ogni altro errore."""
+    s = scena(accesi=accesi, up=Esito(1, "riga inutile\ncontainer assistente-backend-1 is unhealthy\n"))
+    with pytest.raises(ErroreAvvio) as errore:
+        passi.avvia_chat(s.imp, IngressoVietato(), s.righe, **s.opzioni)
+    assert "docker compose up non è riuscito" in str(errore.value) and "is unhealthy" in str(errore.value)
+    assert s.esegui.con_inizio(COMPOSE_STOP) == fermati
+    assert s.chiusure == fermati
+    assert s.aperti == []
+
+
+def test_stop_fallito_dopo_un_errore_non_nasconde_l_errore():
+    s = scena(salute=lambda url, limite: SALUTE_SENZA_AGENTE)
+    s.esegui.copione[COMPOSE_STOP] = [Esito(1, "Cannot connect to the Docker daemon\n")]
+    with pytest.raises(ErroreAvvio) as errore:
+        passi.avvia_chat(s.imp, io.StringIO("esci\n"), s.righe, **s.opzioni)
+    righe = str(errore.value).splitlines()
+    assert "docker compose logs --tail 30 agente" in righe[0]  # prima l'errore vero
+    assert len(righe) == 2 and "non sono riuscito a fermare" in righe[1]  # poi una riga sullo spegnimento
+    assert righe[1].endswith("docker compose stop backend agente")
+
+
+def test_stop_fallito_dopo_un_up_fallito_conserva_l_ipotesi_sulla_porta():
+    s = scena(up=Esito(1, "Bind for 127.0.0.1:8767 failed: port is already allocated\n"))
+    s.esegui.copione[COMPOSE_STOP] = [Esito(1, "Cannot connect to the Docker daemon\n")]
+    with pytest.raises(ErroreAvvio) as errore:
+        passi.avvia_chat(s.imp, IngressoVietato(), s.righe, **s.opzioni)
+    messaggio = str(errore.value)
+    assert messaggio.index("python -m servizio_agente") < messaggio.index("docker compose stop backend agente")
+
+
+def test_stop_fallito_dopo_esci_e_un_errore():
+    s = scena()
+    s.esegui.copione[COMPOSE_STOP] = [Esito(1, "Cannot connect to the Docker daemon\n")]
+    with pytest.raises(ErroreAvvio) as errore:
+        passi.avvia_chat(s.imp, io.StringIO("esci\n"), s.righe, **s.opzioni)
+    assert "Cannot connect to the Docker daemon" in str(errore.value)
+    assert "Per fermarli a mano: docker compose stop backend agente" in str(errore.value)
+    assert "Fermato." not in s.righe.testo
+
+
+def test_errore_inatteso_e_stop_fallito_si_vedono_tutti_e_due():
+    s = scena()
+
+    def apri(url):
+        raise RuntimeError("guasto")
+
+    s.esegui.copione[COMPOSE_STOP] = [Esito(1, "errore\n")]
+    with pytest.raises(ErroreAvvio) as errore:
+        passi.avvia_chat(s.imp, io.StringIO("esci\n"), s.righe, **{**s.opzioni, "apri": apri})
+    righe = str(errore.value).splitlines()
+    assert "guasto" in righe[0] and "RuntimeError" in righe[0]
+    assert righe[1].endswith("docker compose stop backend agente")
+
+
+def test_errore_inatteso_ferma_cio_che_ho_acceso_e_resta_lo_stesso():
+    s = scena()
+
+    def apri(url):
+        raise RuntimeError("guasto")
+
+    with pytest.raises(RuntimeError, match="guasto"):
+        passi.avvia_chat(s.imp, io.StringIO("esci\n"), s.righe, **{**s.opzioni, "apri": apri})
+    assert s.esegui.con_inizio(COMPOSE_STOP) == [["docker", "compose", "stop", "backend", "agente"]]
+
+
+def test_una_riga_che_non_si_puo_scrivere_non_salta_lo_stop():
+    """Se la finestra non si può più scrivere (l'uscita è chiusa), i container si fermano lo stesso."""
+    s = scena()
+
+    def scrivi(testo):
+        if testo.startswith("Fermo"):
+            raise OSError("uscita chiusa")
+        s.righe(testo)
+
+    assert passi.avvia_chat(s.imp, io.StringIO("esci\n"), scrivi, **s.opzioni) == 0
+    assert s.esegui.con_inizio(COMPOSE_STOP) == [["docker", "compose", "stop", "backend", "agente"]]
+
+
+# --- Ctrl+C durante lo spegnimento ---
+
+
+def test_ctrl_c_durante_lo_stop_riprova():
+    s = scena()
+    s.esegui.copione[COMPOSE_STOP] = [KeyboardInterrupt(), Esito(0, "")]
+    assert passi.avvia_chat(s.imp, io.StringIO("esci\n"), s.righe, **s.opzioni) == 0
+    assert s.esegui.con_inizio(COMPOSE_STOP) == [["docker", "compose", "stop", "backend", "agente"]] * 2
+    assert "Sto ancora fermando" in s.righe.testo
+    assert s.righe.righe[-1].startswith("Fermato.")
+
+
+def test_stop_interrotto_due_volte_e_un_errore():
+    s = scena()
+    s.esegui.copione[COMPOSE_STOP] = [KeyboardInterrupt()]
+    with pytest.raises(ErroreAvvio) as errore:
+        passi.avvia_chat(s.imp, io.StringIO("esci\n"), s.righe, **s.opzioni)
+    assert "Per fermarli a mano: docker compose stop backend agente" in str(errore.value)
+    assert s.esegui.chiamati(COMPOSE_STOP) == 2
+    assert "Fermato." not in s.righe.testo
+
+
+def test_ctrl_c_durante_l_attesa_della_chat_ferma_cio_che_ho_acceso():
+    def salute(url, limite):
+        raise KeyboardInterrupt
+
+    s = scena(salute=salute)
+    with pytest.raises(KeyboardInterrupt):
+        passi.avvia_chat(s.imp, io.StringIO("esci\n"), s.righe, **s.opzioni)
     assert s.esegui.con_inizio(COMPOSE_STOP) == [["docker", "compose", "stop", "backend", "agente"]]
     assert s.aperti == []
-    assert s.tempo.adesso >= passi.ATTESA_CHAT
+
+
+def test_ctrl_c_durante_l_avvio_e_poi_durante_lo_stop_non_e_un_interrotto_qualunque():
+    """Ctrl+C mentre la chat parte, e poi ancora durante lo spegnimento: non può finire come un
+    «Interrotto.» con codice 0, perché i container possono essere ancora accesi."""
+
+    def salute(url, limite):
+        raise KeyboardInterrupt
+
+    s = scena(salute=salute)
+    s.esegui.copione[COMPOSE_STOP] = [KeyboardInterrupt()]
+    with pytest.raises(ErroreAvvio) as errore:
+        passi.avvia_chat(s.imp, io.StringIO("esci\n"), s.righe, **s.opzioni)
+    assert str(errore.value).splitlines()[0] == "Interrotto."
+    assert str(errore.value).endswith("docker compose stop backend agente")
 
 
 def test_chat_senza_backend_indica_i_log_del_backend():
@@ -613,6 +988,33 @@ def test_main_errore_inatteso_senza_traceback(ambiente, monkeypatch, capsys):
     assert principale.main([], io.StringIO("")) == 1
     errore = capsys.readouterr().err
     assert "Errore inatteso: guasto" in errore and "Traceback" not in errore
+
+
+@pytest.mark.parametrize(
+    "eccezione, atteso",
+    [(RuntimeError(), "Errore inatteso: RuntimeError\n"), (KeyError("agente"), "Errore inatteso: 'agente' (KeyError)\n")],
+    ids=["senza-messaggio", "solo-una-chiave"],
+)
+def test_main_errore_inatteso_dice_sempre_di_che_tipo_e(ambiente, monkeypatch, capsys, eccezione, atteso):
+    def guasto(*argomenti, **opzioni):
+        raise eccezione
+
+    monkeypatch.setattr(principale, "avvia_chat", guasto)
+    assert principale.main([], io.StringIO("")) == 1
+    assert capsys.readouterr().err == atteso
+
+
+def test_main_stop_interrotto_due_volte_non_e_interrotto_con_codice_0(ambiente, monkeypatch, capsys):
+    """La finestra deve restare aperta (codice diverso da 0) e dire come fermare i container a mano."""
+    s = scena()
+    s.esegui.copione[COMPOSE_STOP] = [KeyboardInterrupt()]
+    monkeypatch.setattr(
+        principale, "avvia_chat", lambda imp, ingresso, scrivi, **opzioni: passi.avvia_chat(s.imp, io.StringIO("esci\n"), scrivi, **s.opzioni)
+    )
+    assert principale.main([], io.StringIO("")) == 1
+    uscita = capsys.readouterr()
+    assert uscita.err.startswith("Errore: ") and "docker compose stop backend agente" in uscita.err
+    assert "Interrotto." not in uscita.out
 
 
 def test_main_passa_senza_browser(ambiente, monkeypatch, capsys):

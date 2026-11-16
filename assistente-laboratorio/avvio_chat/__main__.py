@@ -21,7 +21,7 @@ from assistente.configurazione import ErroreConfigurazione
 from assistente.console import configura_flussi
 from assistente.errori import ErroreAvvio
 from assistente.lmstudio import ErroreServer
-from avvio_chat.passi import CARTELLA_PROGETTO, avvia_chat, carica_impostazioni
+from avvio_chat.passi import CARTELLA_PROGETTO, avvia_chat, carica_impostazioni, descrivi_errore
 
 
 def scrivi(testo: str) -> None:
@@ -66,7 +66,7 @@ def main(argomenti: list[str] | None = None, ingresso: TextIO | None = None) -> 
         print("\nInterrotto.")
         return 0
     except Exception as errore:  # niente traceback nella finestra: una riga che dice che cosa è successo
-        print(f"Errore inatteso: {errore}", file=sys.stderr)
+        print(f"Errore inatteso: {descrivi_errore(errore)}", file=sys.stderr)
         return 1
 
 
