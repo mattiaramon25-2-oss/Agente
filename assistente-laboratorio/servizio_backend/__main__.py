@@ -1,7 +1,7 @@
 """Avvio del back-end delle chat: python -m servizio_backend
 
 Legge il .env, si collega a PostgreSQL (crea le tabelle se mancano), controlla l'agente e serve
-l'API HTTP su 127.0.0.1:BACKEND_PORTA. Ctrl+C, SIGTERM e SIGBREAK lo fermano in modo ordinato.
+l'API HTTP su BACKEND_HOST:BACKEND_PORTA (predefinito 127.0.0.1). Ctrl+C, SIGTERM e SIGBREAK lo fermano in modo ordinato.
 """
 
 import logging
@@ -51,7 +51,7 @@ def main() -> int:
         except DatabaseNonRaggiungibile as errore:
             registro.error("avvio fallito: database non raggiungibile: %s", errore)
             raise ErroreAvvio(
-                f"Il database PostgreSQL non risponde su 127.0.0.1:{config.porta_postgres} ({errore}): "
+                f"Il database PostgreSQL non risponde su {config.host_postgres}:{config.porta_postgres} ({errore}): "
                 "avvialo con docker compose up -d database; se è acceso, "
                 "controlla POSTGRES_USER, POSTGRES_PASSWORD e POSTGRES_DB nel file .env."
             ) from errore
@@ -64,9 +64,9 @@ def main() -> int:
         _installa_segnali_di_arresto()
         app = crea_app(archivio, agente)
         registro.info("avvio servizio backend porta=%d", config.porta)
-        print(f"Back-end delle chat in ascolto su http://127.0.0.1:{config.porta} (documentazione su /docs). Ctrl+C per fermarlo.")
+        print(f"Back-end delle chat in ascolto su http://{config.host}:{config.porta} (documentazione su /docs). Ctrl+C per fermarlo.")
         try:
-            uvicorn.run(app, host="127.0.0.1", port=config.porta, log_level="warning", access_log=False)
+            uvicorn.run(app, host=config.host, port=config.porta, log_level="warning", access_log=False)
         except KeyboardInterrupt:
             pass
         finally:

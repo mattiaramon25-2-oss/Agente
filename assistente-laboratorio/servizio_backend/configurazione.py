@@ -3,23 +3,37 @@
 from dataclasses import dataclass
 from typing import Mapping
 
-from psycopg.conninfo import make_conninfo
-
-from assistente.configurazione import ErroreConfigurazione, leggi_porta
+from assistente.configurazione import HOST_AGENTE_PREDEFINITO, ErroreConfigurazione, leggi_indirizzo_ip, leggi_porta
 
 OBBLIGATORIE = ("BACKEND_PORTA", "AGENTE_PORTA", "POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_DB")
 PORTA_POSTGRES_PREDEFINITA = "5432"
 
 
 @dataclass(frozen=True)
-class ConfigurazioneBackend:
+class ValoriBackend:
     porta: int
-    url_agente: str
-    dsn: str
+    host: str
+    porta_agente: int
+    indirizzo_agente: str
+    utente: str
+    password: str
+    database: str
+    host_postgres: str
     porta_postgres: int
 
 
-def carica_configurazione_backend(env: Mapping[str, str]) -> ConfigurazioneBackend:
+@dataclass(frozen=True)
+class ConfigurazioneBackend:
+    porta: int
+    host: str
+    url_agente: str
+    dsn: str
+    host_postgres: str
+    porta_postgres: int
+
+
+def leggi_valori_backend(env: Mapping[str, str]) -> ValoriBackend:
+    """Legge e controlla le variabili del back-end; non importa psycopg (la usa anche l'avvio su Windows)."""
     valori = {nome: (env.get(nome) or "").strip() for nome in OBBLIGATORIE}
     mancanti = [nome for nome, valore in valori.items() if not valore]
     if mancanti:
@@ -38,17 +52,36 @@ def carica_configurazione_backend(env: Mapping[str, str]) -> ConfigurazioneBacke
     porta_postgres = leggi_porta(
         "POSTGRES_PORTA", (env.get("POSTGRES_PORTA") or "").strip() or PORTA_POSTGRES_PREDEFINITA
     )
-    dsn = make_conninfo(
-        host="127.0.0.1",
-        port=porta_postgres,
-        user=valori["POSTGRES_USER"],
+    return ValoriBackend(
+        porta=porta,
+        host=leggi_indirizzo_ip("BACKEND_HOST", env),
+        porta_agente=porta_agente,
+        indirizzo_agente=(env.get("AGENTE_INDIRIZZO") or "").strip() or HOST_AGENTE_PREDEFINITO,
+        utente=valori["POSTGRES_USER"],
         password=valori["POSTGRES_PASSWORD"],
-        dbname=valori["POSTGRES_DB"],
+        database=valori["POSTGRES_DB"],
+        host_postgres=(env.get("POSTGRES_HOST") or "").strip() or HOST_AGENTE_PREDEFINITO,
+        porta_postgres=porta_postgres,
+    )
+
+
+def carica_configurazione_backend(env: Mapping[str, str]) -> ConfigurazioneBackend:
+    from psycopg.conninfo import make_conninfo
+
+    v = leggi_valori_backend(env)
+    dsn = make_conninfo(
+        host=v.host_postgres,
+        port=v.porta_postgres,
+        user=v.utente,
+        password=v.password,
+        dbname=v.database,
         connect_timeout=5,
     )
     return ConfigurazioneBackend(
-        porta=porta,
-        url_agente=f"http://127.0.0.1:{porta_agente}",
+        porta=v.porta,
+        host=v.host,
+        url_agente=f"http://{v.indirizzo_agente}:{v.porta_agente}",
         dsn=dsn,
-        porta_postgres=porta_postgres,
+        host_postgres=v.host_postgres,
+        porta_postgres=v.porta_postgres,
     )

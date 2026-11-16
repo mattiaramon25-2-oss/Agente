@@ -103,3 +103,10 @@ def test_database_con_password_errata_mostra_il_motivo(ambiente, capsys):
     assert "password authentication failed" in err
     assert "POSTGRES_PASSWORD" in err and "127.0.0.1:55432" in err
     assert "postgresql://" not in err
+
+
+def test_messaggio_database_con_indirizzo_vero(ambiente, monkeypatch, capsys):
+    monkeypatch.setenv("POSTGRES_HOST", "database")
+    ambiente["archivio"].spento = True
+    assert avvio.main() == 1
+    assert "database:55432" in capsys.readouterr().err
