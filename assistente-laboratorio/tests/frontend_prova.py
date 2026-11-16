@@ -66,10 +66,15 @@ def _risponde(url: str) -> bool:
 def frontend_di_prova(porta_backend: int) -> Iterator[str]:
     """Avvia il container `frontend` verso il back-end di prova e restituisce l'URL della chat."""
     porta = _porta_libera()
-    env = {**ENV_FINTO, **os.environ, "BACKEND_PORTA": str(porta_backend), "FRONTEND_PORTA": str(porta)}
+    # Il back-end di prova gira sull'host: nginx lo raggiunge con host.docker.internal, e --no-deps
+    # non accende il back-end vero (né database e agente) nel progetto di prova.
+    env = {
+        **ENV_FINTO, **os.environ,
+        "BACKEND_PORTA": str(porta_backend), "FRONTEND_PORTA": str(porta), "BACKEND_INDIRIZZO": "host.docker.internal",
+    }
     url = f"http://127.0.0.1:{porta}"
     try:
-        _compose(env, "up", "-d", "--build", "frontend")
+        _compose(env, "up", "-d", "--build", "--no-deps", "frontend")
         fine = time.monotonic() + ATTESA_PRONTO
         while not _risponde(f"{url}/"):
             if time.monotonic() > fine:
