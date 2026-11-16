@@ -1,5 +1,6 @@
 """Avvio della chat con un doppio clic: i passi di avvio_chat, senza Docker e senza LM Studio."""
 
+import ctypes
 import io
 import json
 import os
@@ -21,7 +22,7 @@ from assistente.configurazione import ErroreConfigurazione
 from assistente.errori import ErroreAvvio
 from assistente.lmstudio import ErroreServer
 from avvio_chat import __main__ as principale
-from avvio_chat import passi
+from avvio_chat import console, passi
 from avvio_chat.passi import Esito, Impostazioni
 
 ENV = {
@@ -1106,6 +1107,144 @@ def test_il_programma_non_uccide_cio_che_lascia_acceso():
     assert programma.returncode == 0
     time.sleep(1.5)  # se qualcosa lo uccidesse alla fine del programma, a questo punto sarebbe già morto
     assert in_ascolto(porta), "il processo lasciato acceso è morto insieme al programma"
+
+
+# --- La chiusura della finestra con la X ---
+
+
+def comando_che_scrive(file: Path, attesa: float = 0.0) -> list[str]:
+    """Un comando al posto di `docker compose stop`: aspetta, poi lascia un file come traccia.
+
+    La traccia la scrive un processo figlio, come `docker` che lancia il plugin `compose`: il figlio di
+    un processo senza console ne riceverebbe una nuova, con una finestra che compare sullo schermo.
+    """
+    figlio = (
+        "import ctypes, sys\n"
+        "finestra = sys.platform == 'win32' and ctypes.windll.kernel32.GetConsoleWindow()\n"
+        f"open({str(file)!r}, 'w').write('fermato, con una finestra nuova' if finestra else 'fermato')\n"
+    )
+    padre = f"import subprocess, sys, time; time.sleep({attesa}); subprocess.run([sys.executable, '-c', {figlio!r}])"
+    return [sys.executable, "-c", padre]
+
+
+@pytest.fixture
+def gestore_tolto():
+    """Il gestore registrato da un test non resta nel processo di pytest."""
+    yield
+    console.rimuovi_chiusura_console()
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="la console di Windows")
+def test_chiudere_la_finestra_lancia_lo_spegnimento(tmp_path):
+    """La X della finestra non passa da «esci»: il gestore lancia lo spegnimento in un processo staccato.
+
+    Il launcher gira in una console classica nascosta; la console riceve WM_CLOSE, cioè quello che manda
+    il pulsante X. Il comando aspetta 2 secondi prima di lasciare la traccia: a quel punto la finestra
+    non c'è più, quindi la traccia compare solo se il processo staccato le è sopravvissuto.
+    """
+    from ctypes import wintypes
+
+    traccia = tmp_path / "fermato.txt"
+    titolo = f"prova-avvio-chat-{os.getpid()}-{time.monotonic_ns()}"
+    codice = (
+        "import ctypes, time\n"
+        "from avvio_chat import console\n"
+        f"console.installa_chiusura_console({comando_che_scrive(traccia, 2)!r})\n"
+        f"ctypes.windll.kernel32.SetConsoleTitleW({titolo!r})\n"
+        "time.sleep(120)\n"
+    )
+    nascosta = subprocess.STARTUPINFO()
+    nascosta.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    nascosta.wShowWindow = 0  # SW_HIDE: la finestra esiste ma non compare sullo schermo
+    finestra = subprocess.Popen(["conhost.exe", sys.executable, "-c", codice], cwd=CARTELLA_PROGETTO, startupinfo=nascosta)
+    try:
+        user32 = ctypes.WinDLL("user32", use_last_error=True)
+        user32.FindWindowW.restype = wintypes.HWND
+        user32.FindWindowW.argtypes = [wintypes.LPCWSTR, wintypes.LPCWSTR]
+        user32.PostMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+        # Il titolo arriva dopo l'installazione del gestore: trovata la finestra, il gestore c'è già.
+        assert aspetta_che(lambda: bool(user32.FindWindowW(None, titolo)), 30), "la finestra della console non si trova"
+        assert user32.PostMessageW(user32.FindWindowW(None, titolo), 0x0010, 0, 0)  # WM_CLOSE
+        assert finestra.wait(10) is not None
+        assert not traccia.exists(), "il comando ha finito prima della finestra: la prova non dimostra niente"
+        assert aspetta_che(traccia.exists, 15), "lo spegnimento non è sopravvissuto alla chiusura della finestra"
+        assert aspetta_che(lambda: traccia.read_text() != "", 5)
+        assert traccia.read_text() == "fermato"  # e senza far comparire un'altra finestra
+    finally:
+        if finestra.poll() is None:
+            finestra.kill()
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="la console di Windows")
+def test_ctrl_c_non_passa_dal_gestore(monkeypatch, gestore_tolto):
+    avviati = []
+    monkeypatch.setattr(console.subprocess, "Popen", lambda comando, **opzioni: avviati.append(comando))
+    console.installa_chiusura_console(["docker", "compose", "stop", "backend", "agente"])
+    assert not console._gestore(0)  # CTRL_C_EVENT: resta un KeyboardInterrupt
+    assert not console._gestore(1)  # CTRL_BREAK_EVENT
+    assert avviati == []
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="la console di Windows")
+@pytest.mark.parametrize("evento", [2, 5, 6])
+def test_chiusura_disconnessione_e_arresto_lanciano_il_comando_staccato(monkeypatch, gestore_tolto, evento):
+    avviati = []
+    monkeypatch.setattr(console.subprocess, "Popen", lambda comando, **opzioni: avviati.append((comando, opzioni)))
+    console.installa_chiusura_console(["docker", "compose", "stop", "backend", "agente"])
+    assert console._gestore(evento)
+    assert avviati == [
+        (
+            ["docker", "compose", "stop", "backend", "agente"],
+            {
+                "cwd": CARTELLA_PROGETTO,
+                "stdin": subprocess.DEVNULL,
+                "stdout": subprocess.DEVNULL,
+                "stderr": subprocess.DEVNULL,
+                "creationflags": subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP,
+            },
+        )
+    ]
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="la console di Windows")
+def test_un_comando_che_non_parte_non_lascia_un_traceback(monkeypatch, gestore_tolto, capfd):
+    """Docker sparito dal PATH: la finestra si chiude lo stesso, senza eccezioni dal gestore."""
+
+    def non_trovato(comando, **opzioni):
+        raise FileNotFoundError(comando[0])
+
+    monkeypatch.setattr(console.subprocess, "Popen", non_trovato)
+    console.installa_chiusura_console(["docker", "compose", "stop", "agente"])
+    assert console._gestore(2)
+    assert capfd.readouterr().err == ""
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="la console di Windows")
+def test_un_solo_gestore_anche_installando_due_volte(monkeypatch, gestore_tolto):
+    registrati = []
+    vero = console._registra
+    monkeypatch.setattr(console, "_registra", lambda gestore, aggiungi: registrati.append(aggiungi) or vero(gestore, aggiungi))
+    console.installa_chiusura_console(["primo"])
+    console.installa_chiusura_console(["secondo"])
+    assert registrati == [True, False, True]  # il primo gestore è stato tolto prima di mettere il secondo
+    console.rimuovi_chiusura_console()
+    assert console._gestore is None
+
+
+def test_dopo_un_uscita_normale_il_gestore_non_lancia_niente(tmp_path):
+    """Dopo «esci» il launcher ha già fermato i container: uscendo, il gestore non lancia un secondo stop."""
+    traccia = tmp_path / "fermato.txt"
+    codice = f"from avvio_chat import console\nconsole.installa_chiusura_console({comando_che_scrive(traccia)!r})\n"
+    fatto = subprocess.run([sys.executable, "-c", codice], cwd=CARTELLA_PROGETTO, capture_output=True, text=True, timeout=60)
+    assert (fatto.returncode, fatto.stderr) == (0, "")
+    time.sleep(1.5)  # il comando lascerebbe la traccia subito
+    assert not traccia.exists()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="fuori da Windows non c'è la console da chiudere")
+def test_fuori_da_windows_non_fa_nulla():
+    console.installa_chiusura_console(["docker", "compose", "stop", "agente"])
+    assert console._gestore is None
 
 
 # --- Il file del doppio clic ---
