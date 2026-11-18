@@ -61,7 +61,7 @@ Nove correzioni sul branch `dev-revisione`, unite in `main` il 9 novembre (`846b
 
 ## Lezione 6 · Evolvere l'agente (in corso)
 
-**Stato (18 novembre 2026).** Gli step 1, 6, 7 e 8 sono fatti e uniti in `main` (ultima unione `f00512f`). Lo step 9 (quattro container con un solo comando) è fatto sul branch `dev-quattro-container`, non ancora unito: mancano due prove reali dell'utente (vedi il suo checkpoint). Restano gli step 2–5 (revisore, riassunto, resource, prompt).
+**Stato (18 novembre 2026).** Gli step 1, 6, 7 e 8 sono fatti e uniti in `main` (ultima unione `f00512f`). Lo step 9 (quattro container con un solo comando) è fatto sul branch `dev-quattro-container`, non ancora unito: manca una prova reale dell'utente, il doppio clic subito dopo l'accensione del PC (vedi il suo checkpoint). Restano gli step 2–5 (revisore, riassunto, resource, prompt).
 
 Router, revisore e riassunto della cronologia, poi resource e prompt MCP, infine l'agente come servizio con interfaccia web. Il riepilogo dei nove step è in [`docs/studio/00-indice.md`](../studio/00-indice.md).
 
@@ -116,6 +116,6 @@ Dal 14 novembre circa Smart App Control di Windows blocca le DLL di `psycopg-bin
 |---|---|---|
 | Specifica | [2026-11-16-quattro-container-design.md](specs/2026-11-16-quattro-container-design.md) | database, agente, back-end e pagina con un comando; il doppio clic accende i container e alla chiusura (anche con la X) ferma ciò che ha acceso; suite di test in un container |
 | Piano | [2026-11-16-quattro-container.md](plans/2026-11-16-quattro-container.md) | gli otto task, con le prove reali |
-| Checkpoint | [2026-11-16-quattro-container.md](checkpoint/2026-11-16-quattro-container.md) | fatto sul branch: container 717 passati e 98 saltati, host 111 passati e 1 saltato; prove reali 1, 2, 4, 5 e 7 della specifica passate, la X vera e l'avvio subito dopo l'accensione del PC ancora da provare |
+| Checkpoint | [2026-11-16-quattro-container.md](checkpoint/2026-11-16-quattro-container.md) | fatto sul branch; dopo la revisione finale container 726 passati e 99 saltati, host 113 passati e 1 saltato; prove reali 1, 2, 3 (la X vera, dell'utente), 4, 5 e 7 della specifica passate, l'avvio subito dopo l'accensione del PC ancora da provare |
 
 Specifica e piani degli step successivi arriveranno qui, con lo stesso schema: `specs/AAAA-MM-GG-<argomento>-design.md`, `plans/AAAA-MM-GG-<argomento>.md`, `checkpoint/AAAA-MM-GG-<passo>.md`.
