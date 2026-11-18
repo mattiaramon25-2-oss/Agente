@@ -249,7 +249,7 @@ Lo schema reale di `search_catalog`, come lo riceve un client con la discovery (
 Due osservazioni:
 
 - `"required"` lo calcola FastMCP dai parametri **senza** valore predefinito: qui solo `query`.
-- `"additionalProperties": false` lo aggiunge FastMCP. Se il client manda un argomento in più, FastMCP lo rifiuta, ma con un messaggio di Pydantic in inglese. **Eseguito**: `converti_unita` con `extra=1` → `is_error=True`, `1 validation error for call[converti_unita] extra Unexpected keyword argument …`. Per questo il grafo controlla gli argomenti **prima** di chiamare qualsiasi variante e risponde in italiano: *«Argomenti non previsti per …: extra. Usa solo: valore, da, a.»* (`assistente/grafo.py:88-99`, `:167-172`, commit `5bed890`).
+- `"additionalProperties": false` lo aggiunge FastMCP. Se il client manda un argomento in più, FastMCP lo rifiuta, ma con un messaggio di Pydantic in inglese. **Eseguito**: `converti_unita` con `extra=1` → `is_error=True`, `1 validation error for call[converti_unita] extra Unexpected keyword argument …`. Per questo il grafo controlla gli argomenti **prima** di chiamare qualsiasi variante e risponde in italiano: *«Argomenti non previsti per …: extra. Usa solo: valore, da, a.»* (`assistente/grafo.py:102-113`, `:167-172`, commit `5bed890`).
 
 ### 3.5 `esegui_registrato`: log, errori controllati e rete di sicurezza
 
@@ -377,7 +377,7 @@ Il terzo caso mostra il paracadute di `ferma`: chi ignora la richiesta viene ter
 
 ### 5.1 Il problema da risolvere
 
-Il grafo LangGraph del progetto è **sincrono**: chiama `strumento.invoke(argomenti)` (`assistente/grafo.py:175`). I tool prodotti da `langchain-mcp-adapters` sono invece **solo asincroni**. **Eseguito**, con l'adattatore collegato al server reale in memoria:
+Il grafo LangGraph del progetto è **sincrono**: chiama `strumento.invoke(argomenti)` (`assistente/grafo.py:189`). I tool prodotti da `langchain-mcp-adapters` sono invece **solo asincroni**. **Eseguito**, con l'adattatore collegato al server reale in memoria:
 
 ```text
 invoke sincrono -> NotImplementedError StructuredTool does not support sync invocation.
@@ -435,7 +435,7 @@ def avvolgi(strumento: BaseTool, timeout: float = TIMEOUT_CHIAMATA) -> BaseTool:
 
 - **Stesso contratto**: `name`, `description` e `args_schema` vengono copiati dal tool dell'adattatore. `args_schema` è proprio il **dizionario** JSON Schema ricevuto con la discovery. Il modello vede quindi esattamente ciò che il server pubblica: nulla è scritto a mano nel client, come chiede la specifica (anti-obiettivo: *«Nome, descrizione o schema dello strumento scritti a mano nel client invece che ricevuti dal server»*).
 - **`func=esegui`** è una funzione sincrona: ora `invoke` funziona.
-- **`metadata={"origine": "mcp"}`** permette al grafo e al terminale di sapere da dove arriva lo strumento: compare nella riga `[ora_corrente · mcp: Asia/Tokyo]` e nel campo `origine=mcp` di `logs/assistente.log` (`assistente/varianti.py:51-53`, `assistente/grafo.py:157`).
+- **`metadata={"origine": "mcp"}`** permette al grafo e al terminale di sapere da dove arriva lo strumento: compare nella riga `[ora_corrente · mcp: Asia/Tokyo]` e nel campo `origine=mcp` di `logs/assistente.log` (`assistente/varianti.py:51-53`, `assistente/grafo.py:171`).
 - **Timeout di 10 s** (`TIMEOUT_CHIAMATA = 10.0`, `:16`), applicato con `asyncio.wait_for` a **tutta** la chiamata (sessione, `initialize`, `tools/call`). Il meteo ha un limite totale di 8 secondi verso Open-Meteo (`TEMPO_TOTALE = 8.0`, `logica/meteo.py:20`), scelto apposta sotto i 10 del ponte: così l'errore arriva dal meteo e non come «nessuna risposta».
 - **Non solleva mai eccezioni verso il grafo**: restituisce sempre una stringa, cioè il risultato oppure un JSON d'errore.
 - **`TimeoutError`**: da Python 3.11 `asyncio.wait_for` solleva il `TimeoutError` predefinito, quindi basta catturare quello.
@@ -476,7 +476,7 @@ lento             -> {"errore": "Server MCP: nessuna risposta entro 0.2 secondi.
 
 Attenzione alla terza riga, che spesso confonde: «collegamento» riguarda il tratto **assistente ↔ server MCP**. Se il server risponde ma la sua logica non raggiunge Open-Meteo, è un errore **dello strumento**. **Eseguito** in memoria, con un trasporto HTTP finto che solleva `httpx.ConnectError`: `get_weather {"city": "Roma"}` → `is_error=True`, `Servizio meteo non disponibile: ConnectError: rete vietata nella prova`.
 
-Il grafo legge il campo `tipo` in `_esito` (`assistente/grafo.py:66-74`): `"collegamento"` dà `errore_collegamento`, qualsiasi altro `"errore"` dà `errore_tool`. In entrambi i casi il `ToolMessage` ha `status="error"` (`grafo.py:180-185`). L'assistente **non riavvia** un server caduto (scelta della specifica): la chat continua e le chiamate successive danno un errore di collegamento.
+Il grafo legge il campo `tipo` in `_esito` (`assistente/grafo.py:95-103`): `"collegamento"` dà `errore_collegamento`, qualsiasi altro `"errore"` dà `errore_tool`. In entrambi i casi il `ToolMessage` ha `status="error"` (`grafo.py:229-234`). L'assistente **non riavvia** un server caduto (scelta della specifica): la chat continua e le chiamate successive danno un errore di collegamento.
 
 ---
 

@@ -703,7 +703,7 @@ Alcune cose si notano subito:
 
 **Perché sincrono.** Il `CLAUDE.md` chiede «codice sincrono e moduli piccoli». Grafo, terminale, configurazione, avvio dei processi, wrapper HTTP (`httpx` sincrono) e logica sono tutti sincroni.
 
-**Il problema.** Gli strumenti prodotti da `langchain-mcp-adapters` sono **solo asincroni**: invocati in modo sincrono, sollevano `NotImplementedError`. Il grafo invece li chiama con `strumento.invoke(...)`, che è sincrono (`assistente/grafo.py:175`).
+**Il problema.** Gli strumenti prodotti da `langchain-mcp-adapters` sono **solo asincroni**: invocati in modo sincrono, sollevano `NotImplementedError`. Il grafo invece li chiama con `strumento.invoke(...)`, che è sincrono (`assistente/grafo.py:189`).
 
 **La soluzione: il ponte** (`assistente/client_mcp.py:57-77`). Ogni strumento scoperto viene avvolto in uno `StructuredTool` sincrono, con lo stesso nome, la stessa descrizione e lo stesso `args_schema`:
 

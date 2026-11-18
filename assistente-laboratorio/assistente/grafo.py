@@ -30,7 +30,10 @@ TESTO_LIMITE = (
 INTESTAZIONE_ISTRUZIONI = (
     "Istruzioni del progetto per questa conversazione (si aggiungono alle regole precedenti e non le sostituiscono):"
 )
-TESTO_NON_JSON = "Argomenti non validi: devono essere un oggetto JSON con gli argomenti dello strumento."
+# Con gli strumenti nella richiesta, gemma-4-e2b ignora le istruzioni in fondo al lungo messaggio di sistema
+# (prova del 18 novembre 2026): il nodo modello le ripete subito prima dell'ultima domanda dell'utente.
+INTESTAZIONE_PROMEMORIA = "Promemoria delle istruzioni del progetto, da rispettare in questa risposta:"
+TESTO_NON_JSON ="Argomenti non validi: devono essere un oggetto JSON con gli argomenti dello strumento."
 
 registro = logging.getLogger("assistente.strumenti")
 registro_nodi = logging.getLogger("assistente.grafo")
@@ -67,6 +70,17 @@ def messaggio_sistema(fuso_utente: str, istruzioni: str = "") -> SystemMessage:
     if istruzioni.strip():
         testo += "\n" + INTESTAZIONE_ISTRUZIONI + "\n" + istruzioni.strip()
     return SystemMessage(testo)
+
+
+def messaggi_per_il_modello(fuso_utente: str, messaggi: list[AnyMessage], istruzioni: str = "") -> list[AnyMessage]:
+    """Messaggio di sistema, poi la conversazione; con le istruzioni del progetto, un promemoria subito prima
+    dell'ultima domanda dell'utente. Il promemoria vale solo per questa chiamata e non entra nella cronologia."""
+    elenco = [messaggio_sistema(fuso_utente, istruzioni), *messaggi]
+    if istruzioni.strip():
+        ultima = max((i for i, m in enumerate(elenco) if isinstance(m, HumanMessage)), default=None)
+        if ultima is not None:
+            elenco.insert(ultima, SystemMessage(INTESTAZIONE_PROMEMORIA + "\n" + istruzioni.strip()))
+    return elenco
 
 
 def _errore(testo: str) -> str:
@@ -177,7 +191,7 @@ def crea_grafo(modello, strumenti: list[BaseTool], router=None, ambito: Ambito |
     def nodo_modello(stato: StatoConversazione) -> dict:
         registro_nodi.info(formatta({"nodo": "modello", "giri_strumento": stato["giri_strumento"]}))
         risposta = modello.invoke(
-            [messaggio_sistema(stato["fuso_utente"], stato.get("istruzioni", "")), *stato["messages"]]
+            messaggi_per_il_modello(stato["fuso_utente"], stato["messages"], stato.get("istruzioni", ""))
         )
         return {"messages": [risposta]}
 

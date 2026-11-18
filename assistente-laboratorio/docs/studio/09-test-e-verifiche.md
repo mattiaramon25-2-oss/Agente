@@ -300,7 +300,7 @@ Il codice di produzione è scritto apposta per renderlo possibile. Le dipendenze
 
 | Punto del codice | Parametro iniettabile | Che cosa lo sostituisce nei test |
 |---|---|---|
-| `crea_grafo(modello, strumenti)` (`assistente/grafo.py:141`) | `modello`, `strumenti` | `ModelloFinto`, strumenti finti |
+| `crea_grafo(modello, strumenti)` (`assistente/grafo.py:155`) | `modello`, `strumenti` | `ModelloFinto`, strumenti finti |
 | `crea_server(*, adesso, percorso_note, http)` (`server_mcp/server.py:116`) | istante, archivio, client HTTP | istante fisso, `tmp_path`, `http_senza_rete()` |
 | `ArchivioNote(percorso, adesso)` (`logica/note.py:54`) | file e orologio | `tmp_path`, istante fisso |
 | `ora_corrente(fuso, adesso)` (`logica/orologio.py:33`) | l'istante | istante fisso |
@@ -331,7 +331,7 @@ class ModelloFinto:
         return risposta
 ```
 
-Il grafo chiede al modello un solo metodo, `.invoke(messaggi) -> AIMessage` (`assistente/grafo.py:142`
+Il grafo chiede al modello un solo metodo, `.invoke(messaggi) -> AIMessage` (`assistente/grafo.py:156`
 e `:146`). `ModelloFinto` ha esattamente quel metodo, quindi il grafo non distingue il finto dal
 `ChatOpenAI` vero (*duck typing*). Contano tre dettagli:
 
@@ -372,12 +372,12 @@ return StructuredTool(name=nome, description="finto", args_schema=schema, func=e
 Simula uno strumento che risponde con successo (`'{"risultato": 2500}'`), con un errore dello
 strumento (`'{"errore": …, "tipo": "strumento"}'`) o con un errore di collegamento
 (`"tipo": "collegamento"`). Così si verifica che il grafo marchi `status` ed `esito` giusti
-(`assistente/grafo.py:66-74`). Prova eseguita con `'{"errore": "Server MCP non raggiungibile",
+(`assistente/grafo.py:69-88`). Prova eseguita con `'{"errore": "Server MCP non raggiungibile",
 "tipo": "collegamento"}'`: il `ToolMessage` ha `status=error` e il log riporta
 `esito=errore_collegamento`.
 
 Nota tecnica: lo schema ha `additionalProperties: True`. È l'unico caso in cui il controllo
-dell'host sugli argomenti in più viene saltato (`assistente/grafo.py:96`), quindi lo strumento finto
+dell'host sugli argomenti in più viene saltato (`assistente/grafo.py:110`), quindi lo strumento finto
 accetta qualunque argomento. Nessuno strumento vero del progetto lo fa.
 
 ### 5.4 `orologio_finto` (`tests/finti.py:50`)
@@ -1157,9 +1157,9 @@ segnala mai argomenti in più. Poi lancia `pytest.main` su
 ```text
 >       assert risultato.status == "error" and eseguito == []
 E       AssertionError: assert ('success' == 'error'
-tests\test_grafo.py:270: AssertionError
+tests\test_grafo.py:284: AssertionError
 ------------------------------ Captured log call ------------------------------
-INFO     assistente.strumenti:grafo.py:107 origine=mcp tool=ora_corrente call_id=x1
+INFO     assistente.strumenti:grafo.py:121 origine=mcp tool=ora_corrente call_id=x1
          argomenti={"fuso":"Europe/Rome","formato":"24h"} esito=ok risultato={} tool_message.call_id=x1
 FAILED tests/test_grafo.py::test_argomento_in_piu_rifiutato_in_italiano - Ass...
 1 failed in 0.22s

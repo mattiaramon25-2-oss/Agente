@@ -6,6 +6,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 
 from assistente.grafo import (
     INTESTAZIONE_ISTRUZIONI,
+    INTESTAZIONE_PROMEMORIA,
     MAX_GIRI_STRUMENTO,
     TESTO_LIMITE,
     crea_grafo,
@@ -297,3 +298,44 @@ def test_esegui_turno_passa_le_istruzioni_al_modello():
     modello = ModelloFinto([AIMessage("ok")])
     esegui_turno(crea_grafo(modello, []), [], "Europe/Rome", "ciao", istruzioni="Sii breve.")
     assert modello.chiamate[0][0].content.endswith("Sii breve.")
+
+
+# --- Promemoria delle istruzioni del progetto ---
+# Con gli strumenti nella richiesta, gemma-4-e2b ignora le istruzioni in fondo al messaggio di sistema
+# (prova del 18 novembre 2026): il nodo modello le ripete subito prima dell'ultima domanda dell'utente.
+
+
+def _promemoria(messaggi) -> list[int]:
+    return [i for i, m in enumerate(messaggi) if isinstance(m, SystemMessage) and m.content.startswith(INTESTAZIONE_PROMEMORIA)]
+
+
+def test_promemoria_subito_prima_dell_ultima_domanda():
+    modello = ModelloFinto([AIMessage("Bonjour")])
+    cronologia = [HumanMessage("ciao"), AIMessage("Ciao!")]
+    esegui_turno(crea_grafo(modello, []), cronologia, FUSO, "come stai?", istruzioni="  Parla solo in francese.  ")
+    messaggi = modello.chiamate[0]
+    assert _promemoria(messaggi) == [3]
+    assert messaggi[3].content == f"{INTESTAZIONE_PROMEMORIA}\nParla solo in francese."
+    assert isinstance(messaggi[4], HumanMessage) and messaggi[4].content == "come stai?"
+    assert messaggi[0].content.endswith("Parla solo in francese.")  # restano anche nel messaggio di sistema
+
+
+def test_promemoria_anche_dopo_uno_strumento():
+    modello = ModelloFinto([chiamata_orologio(FUSO), AIMessage("Il est midi.")])
+    esegui_turno(crea_grafo(modello, [orologio_finto(datetime(2026, 11, 18, 11, 0, tzinfo=timezone.utc))]), [], FUSO, "che ore sono?", istruzioni="Parla in francese.")
+    secondo = modello.chiamate[1]
+    assert _promemoria(secondo) == [1]
+    assert isinstance(secondo[2], HumanMessage) and isinstance(secondo[-1], ToolMessage)
+
+
+def test_promemoria_non_entra_nella_cronologia():
+    modello = ModelloFinto([AIMessage("Bonjour")])
+    nuova = esegui_turno(crea_grafo(modello, []), [], FUSO, "ciao", istruzioni="Parla in francese.")
+    assert not any(isinstance(m, SystemMessage) for m in nuova)
+
+
+def test_senza_istruzioni_nessun_promemoria():
+    modello = ModelloFinto([AIMessage("ok")])
+    esegui_turno(crea_grafo(modello, []), [], FUSO, "ciao", istruzioni="   ")
+    assert _promemoria(modello.chiamate[0]) == []
+    assert len(modello.chiamate[0]) == 2
