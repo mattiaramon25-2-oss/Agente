@@ -2,15 +2,13 @@
 import json
 import os
 import subprocess
-from pathlib import Path
 
 import pytest
 
-from tests.postgres_prova import ENV_FINTO
+from tests.compose_prova import CARTELLA, ENV_FINTO
 
 pytestmark = pytest.mark.docker
 
-CARTELLA = Path(__file__).resolve().parent.parent
 VARIABILI_DA_TOGLIERE = ("FRONTEND_PORTA", "BACKEND_PORTA", "POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_DB", "POSTGRES_PORTA")
 
 

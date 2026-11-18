@@ -39,7 +39,7 @@ flowchart LR
 | Giri di strumento per turno | al massimo 3 (`MAX_GIRI_STRUMENTO`) | `assistente/grafo.py:24` |
 | Nome del server MCP | «Strumenti laboratorio», 10 strumenti | `server_mcp/server.py:31` |
 | Indirizzo del server MCP | `http://127.0.0.1:<MCP_PORTA>/mcp` | `assistente/avvio_server.py:142-143` |
-| Chiave per LM Studio | `"lm-studio"`, solo un segnaposto | `assistente/modello.py:14-15` |
+| Chiave per LM Studio | `"lm-studio"`, solo un segnaposto | `assistente/modello.py:9-10` |
 | Dove nasce il `ToolMessage` | nel nodo `strumenti` | `assistente/grafo.py:180-185` |
 
 **Se te lo chiedono all'orale**
@@ -180,7 +180,7 @@ flowchart LR
 | Concetto | Dove si vede nel progetto | Sezione |
 |---|---|---|
 | Modello locale, API compatibile OpenAI | `assistente/modello.py` | [3](#3-modello-linguistico-locale-lm-studio-e-api-compatibile-con-openai) |
-| Tool calling | `bind_tools` (`modello.py:87`), nodo `strumenti` (`grafo.py:149-189`) | [4](#4-tool-calling-il-modello-propone-il-programma-esegue) |
+| Tool calling | `bind_tools` (`modello.py:21`), nodo `strumenti` (`grafo.py:149-189`) | [4](#4-tool-calling-il-modello-propone-il-programma-esegue) |
 | ToolMessage, `tool_call_id` | `grafo.py:180-185` | [5](#5-toolmessage-e-tool_call_id) |
 | LangGraph | `assistente/grafo.py` | [6](#6-langgraph-il-flusso-come-grafo) |
 | MCP: host, client, server | `assistente/` (host), `client_mcp.py` (client), `server_mcp/` (server) | [7](#7-mcp-model-context-protocol) |
@@ -223,7 +223,7 @@ Il modello gira **sul computer dell'utente**, non su un servizio cloud. È una s
 | `GET /v1/models` | elenco degli identificativi dei modelli; l'assistente lo usa all'avvio per controllare che `LMSTUDIO_MODEL` esista |
 | `POST /v1/chat/completions` | la chat vera e propria: messaggi + definizioni degli strumenti in ingresso, risposta (testo o richieste di strumento) in uscita |
 
-Il vantaggio della compatibilità è che si può usare una libreria già pronta per OpenAI, cambiando solo l'indirizzo. Il progetto usa `ChatOpenAI` di `langchain-openai` (`assistente/modello.py:79-87`):
+Il vantaggio della compatibilità è che si può usare una libreria già pronta per OpenAI, cambiando solo l'indirizzo. Il progetto usa `ChatOpenAI` di `langchain-openai` (`assistente/modello.py:13-21`):
 
 ```python
 chat = ChatOpenAI(
@@ -238,9 +238,9 @@ return chat.bind_tools(strumenti)
 
 Tre dettagli da saper spiegare.
 
-- **La chiave `"lm-studio"` non è una credenziale** (`modello.py:14-15`). La libreria esige una chiave, LM Studio non la controlla. Quindi nel progetto non c'è nessun segreto: `.env.example` lo dice esplicitamente.
+- **La chiave `"lm-studio"` non è una credenziale** (`modello.py:9-10`). La libreria esige una chiave, LM Studio non la controlla. Quindi nel progetto non c'è nessun segreto: `.env.example` lo dice esplicitamente.
 - **Indirizzo e modello arrivano solo da variabili d'ambiente**, mai scritti nel codice. Le variabili sono `LMSTUDIO_BASE_URL` e `LMSTUDIO_MODEL`, obbligatorie (`configurazione.py:6`). L'identificativo è quello restituito da `GET /v1/models`, «mai inventato» (`../CLAUDE.md`, «Scelte tecniche»).
-- **Prima della chat l'assistente controlla il server** con `verifica_server` (`modello.py:42`). Se LM Studio è spento compare `Impossibile raggiungere LM Studio all'indirizzo …`. Se il modello non è nell'elenco compare `Il modello '…' non è disponibile su LM Studio`, con l'elenco dei disponibili. In entrambi i casi il programma esce con codice 1, senza traceback.
+- **Prima della chat l'assistente controlla il server** con `verifica_server` (`lmstudio.py:38`). Se LM Studio è spento compare `Impossibile raggiungere LM Studio all'indirizzo …`. Se il modello non è nell'elenco compare `Il modello '…' non è disponibile su LM Studio`, con l'elenco dei disponibili. In entrambi i casi il programma esce con codice 1, senza traceback.
 
 Con Docker, LM Studio **resta sull'host** e non va containerizzato. Il container lo raggiunge a `http://host.docker.internal:1234/v1`, tramite la variabile `LMSTUDIO_BASE_URL_DOCKER` (vedi [08](08-configurazione-avvio-docker.md)).
 
@@ -281,7 +281,7 @@ sequenceDiagram
 
 ### 4.2 Che cosa vede il modello: la definizione di uno strumento
 
-`bind_tools` (`modello.py:87`) traduce ogni strumento LangChain nel formato OpenAI e lo allega a ogni richiesta. Questa è la definizione **reale** della calcolatrice locale, ottenuta con `convert_to_openai_tool`:
+`bind_tools` (`modello.py:21`) traduce ogni strumento LangChain nel formato OpenAI e lo allega a ogni richiesta. Questa è la definizione **reale** della calcolatrice locale, ottenuta con `convert_to_openai_tool`:
 
 ```json
 {
@@ -846,7 +846,7 @@ Una presentazione di circa 11 slide su questo capitolo. Ogni slide: titolo, tre 
 - LM Studio offre un'API compatibile con OpenAI
 - All'avvio si controlla che il modello sia disponibile
 
-*Da mostrare:* il codice di `assistente/modello.py:79-87` (`ChatOpenAI` e `bind_tools`).
+*Da mostrare:* il codice di `assistente/modello.py:13-21` (`ChatOpenAI` e `bind_tools`).
 
 ### Slide 3 · Tool calling: il modello propone
 - Il modello risponde con nome dello strumento e argomenti

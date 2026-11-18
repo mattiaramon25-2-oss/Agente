@@ -596,7 +596,7 @@ Le variabili già presenti nell'ambiente vincono sul `.env` (`load_dotenv(overri
 
 ### Livello 2 — LM Studio
 
-`verifica_server` (`assistente/modello.py:42-76`) chiede `GET <LMSTUDIO_BASE_URL>/models` con un tempo massimo di 5 secondi e controlla che il modello configurato sia nell'elenco.
+`verifica_server` (`assistente/lmstudio.py:38-72`) chiede `GET <LMSTUDIO_BASE_URL>/models` con un tempo massimo di 5 secondi e controlla che il modello configurato sia nell'elenco.
 
 | Messaggio reale | Cosa controllare |
 |---|---|
@@ -609,7 +609,7 @@ Le variabili già presenti nell'ambiente vincono sul `.env` (`load_dotenv(overri
 | la prima risposta è lenta | il modello è scaricato ma non ancora caricato in memoria: il primo messaggio lo carica |
 | (Docker) `Impossibile raggiungere LM Studio all'indirizzo http://host.docker.internal:1234/v1/models (…)` | server di LM Studio attivo? Se funziona da fuori ma non dal container, attivare in LM Studio l'opzione per servire sulla rete locale (sul computer del progetto non è servito) |
 
-**Durante la chat** il collegamento al modello passa da `ChatOpenAI`, con `timeout=120` e `max_retries=1` (`assistente/modello.py:79-87`). Se LM Studio si chiude o non risponde in tempo, l'eccezione della libreria `openai` risale fino al terminale, che stampa `Errore: <messaggio>` e **scarta il turno** (`assistente/terminale.py:75-78`). I messaggi predefiniti della libreria sono `Connection error.` e `Request timed out.`: li ho letti nel sorgente installato in `.venv` (`openai/_exceptions.py`), non osservati in una prova.
+**Durante la chat** il collegamento al modello passa da `ChatOpenAI`, con `timeout=120` e `max_retries=1` (`assistente/modello.py:13-21`). Se LM Studio si chiude o non risponde in tempo, l'eccezione della libreria `openai` risale fino al terminale, che stampa `Errore: <messaggio>` e **scarta il turno** (`assistente/terminale.py:75-78`). I messaggi predefiniti della libreria sono `Connection error.` e `Request timed out.`: li ho letti nel sorgente installato in `.venv` (`openai/_exceptions.py`), non osservati in una prova.
 
 ### Livello 3 — Server MCP
 

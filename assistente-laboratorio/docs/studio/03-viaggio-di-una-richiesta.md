@@ -111,7 +111,7 @@ LM Studio, porte aperte o la rete:
 
 | Parte | Nel programma vero | Nell'esperimento |
 |---|---|---|
-| Modello | LM Studio tramite `ChatOpenAI` (`assistente/modello.py:79-87`) | `ModelloFinto` di `tests/finti.py`, con le risposte preparate |
+| Modello | LM Studio tramite `ChatOpenAI` (`assistente/modello.py:13-21`) | `ModelloFinto` di `tests/finti.py`, con le risposte preparate |
 | Server MCP | processo `python -m server_mcp --porta 8765` | lo stesso `crea_server()` montato come app ASGI in memoria, con le stesse opzioni di `server_mcp/__main__.py:39-48` (`path="/mcp"`, `stateless_http=True`, `json_response=True`) e un archivio delle note temporaneo |
 | Client MCP | `scopri_strumenti` + `avvolgi` (`assistente/client_mcp.py`) | lo stesso `MultiServerMCPClient` e lo stesso `avvolgi`, con un trasporto httpx che consegna ogni richiesta all'app in memoria e la annota |
 | Servizio FastAPI | processo `python -m servizio_api --porta 8766` | lo stesso `crea_app()` dentro un `TestClient` di Starlette, passato al wrapper con il parametro `http` |
@@ -143,7 +143,7 @@ Quando compare il prompt `Tu: `, `main()` (`assistente/__main__.py:20`) ha già 
 | 4 | `__main__.py:26` | `verifica_server`: `GET {LMSTUDIO_BASE_URL}/models`; il modello configurato deve essere nell'elenco |
 | 5 | `__main__.py:27` | `rileva_fuso`: il fuso dell'utente, deciso **una volta sola** per tutta la sessione |
 | 6 | `__main__.py:28` → `avvio.py:22` | `prepara_strumenti`: avvia il server MCP (e, con `fastapi`, il servizio), sceglie le varianti |
-| 7 | `__main__.py:29` | `crea_grafo(crea_modello(config, strumenti), strumenti)`: il modello è già **legato** agli strumenti con `bind_tools` (`modello.py:87`) |
+| 7 | `__main__.py:29` | `crea_grafo(crea_modello(config, strumenti), strumenti)`: il modello è già **legato** agli strumenti con `bind_tools` (`modello.py:21`) |
 | 8 | `__main__.py:30` | `esegui_sessione(...)`: parte il ciclo di chat (`terminale.py:41`) |
 
 Il passo 6 è il più ricco. `avvia_server_mcp` (`avvio_server.py:154-170`) controlla che la porta sia
@@ -317,7 +317,7 @@ memoria della conversazione è proprio questa lista, che il terminale ripassa a 
 Nell'esperimento il modello finto ha registrato esattamente questa sequenza di tipi:
 `["SystemMessage", "HumanMessage"]`.
 
-Nel programma vero `modello` è `ChatOpenAI(...).bind_tools(strumenti)` (`modello.py:79-87`, con
+Nel programma vero `modello` è `ChatOpenAI(...).bind_tools(strumenti)` (`modello.py:13-21`, con
 `timeout=120` e `max_retries=1`), e `invoke` diventa una richiesta HTTP
 `POST http://localhost:1234/v1/chat/completions`. Il corpo, ottenuto chiamando il metodo interno di
 `ChatOpenAI` che lo costruisce **senza inviarlo** (script `payload_mcp.py`), ha quattro chiavi:

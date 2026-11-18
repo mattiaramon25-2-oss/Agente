@@ -61,6 +61,22 @@ def test_avvio_regolare_con_agente_spento(ambiente, capsys):
     assert f"avvio servizio backend porta={ambiente['porta']}" in log and "arresto servizio backend" in log
 
 
+def test_agente_spento_nella_rete_di_compose(ambiente, monkeypatch, capsys):
+    """Nel container del back-end il suggerimento non è python -m servizio_agente ma il container."""
+    monkeypatch.setenv("AGENTE_INDIRIZZO", "agente")
+    monkeypatch.setattr(avvio.ClientAgente, "salute", lambda self: False)  # senza cercare il nome nella rete
+    assert avvio.main() == 0
+    uscita = capsys.readouterr().out
+    assert "l'agente non risponde su http://agente:" in uscita
+    assert "docker compose up -d agente" in uscita
+
+
+def test_agente_spento_sull_host_suggerisce_python(ambiente, capsys):
+    assert avvio.main() == 0
+    uscita = capsys.readouterr().out
+    assert "python -m servizio_agente" in uscita and "docker compose up -d agente" not in uscita
+
+
 def test_agente_acceso_nessun_avviso(ambiente, monkeypatch, capsys):
     monkeypatch.setattr(avvio.ClientAgente, "salute", lambda self: True)
     assert avvio.main() == 0
@@ -103,3 +119,10 @@ def test_database_con_password_errata_mostra_il_motivo(ambiente, capsys):
     assert "password authentication failed" in err
     assert "POSTGRES_PASSWORD" in err and "127.0.0.1:55432" in err
     assert "postgresql://" not in err
+
+
+def test_messaggio_database_con_indirizzo_vero(ambiente, monkeypatch, capsys):
+    monkeypatch.setenv("POSTGRES_HOST", "database")
+    ambiente["archivio"].spento = True
+    assert avvio.main() == 1
+    assert "database:55432" in capsys.readouterr().err

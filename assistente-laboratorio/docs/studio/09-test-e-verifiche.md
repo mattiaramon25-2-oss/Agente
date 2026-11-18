@@ -15,6 +15,7 @@
 5. **Una risposta simulata non prova niente sul modello.** Con `ModelloFinto` il comportamento del modello lo scrive chi scrive il test. Nelle prove reali Gemma ha detto «Ho salvato la nota» senza salvarla. Nessun test automatico poteva scoprirlo. → sezione 11
 6. **Le prove reali cercano evidenze, non belle risposte.** Contano la richiesta dello strumento, l'esito `success`, il valore ripetuto nella risposta e la riga nel log. Il modello può sbagliare e correggersi: si valuta l'ultima chiamata del turno. → sezione 9
 7. **Il metodo è il TDD, lo sviluppo guidato dai test.** Prima si scrive il test e lo si vede fallire, poi il codice minimo che lo fa passare. Anche ogni correzione parte da un test che riproduce il difetto. → sezione 13
+8. **Dallo step 9 la suite gira in un container.** Su questo computer Smart App Control di Windows blocca le DLL di `psycopg-binary`, e `python -m pytest` sull'host si interrompe alla raccolta. Il servizio Compose `test` la fa girare in Linux: `docker compose run --rm test`. Sull'host restano i test che hanno bisogno di Windows, di PowerShell o della CLI di Docker. → sezione 10.6
 
 **Il quadro**
 
@@ -35,6 +36,7 @@ flowchart LR
 | Giri massimi con gli strumenti in un turno | `MAX_GIRI_STRUMENTO = 3` | `assistente/grafo.py:20` |
 | Esito dello step 7, 2026-11-10 | `python -m pytest`: 625 passati, 64 saltati (dopo la revisione finale); `--docker -m docker`: 23 passati; `--lmstudio --docker tests/test_reale_backend.py`: 4 passati | → sezione 10.4 |
 | Esito dello step 8, 2026-11-12 | dopo le correzioni della revisione finale, `python -m pytest`: 625 passati, 74 saltati; `npm test`: 108 passati in 11 file; prove nel browser e di Compose con `--docker`: 9 passate. Prima di quelle correzioni, e non rieseguite dopo: `--docker -m docker`: 31 passati; `--lmstudio --docker -m "lmstudio and docker"`: 5 passati | → sezione 10.5 |
+| Esito dello step 9, 2026-11-18 | `docker compose run --rm test`: 717 passati, 98 saltati; sull'host `tests/test_avvio_chat.py`, `test_avvia_ps1.py` e `test_nginx.py`: 104 passati, 1 saltato; `--docker tests/test_compose_servizi.py tests/test_compose_frontend.py`: 7 passati | → sezione 10.6 |
 | Ambiente comune delle prove reali | `ambiente_reale()`, con archivio delle note temporaneo | `tests/reale.py:32-63` |
 
 **Se te lo chiedono all'orale**
@@ -304,7 +306,7 @@ Il codice di produzione è scritto apposta per renderlo possibile. Le dipendenze
 | `ora_corrente(fuso, adesso)` (`logica/orologio.py:33`) | l'istante | istante fisso |
 | `meteo_attuale(city, http, timeout, tempo_totale)` (`logica/meteo.py:115`) | client HTTP e tempi | `MockTransport`, `tempo_totale=0.3` |
 | `crea_wrapper_scadenze(url_base, http, timeout)` (`assistente/wrapper_scadenze.py:35`) | client HTTP | `MockTransport` o `TestClient` |
-| `verifica_server(..., leggi_json=...)` (`assistente/modello.py:42`) | la lettura di `/v1/models` | `LettoreFinto` |
+| `verifica_server(..., leggi_json=...)` (`assistente/lmstudio.py:38`) | la lettura di `/v1/models` | `LettoreFinto` |
 | `rileva_fuso(env, fuso_locale)` (`assistente/fuso.py:31`) | variabili e fuso del sistema | dizionari e funzioni di prova |
 | `esegui_sessione(grafo, fuso, leggi, scrivi, ...)` (`assistente/terminale.py:41`) | `input` e `print` | liste di righe |
 | `avvia_server_mcp(porta, percorso_log, attesa, comando)` (`assistente/avvio_server.py:154`) | tempo di attesa e comando | comandi che falliscono, dormono o espongono zero strumenti |
@@ -901,6 +903,46 @@ Il front-end ha due livelli di prova, più il contratto di Compose ([15, sezione
   (`converti_unita` chiamata con `litri`; `list_notes` al posto di `delete_note`): comportamento del modello,
   riesecuzione dei due file 10 passati.
 
+### 10.6 Lo step 9: la suite in un container
+
+Dal 14 novembre circa Smart App Control di Windows è attivo su questo computer e blocca due DLL del
+pacchetto `psycopg-binary` (`libssl` e `libcrypto`). Ogni file di test che importa `psycopg`, anche
+indirettamente, non si carica, e `python -m pytest` sull'host si interrompe. In un container Linux le DLL
+di Windows non servono. Per questo lo step 9 ha aggiunto il servizio Compose `test`:
+
+| Pezzo | Che cosa fa | Dove |
+|---|---|---|
+| `Dockerfile.test` | `python:3.14-slim` con `requirements-dev.txt`; il comando è `python -m pytest -q -p no:cacheprovider` | `Dockerfile.test:1-6` |
+| servizio `test` | profilo `test` (non parte con `docker compose up`); monta la cartella del progetto in `/app`, quindi prova il codice di adesso senza ricostruire l'immagine | `compose.yaml:134-140` |
+| `tests/compose_prova.py` | costanti e funzioni comuni delle prove con Compose, senza `psycopg`: così i test di `docker compose config` si caricano anche sull'host | `tests/compose_prova.py` |
+
+```powershell
+docker compose run --rm test
+```
+
+Esito del 18 novembre 2026: **717 passati, 98 saltati**, nessun fallimento, in circa 2 minuti. I saltati
+sono le prove reali e i test che valgono solo su Windows (console, chiusura con la X, `avvia.ps1`).
+
+Alcuni test restano sull'host, perché servono Windows, PowerShell o la CLI di Docker; non importano
+`psycopg`:
+
+| File | Che cosa prova | Esito del 18 novembre |
+|---|---|---|
+| `tests/test_avvio_chat.py` | i passi del doppio clic con comandi finti; ciò che era già acceso; lo spegnimento solo di ciò che il file ha acceso, anche dopo un errore o un Ctrl+C; `--ricostruisci`, `--senza-browser`; la salute parziale; l'errore imprevisto senza traceback; nessun `psycopg`, `langchain_core` o `httpx` dopo l'import; la chiusura di una console vera che lancia lo `stop` staccato | insieme ai due file sotto: 104 passati, 1 saltato |
+| `tests/test_avvia_ps1.py` | l'avviso delle note di `avvia.ps1` compare solo con l'agente acceso (un `docker` finto) | |
+| `tests/test_nginx.py` | il modello di nginx usa `BACKEND_INDIRIZZO` e il `resolver` | |
+| `tests/test_compose_servizi.py` (`--docker`) | `docker compose config`: quattro servizi senza profilo, `assistente` nel profilo `cli`, `restart` di agente e back-end, porte solo su `127.0.0.1`, nessuna porta per `backend` | con `test_compose_frontend.py`: 7 passati |
+
+```powershell
+python -m pytest tests/test_avvio_chat.py tests/test_avvia_ps1.py tests/test_nginx.py -q
+python -m pytest --docker tests/test_compose_servizi.py tests/test_compose_frontend.py -q
+```
+
+**«Verde» vuol dire** nessun fallimento in nessuna delle due esecuzioni, container e host, riportate
+separatamente. Le prove reali che avviano il back-end come processo Python sull'host
+(`tests/test_reale_backend.py`, `test_reale_docker_backend.py`, `test_reale_browser*.py`) non si possono
+eseguire finché Smart App Control è attivo: restano nel progetto e non sono state rieseguite con lo step 9.
+
 ## 11. Perché una risposta simulata non dimostra che il modello usa lo strumento
 
 È un **anti-obiettivo** scritto nella prima specifica
@@ -968,7 +1010,8 @@ flowchart TD
 ```powershell
 .\.venv\Scripts\Activate.ps1
 
-python -m pytest                                   # tutta la suite automatica (le prove reali risultano skipped)
+docker compose run --rm test                       # dallo step 9: la suite in un container (sull'host psycopg è bloccato)
+python -m pytest                                   # tutta la suite automatica sull'host, dove Smart App Control non blocca psycopg
 python -m pytest -q                                # uscita compatta: un carattere per test
 python -m pytest -rs                               # elenca anche i motivi dei salti
 python -m pytest --collect-only -q                 # elenca i test senza eseguirli (503)
@@ -1186,7 +1229,10 @@ del passo, nelle sezioni «Fatto», «Da fare» e «Stato attuale».
 - **I test con processi veri sono lenti**: ogni avvio attende una discovery MCP riuscita. Sono la
   parte principale del minuto o due della suite.
 - **I test non entrano nell'immagine Docker**: `.dockerignore` esclude `tests` e `docs`. Le prove
-  Docker girano sull'host e comandano il container dall'esterno.
+  Docker girano sull'host e comandano il container dall'esterno. Il servizio `test` dello step 9 non
+  copia i test nell'immagine: monta la cartella del progetto (§10.6).
+- **Smart App Control** (dallo step 9): sull'host `python -m pytest` si interrompe alla raccolta, e le
+  prove del back-end e del browser non si possono eseguire. La suite gira con `docker compose run --rm test`.
 - **Le prove reali scrivono nei log veri** (`logs/assistente.log`, `logs/server_mcp.log`,
   `logs/servizio_api.log`). È voluto, perché il log è una delle evidenze. I test automatici invece
   usano `tmp_path` o `caplog`: l'ho verificato confrontando la dimensione dei tre file prima e dopo la
@@ -1303,6 +1349,13 @@ Una presentazione di circa 10 slide su questo capitolo. Ogni slide: titolo, tre 
 - Ogni correzione parte da un test di regressione
 
 *Da mostrare:* il diagramma del ciclo della sezione 13 e il difetto introdotto apposta della sezione 13.2.
+
+### Slide 9 bis · La suite in un container (step 9)
+- Smart App Control blocca le DLL di `psycopg` sull'host
+- `docker compose run --rm test`: 717 passati, 98 saltati
+- Sull'host restano i test di Windows, PowerShell e Compose
+
+*Da mostrare:* le due tabelle della sezione 10.6.
 
 ### Slide 10 · Che cosa ricordare
 - Test automatici: codice corretto, dato un comportamento del modello

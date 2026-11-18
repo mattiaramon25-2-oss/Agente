@@ -549,7 +549,7 @@ flowchart TD
 
 L'`ExitStack` garantisce che, se il servizio FastAPI non parte, venga spento anche il server MCP già avviato. Lo verifica `tests/test_avvio_unico.py:146` (`test_servizio_che_non_parte_spegne_tutto`).
 
-La lista selezionata va **sia** al modello (`crea_modello` → `chat.bind_tools(strumenti)`, `assistente/modello.py:87`) **sia** al grafo (`crea_grafo`, che costruisce `per_nome`, `assistente/grafo.py:143`). Quello che il modello conosce e quello che il grafo esegue coincidono sempre.
+La lista selezionata va **sia** al modello (`crea_modello` → `chat.bind_tools(strumenti)`, `assistente/modello.py:21`) **sia** al grafo (`crea_grafo`, che costruisce `per_nome`, `assistente/grafo.py:143`). Quello che il modello conosce e quello che il grafo esegue coincidono sempre.
 
 **Non si cambia variante a sessione in corso**: si cambia la variabile e si riavvia (non obiettivo della specifica, sezione 3). Un dettaglio utile: `load_dotenv(override=False)` (`assistente/__main__.py:23`) dà la precedenza alle variabili già impostate nell'ambiente. Lo usano le prove reali (`ambiente_reale({"VARIANTE_...": ...})`) e Docker (`-e VARIANTE_...`). Dal codice segue che anche una variabile impostata in PowerShell prima dell'avvio (`$env:VARIANTE_CALCOLATRICE="locale"`) prevarrebbe sul `.env`. Il README però documenta come verificato solo il cambio nel `.env`.
 

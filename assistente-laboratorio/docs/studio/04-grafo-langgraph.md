@@ -136,7 +136,7 @@ modello finto (`tests/finti.py`) al posto di LM Studio.
 | Test automatici | `tests/test_grafo.py` | `crea_grafo(ModelloFinto([...]), [orologio_finto(ISTANTE), ...])` |
 
 Lo **stesso** elenco `strumenti` viene passato due volte: a `crea_modello`, che lo lega al modello con
-`bind_tools` (così il modello riceve nomi, descrizioni e schemi, `assistente/modello.py:87`), e a
+`bind_tools` (così il modello riceve nomi, descrizioni e schemi, `assistente/modello.py:21`), e a
 `crea_grafo`, che lo usa per eseguire davvero le chiamate. Se i due elenchi fossero diversi, il modello
 potrebbe chiedere uno strumento che il grafo non conosce (caso gestito comunque: vedi
 [`strumento_sconosciuto`](#13-esito-e-status-del-toolmessage)).
@@ -368,7 +368,7 @@ La `risposta` è un `AIMessage` che può contenere:
   [sezione 11](#11-le-chiamate-malformate-invalid_tool_calls)).
 
 **Se il modello solleva un'eccezione** (LM Studio chiuso, timeout di 120 secondi con un solo nuovo
-tentativo, `timeout=120, max_retries=1` in `assistente/modello.py:84-85`), il nodo non la intercetta: l'eccezione esce da `grafo.invoke`, quindi da
+tentativo, `timeout=120, max_retries=1` in `assistente/modello.py:18-19`), il nodo non la intercetta: l'eccezione esce da `grafo.invoke`, quindi da
 `esegui_turno`, e la gestisce il terminale (vedi [sezione 16](#16-esegui_turno-e-la-cronologia)).
 
 ---

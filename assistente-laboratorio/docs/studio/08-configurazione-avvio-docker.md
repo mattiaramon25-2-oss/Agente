@@ -17,8 +17,8 @@
 7. **Spegnere vuol dire chiedere, aspettare, imporre.** L'assistente chiede ai figli di chiudersi e aspetta 5 secondi. Solo se sono ancora vivi li uccide. Il figlio trasforma la richiesta in un'uscita normale, con codice 0 e una riga nel log. → sezione 8
 8. **Il servizio dell'agente ha un container suo** (10 novembre). Il servizio Compose `agente` usa la stessa immagine, avvia il suo server MCP e pubblica `AGENTE_PORTA` solo su `127.0.0.1` dell'host; dentro ascolta su `0.0.0.0` (`AGENTE_HOST`). Si avvia con `avvia-agente.ps1`. → sezione 7.9
 9. **Il database delle chat** (step 7). Il servizio Compose `database` è PostgreSQL 18 con il volume con nome `dati_postgres`, porta solo su `127.0.0.1`. Le variabili `POSTGRES_*` sono scritte senza `:?`, perché Compose controlla tutto il file e le altre prove non devono cambiare. → sezione 7.10
-10. **La chat nel browser** (step 8). Il servizio Compose `frontend` è nginx con i file compilati di `frontend/`, pubblicato su `127.0.0.1:${FRONTEND_PORTA:-8780}`; inoltra `/api` al back-end che gira sull'host. Anche qui niente `:?`. Dopo ogni modifica al front-end l'immagine si ricostruisce. → sezione 7.11
-11. **Tutti i pezzi con un doppio clic** (15 novembre). Il file `avvia-chat.cmd` lancia `python -m avvio_chat`: accende Docker Desktop e il server di LM Studio se sono spenti, i due container, l'agente e il back-end, poi apre il browser. Spegne solo ciò che ha avviato. Non è lo step 9: agente e back-end restano fuori da Docker. → sezione 7.12
+10. **La chat nel browser** (step 8 e 9). Il servizio Compose `frontend` è nginx con i file compilati di `frontend/`, pubblicato su `127.0.0.1:${FRONTEND_PORTA:-8780}`; inoltra `/api` al container `backend`, che non pubblica porte. Dallo step 9 `docker compose up -d` accende quattro container: database, agente, back-end e pagina. Anche qui niente `:?`. Dopo ogni modifica al codice le immagini si ricostruiscono. → sezione 7.11
+11. **Tutti i pezzi con un doppio clic** (15 novembre, rifatto con lo step 9). Il file `avvia-chat.cmd` lancia `python -m avvio_chat`: accende Docker Desktop e il server di LM Studio se sono spenti, poi i quattro container, aspetta che la chat risponda attraverso nginx e apre il browser. Con `esci` o chiudendo la finestra ferma solo l'agente e il back-end che ha acceso. Usa solo la libreria standard, perché sull'host Smart App Control blocca `psycopg`. → sezione 7.12
 
 **Il quadro**
 
@@ -42,8 +42,8 @@ flowchart TD
 | Chi vince tra `.env` e ambiente | l'ambiente: `load_dotenv(override=False)` | `assistente/__main__.py:23` |
 | Attese dei processi figli | avvio al massimo 10 s, arresto 5 s, una prova ogni 0,25 s | `assistente/avvio_server.py:25-27` |
 | Nel container il fuso del sistema non si usa | `ENV ASSISTENTE_IN_DOCKER=1` | `Dockerfile:4` |
-| Fuso dell'host passato al container | `-e FUSO_HOST_WINDOWS=$fuso` | `avvia.ps1:13` |
-| Chat nel browser | `docker compose up -d --build frontend`, poi `http://127.0.0.1:8780`; porta da `FRONTEND_PORTA` | `compose.yaml:71-81` |
+| Fuso dell'host passato al container | `-e FUSO_HOST_WINDOWS=$fuso` | `avvia.ps1:35` |
+| Chat nel browser (step 9) | `docker compose up -d` (quattro container), poi `http://127.0.0.1:8780`; porta da `FRONTEND_PORTA` | `compose.yaml:30-130` |
 
 **Se te lo chiedono all'orale**
 
@@ -136,21 +136,21 @@ Il file è cresciuto un pezzo alla volta, insieme al progetto (`git log --follow
 
 | Variabile | Obbligatoria | Chi la legge | Controllo | Messaggio se manca o è sbagliata |
 |---|---|---|---|---|
-| `LMSTUDIO_BASE_URL` | sì | `configurazione.py`, poi `modello.py` | Non vuota (`configurazione.py:45-53`). La forma dell'URL la controlla `_controlla_indirizzo` (`modello.py:27-39`). | `Variabili d'ambiente mancanti: …` oppure `LMSTUDIO_BASE_URL non è un indirizzo valido: '…'. Esempio: http://localhost:1234/v1` |
-| `LMSTUDIO_MODEL` | sì | `configurazione.py`, `modello.py` | Non vuota. Poi deve comparire tra gli `id` di `GET {base_url}/models` (`modello.py:66-76`). | `Il modello '…' non è disponibile su LM Studio. Modelli disponibili: …. Imposta LMSTUDIO_MODEL con uno di questi.` |
+| `LMSTUDIO_BASE_URL` | sì | `configurazione.py`, poi `modello.py` | Non vuota (`configurazione.py:45-53`). La forma dell'URL la controlla `_controlla_indirizzo` (`lmstudio.py:23-35`). | `Variabili d'ambiente mancanti: …` oppure `LMSTUDIO_BASE_URL non è un indirizzo valido: '…'. Esempio: http://localhost:1234/v1` |
+| `LMSTUDIO_MODEL` | sì | `configurazione.py`, `modello.py` | Non vuota. Poi deve comparire tra gli `id` di `GET {base_url}/models` (`lmstudio.py:62-72`). | `Il modello '…' non è disponibile su LM Studio. Modelli disponibili: …. Imposta LMSTUDIO_MODEL con uno di questi.` |
 | `MCP_PORTA` | sì | `configurazione.py:54` | Solo cifre e valore tra 1024 e 65535 (`leggi_porta`, righe 28-34). | `MCP_PORTA non valida: 'otto'. Usa un numero intero tra 1024 e 65535, per esempio 8765.` |
 | `VARIANTE_CALCOLATRICE` | sì | `configurazione.py:71-73` | `mcp` o `locale`, ignorando maiuscole e spazi (`leggi_variante`, righe 37-41). | `VARIANTE_CALCOLATRICE non valida: 'remota'. Valori ammessi: mcp, locale.` |
 | `VARIANTE_SCADENZE` | sì | `configurazione.py:55` | `mcp` o `fastapi`, con le stesse regole. | `VARIANTE_SCADENZE non valida: 'HTTP'. Valori ammessi: mcp, fastapi.` |
 | `API_PORTA` | solo con `fastapi` | `configurazione.py:57-66` | Come `MCP_PORTA`, e in più diversa da `MCP_PORTA`. Con `mcp` non viene **nemmeno letta**. | `Variabili d'ambiente mancanti: API_PORTA (serve con VARIANTE_SCADENZE=fastapi). …` oppure `API_PORTA deve essere diversa da MCP_PORTA.` |
 | `AGENTE_PORTA` | solo per `python -m servizio_agente` (lezione 6, step 6) | `leggi_porta_agente` in `configurazione.py` | Come `MCP_PORTA`, e in più diversa da `MCP_PORTA` e `API_PORTA`. La CLI non la legge. | `Variabili d'ambiente mancanti: AGENTE_PORTA (serve al servizio HTTP dell'agente). …` |
-| `LMSTUDIO_BASE_URL_DOCKER` | solo per Docker | **Compose**, non Python | `:?` in `compose.yaml:7` | Compose si ferma prima di creare il container (vedi [7.4](#74-composeyaml-riga-per-riga)). |
+| `LMSTUDIO_BASE_URL_DOCKER` | solo per Docker | **Compose**, non Python | `:?` in `compose.yaml:11` | Compose si ferma prima di creare il container (vedi [7.4](#74-composeyaml-riga-per-riga)). |
 | `FUSO_ORARIO` | no | `fuso.py:47-50` | Deve essere un nome IANA esatto (`è_fuso_valido`). | Nessun messaggio proprio. Se non è valida viene ignorata, e se non resta nient'altro si usa UTC con l'avviso. |
 
 Altre variabili **non si scrivono nel `.env`**: le imposta qualcun altro.
 
 | Variabile | Chi la imposta | A che cosa serve |
 |---|---|---|
-| `FUSO_HOST_WINDOWS` | `avvia.ps1:13` (`-e FUSO_HOST_WINDOWS=$fuso`) | Nome Windows del fuso dell'host, per esempio `W. Europe Standard Time`. |
+| `FUSO_HOST_WINDOWS` | `avvia.ps1:35` (`-e FUSO_HOST_WINDOWS=$fuso`) | Nome Windows del fuso dell'host, per esempio `W. Europe Standard Time`. |
 | `ASSISTENTE_IN_DOCKER` | `Dockerfile:4` (`ENV ASSISTENTE_IN_DOCKER=1`) | Dice a `fuso.py` di **non** usare il fuso del sistema, che nel container è UTC. |
 | `PYTHONUNBUFFERED` | `Dockerfile:5` | Fa uscire l'output di Python senza buffer, così con `-T` (pipe) le righe compaiono subito. |
 | `PYTHONUTF8` | `avvio_server.py:111`, solo nell'ambiente dei processi figli | Server MCP e servizio FastAPI scrivono il loro output (cioè i log) in UTF-8 anche su Windows. |
@@ -267,8 +267,8 @@ Le scelte da notare:
 
 | Controllo | Chi lo fa | Quando |
 |---|---|---|
-| Forma dell'URL di LM Studio | `_controlla_indirizzo` (`modello.py:27-39`): schema `http` o `https`, nome dell'host presente, porta numerica | all'inizio di `verifica_server`, **prima** di qualsiasi richiesta |
-| Esistenza del modello | `verifica_server` (`modello.py:42-76`): `GET {base_url}/models` con timeout di 5 secondi, poi cerca `LMSTUDIO_MODEL` tra gli `id` | passo 5 dell'avvio |
+| Forma dell'URL di LM Studio | `_controlla_indirizzo` (`lmstudio.py:23-35`): schema `http` o `https`, nome dell'host presente, porta numerica | all'inizio di `verifica_server`, **prima** di qualsiasi richiesta |
+| Esistenza del modello | `verifica_server` (`lmstudio.py:38-72`): `GET {base_url}/models` con timeout di 5 secondi, poi cerca `LMSTUDIO_MODEL` tra gli `id` | passo 5 dell'avvio |
 | Porte libere | `porta_libera` (`avvio_server.py:35-47`) | al momento di avviare ciascun processo |
 | Validità di `FUSO_ORARIO` | `rileva_fuso` (`fuso.py`) | passo 6; un valore sbagliato non è un errore, si passa oltre |
 
@@ -502,12 +502,12 @@ sequenceDiagram
 | 2 | Lettura del `.env` | `python-dotenv` | file assente: qui nessun errore, se ne accorge il passo 3 | — |
 | 3 | Configurazione | `configurazione.py` | variabile mancante o non valida | `Errore: Variabili d'ambiente mancanti: …`, codice 1 |
 | 4 | Log su file | `registro.py:27-39` | — (crea `logs/` se manca) | — |
-| 5 | Verifica di LM Studio | `modello.py:42-76` | LM Studio spento, URL sbagliato, modello assente | `Errore: Impossibile raggiungere LM Studio…` oppure `Errore: Il modello '…' non è disponibile…`, codice 1 |
+| 5 | Verifica di LM Studio | `lmstudio.py:38-72` | LM Studio spento, URL sbagliato, modello assente | `Errore: Impossibile raggiungere LM Studio…` oppure `Errore: Il modello '…' non è disponibile…`, codice 1 |
 | 6 | Fuso | `fuso.py` | non fallisce mai: al peggio usa UTC con avviso | — |
 | 7 | Server MCP | `avvio.py:34-36` → `avvio_server.py:153-170` | porta occupata, processo che non parte, catalogo vuoto | `Errore: Porta 8765 già in uso: chiudi il programma che la usa o cambia MCP_PORTA nel .env.`, `Errore: Il server MCP non è partito (porta …). Ultime righe di …`, `Errore: Il server MCP non espone nessuno strumento.`, codice 1 |
 | 8 | Servizio FastAPI (solo con `fastapi`) | `avvio.py:38-40` → `avvio_server.py:183-205` | porta occupata, nessuna risposta | come sopra, con `API_PORTA` e `servizio FastAPI`; il server MCP già avviato viene spento |
 | 9 | Selezione degli strumenti | `varianti.py` | nome duplicato | `Errore: Strumento '…' presente due volte…`, codice 1 |
-| 10 | Modello e grafo | `modello.py:79-87`, `grafo.py` | — (nessuna chiamata di rete in questo passo) | — |
+| 10 | Modello e grafo | `modello.py:13-21`, `grafo.py` | — (nessuna chiamata di rete in questo passo) | — |
 | 11 | Chat | `terminale.py` | un errore durante un turno **non** chiude la chat | `Errore: …` nel terminale, poi la chat continua |
 
 **Perché quest'ordine.** Prima vengono i controlli che costano poco e non lasciano tracce:
@@ -635,11 +635,12 @@ Tutti i comandi sono per PowerShell, dalla cartella `assistente-laboratorio/`, c
 | Solo il server MCP | `python -m server_mcp --porta 8765` | — | Ascolta su `http://127.0.0.1:8765/mcp`; si prova con MCP Inspector. Usa l'archivio **reale** delle note. |
 | Solo il server, archivio di prova | `python -m server_mcp --porta 8765 --note prova.sqlite3` | — | Non tocca `archivio/note.sqlite3`. |
 | Solo il servizio FastAPI | `python -m servizio_api --porta 8766` | — | Pagine `http://127.0.0.1:8766/openapi.json` e `http://127.0.0.1:8766/docs`. |
-| Docker, modo documentato | `docker compose build` e poi `.\avvia.ps1` | `… (host Windows)` | L'avvio interattivo da tastiera è ancora **da confermare** (README e checkpoint del passo 7). |
+| Docker, modo documentato | `docker compose build assistente` e poi `.\avvia.ps1` | `… (host Windows)` | L'avvio interattivo da tastiera è ancora **da confermare** (README e checkpoint del passo 7). Dallo step 9 `assistente` è nel profilo `cli`: va nominato per costruirlo. Con il container `agente` acceso lo script chiede conferma (le note sono condivise). |
 | Docker con pipe tramite lo script | `avvia.ps1 -SenzaTty` | `… (host Windows)` | Usato dalla prova reale Docker. |
 | Docker senza lo script | `"Che ore sono?", "esci" \| docker compose run --rm -T assistente` | `Europe/Rome (FUSO_ORARIO)` | Se manca anche `FUSO_ORARIO`: UTC con avviso. |
-| Database delle chat | `docker compose up -d database`, poi `python -m servizio_backend` | — | PostgreSQL su `127.0.0.1:POSTGRES_PORTA`, back-end su `127.0.0.1:BACKEND_PORTA` (vedi [7.10](#710-il-database-delle-chat)). |
-| Chat nel browser, tutti i pezzi | doppio clic su `avvia-chat.cmd` (oppure `python -m avvio_chat`) | — | Accende ciò che manca e apre il browser; con `esci` spegne ciò che ha avviato (vedi [7.12](#712-un-doppio-clic-per-tutti-i-pezzi-avvia-chatcmd)). |
+| Database delle chat, fuori da Docker | `docker compose up -d database`, poi `python -m servizio_backend` | — | PostgreSQL su `127.0.0.1:POSTGRES_PORTA`, back-end su `127.0.0.1:BACKEND_PORTA` (vedi [7.10](#710-il-database-delle-chat)). Su questo computer il back-end sull'host è bloccato da Smart App Control. |
+| Chat nel browser, quattro container (step 9) | `docker compose up -d` | `FUSO_ORARIO` | Database, agente, back-end e pagina; poi `http://127.0.0.1:8780` (vedi [7.11](#711-il-servizio-frontend-la-chat-nel-browser)). |
+| Chat nel browser, un doppio clic | doppio clic su `avvia-chat.cmd` (oppure `python -m avvio_chat`) | `FUSO_ORARIO` | Accende ciò che manca, compresi i quattro container, e apre il browser; con `esci` o con la X ferma l'agente e il back-end che ha acceso (vedi [7.12](#712-un-doppio-clic-per-tutti-i-pezzi-avvia-chatcmd)). |
 | Docker, servizio dell'agente | `.\avvia-agente.ps1` (oppure `docker compose up --build agente`) | `… (host Windows)` (senza lo script: `FUSO_ORARIO`) | HTTP su `http://127.0.0.1:8767`; Ctrl+C ferma il container in modo ordinato (vedi [7.9](#79-il-servizio-dellagente-in-docker)). |
 | Docker con varianti | `"Che tempo fa a Udine?", "esci" \| docker compose run --rm -T -e VARIANTE_SCADENZE=fastapi -e API_PORTA=8766 -e VARIANTE_CALCOLATRICE=locale assistente` | `Europe/Rome (FUSO_ORARIO)` | Varianti forzate senza cambiare il `.env` (vedi [7.7](#77-le-varianti-nel-container-con--e)). |
 
@@ -754,9 +755,13 @@ Le ultime due voci escludono le cartelle temporanee create dalla prova Docker, c
 ### 7.4 `compose.yaml` riga per riga
 
 ```yaml
+# Lezione 6, step 9: `docker compose up -d` accende database, agente, backend e frontend.
+# La CLI (assistente) e la suite (test) hanno un profilo: partono solo se chiamate per nome.
 services:
+  # La CLI: .\avvia.ps1 (docker compose run --rm assistente).
   assistente:
     build: .
+    profiles: ["cli"]
     env_file: .env
     environment:
       # Dentro il container LM Studio si raggiunge con un indirizzo diverso: lo si prende dal .env.
@@ -780,14 +785,15 @@ services:
 
 | Chiave (riga) | Significato |
 |---|---|
-| `build: .` (3) | L'immagine si costruisce dal `Dockerfile` della cartella. Compose la chiama *nome del progetto* + *nome del servizio*. Il nome del progetto è quello della cartella, quindi l'immagine è `assistente-laboratorio-assistente`, il nome usato dalla prova reale (`tests/test_reale_docker.py:25`). |
-| `env_file: .env` (4) | Passa **tutte** le variabili del `.env` all'ambiente del container: `LMSTUDIO_MODEL`, `FUSO_ORARIO` e le altre. |
-| `environment:` (5-13) | Imposta o **sostituisce** alcune variabili, con precedenza su `env_file`. Il `LMSTUDIO_BASE_URL=http://localhost:1234/v1` del `.env` viene rimpiazzato dal valore di `LMSTUDIO_BASE_URL_DOCKER`. |
-| `${VAR:?messaggio}` (7, 9-11) | **Interpolazione obbligatoria.** Se `VAR` non è impostata **o è vuota**, Compose si ferma *prima* di creare il container e mostra `required variable VAR is missing a value: <messaggio>`. |
-| `${API_PORTA:-}` (13) | **Valore predefinito vuoto.** Se `API_PORTA` manca, nel container vale `""`. Non è obbligatoria perché serve solo con `fastapi`, e in quel caso il controllo lo fa Python (`Variabili d'ambiente mancanti: API_PORTA …`). |
-| `volumes:` (14-18) | Due *bind mount*: le cartelle `./logs` e `./archivio` dell'host compaiono nel container come `/app/logs` e `/app/archivio`. Log e note **sopravvivono a `--rm`** e si leggono dall'host. Se le cartelle mancano, vengono create (verificato dalla prova `test_varianti_in_docker`, README). |
-| `extra_hosts: host.docker.internal:host-gateway` (19-20) | Fa risolvere il nome `host.docker.internal` all'indirizzo dell'host. Docker Desktop lo definisce già da sé; la riga c'è «per compatibilità» (specifica iniziale, sezione 7), cioè per i motori Docker che non lo definiscono, come Docker su Linux. |
-| `stdin_open: true`, `tty: true` (21-22) | Equivalgono a `docker run -i -t`: ingresso aperto e pseudo-terminale. Servono per chattare da tastiera. Con una pipe il terminale va disattivato con `-T`. |
+| `build: .` (6) | L'immagine si costruisce dal `Dockerfile` della cartella. Compose la chiama *nome del progetto* + *nome del servizio*. Il nome del progetto è quello della cartella, quindi l'immagine è `assistente-laboratorio-assistente`, il nome usato dalla prova reale (`tests/test_reale_docker.py:25`). |
+| `profiles: ["cli"]` (7) | Dallo step 9 la CLI ha un profilo: `docker compose up -d` non la accende; parte solo chiamata per nome (`docker compose run --rm assistente`, cioè `.\avvia.ps1`). |
+| `env_file: .env` (8) | Passa **tutte** le variabili del `.env` all'ambiente del container: `LMSTUDIO_MODEL`, `FUSO_ORARIO` e le altre. |
+| `environment:` (9-17) | Imposta o **sostituisce** alcune variabili, con precedenza su `env_file`. Il `LMSTUDIO_BASE_URL=http://localhost:1234/v1` del `.env` viene rimpiazzato dal valore di `LMSTUDIO_BASE_URL_DOCKER`. |
+| `${VAR:?messaggio}` (11, 13-15) | **Interpolazione obbligatoria.** Se `VAR` non è impostata **o è vuota**, Compose si ferma *prima* di creare il container e mostra `required variable VAR is missing a value: <messaggio>`. |
+| `${API_PORTA:-}` (17) | **Valore predefinito vuoto.** Se `API_PORTA` manca, nel container vale `""`. Non è obbligatoria perché serve solo con `fastapi`, e in quel caso il controllo lo fa Python (`Variabili d'ambiente mancanti: API_PORTA …`). |
+| `volumes:` (18-22) | Due *bind mount*: le cartelle `./logs` e `./archivio` dell'host compaiono nel container come `/app/logs` e `/app/archivio`. Log e note **sopravvivono a `--rm`** e si leggono dall'host. Se le cartelle mancano, vengono create (verificato dalla prova `test_varianti_in_docker`, README). |
+| `extra_hosts: host.docker.internal:host-gateway` (23-24) | Fa risolvere il nome `host.docker.internal` all'indirizzo dell'host. Docker Desktop lo definisce già da sé; la riga c'è «per compatibilità» (specifica iniziale, sezione 7), cioè per i motori Docker che non lo definiscono, come Docker su Linux. |
+| `stdin_open: true`, `tty: true` (25-26) | Equivalgono a `docker run -i -t`: ingresso aperto e pseudo-terminale. Servono per chattare da tastiera. Con una pipe il terminale va disattivato con `-T`. |
 | (nessuna voce `ports:`) | Scelta voluta. Server e servizio ascoltano su `127.0.0.1` **dentro** il container e li usa solo l'assistente, che sta nello stesso container. Pubblicarli non servirebbe e li esporrebbe. Del resto `docker compose run` non pubblica le porte del servizio, a meno di aggiungere `--service-ports`. |
 
 **Esempi eseguiti con `docker compose config`.** Il comando legge `compose.yaml` e `.env`, calcola la configurazione finale e la stampa, senza costruire né avviare nulla. Le prove sono state fatte su una **copia** di `compose.yaml` in una cartella temporanea, con `.env` di prova.
@@ -855,6 +861,28 @@ param([switch]$SenzaTty)
 
 Set-Location -Path $PSScriptRoot
 
+# Con l'agente della chat acceso in Docker, due server MCP scriverebbero insieme le note.
+# Se Docker e' spento, l'elenco resta vuoto e si prosegue: sara' docker compose run a dirlo.
+if (-not $SenzaTty) {
+    $accesi = @()
+    try {
+        $accesi = @(& docker compose ps --status running --services 2>$null)
+    } catch {
+        $accesi = @()
+    }
+    if ($accesi -contains 'agente') {
+        Write-Host "Attenzione: il container agente (la chat nel browser) risulta acceso."
+        Write-Host "Le note in archivio/note.sqlite3 sono usate anche dall'agente della chat:"
+        Write-Host "scriverle da due parti insieme rischia di rovinarle."
+        # Domanda scritta a parte: con l'ingresso rediretto Read-Host legge la riga ma non mostra il prompt.
+        Write-Host -NoNewline "Aprire comunque la CLI? (S/N) "
+        $risposta = Read-Host
+        if ($risposta -ne 'S') {
+            exit 0
+        }
+    }
+}
+
 $fuso = (Get-TimeZone).Id
 $argomenti = @('compose', 'run', '--rm')
 if ($SenzaTty) {
@@ -870,10 +898,11 @@ exit $LASTEXITCODE
 |---|---|
 | 4 `param([switch]$SenzaTty)` | Opzione facoltativa. Senza, il comando usa il terminale (`tty: true`). Con `-SenzaTty` si aggiunge `-T`, necessario quando l'ingresso arriva da una pipe (la prova automatica). |
 | 6 `Set-Location -Path $PSScriptRoot` | Va nella cartella dello script, così funziona anche lanciato da un'altra cartella: Compose cerca `compose.yaml` e `.env` nella cartella corrente. |
-| 8 `(Get-TimeZone).Id` | Nome Windows del fuso, per esempio `W. Europe Standard Time`. |
-| 9-13 | Costruisce gli argomenti: `compose run --rm [-T] -e FUSO_HOST_WINDOWS=… assistente`. |
-| 15 `& docker @argomenti` | *Splatting*: passa l'array come argomenti separati, senza problemi di virgolette anche se il nome del fuso contiene spazi. |
-| 16 `exit $LASTEXITCODE` | Restituisce il codice di uscita del container, che è quello di `main()`: 0 oppure 1. |
+| 8-28 | Solo senza `-SenzaTty`: se `docker compose ps` dice acceso il container `agente` (la chat nel browser), avvisa che le note sono condivise e chiede «Aprire comunque la CLI? (S/N)»; con Docker spento l'elenco è vuoto e si prosegue. |
+| 30 `(Get-TimeZone).Id` | Nome Windows del fuso, per esempio `W. Europe Standard Time`. |
+| 31-35 | Costruisce gli argomenti: `compose run --rm [-T] -e FUSO_HOST_WINDOWS=… assistente`. |
+| 37 `& docker @argomenti` | *Splatting*: passa l'array come argomenti separati, senza problemi di virgolette anche se il nome del fuso contiene spazi. |
+| 38 `exit $LASTEXITCODE` | Restituisce il codice di uscita del container, che è quello di `main()`: 0 oppure 1. |
 
 **Perché esiste.** Nel container il fuso del sistema è UTC, e da lì `tzlocal` non può vedere il fuso dell'utente. La specifica considera un fallimento che «in Docker l'assistente dica l'ora in UTC senza avvisare». Lo script legge il fuso **sull'host** e lo passa come nome Windows; `fuso.py` lo converte **nel container** con `win_tz`. Il risultato è `Fuso orario: Europe/Berlin (host Windows)`.
 
@@ -927,10 +956,18 @@ Dal 10 novembre (specifica `docs/superpowers/specs/2026-11-10-docker-agente-desi
 | `FUSO_HOST_WINDOWS: ${FUSO_HOST_WINDOWS:-}` | lo imposta `avvia-agente.ps1`; vuoto se si usa Compose a mano |
 | `ports: "127.0.0.1:${AGENTE_PORTA}:${AGENTE_PORTA}"` | pubblicata solo sull'host locale: il servizio non ha autenticazione |
 | volumi `./logs` e `./archivio`, `extra_hosts` | come per la CLI |
+| `restart: on-failure` (step 9) | se cade durante la sessione Docker lo riavvia; dopo uno `stop` resta spento, e al riavvio di Docker non riparte da solo |
+| `healthcheck` su `/salute` (step 9) | l'immagine non ha `curl`: un `python -c` con `urllib`; `start_period: 60s`, perché all'avvio l'agente accende il suo server MCP e scopre gli strumenti. `docker compose up -d --wait` aspetta che sia `healthy` |
 
 Il server MCP resta nel container del servizio, come nella CLI: ogni container ha il suo, sulla
 sua rete interna, quindi CLI e servizio possono girare insieme senza conflitti di porta. Si
-condividono invece `logs/` e `archivio/` sull'host.
+condividono invece `logs/` e `archivio/` sull'host: dallo step 9, con il container `agente` acceso,
+`.\avvia.ps1` avvisa che le note sono condivise e chiede «Aprire comunque la CLI? (S/N)» (`avvia.ps1:8-28`).
+
+**Il fuso, dallo step 9.** `docker compose up -d` e il doppio clic non passano `FUSO_HOST_WINDOWS`:
+vale `FUSO_ORARIO` del `.env`. È voluto: se il file del doppio clic lo passasse, un `docker compose up -d`
+lanciato a mano vedrebbe un `environment` diverso e ricreerebbe l'agente a ogni alternanza.
+`.\avvia-agente.ps1` continua a passarlo, e quindi ricrea l'agente.
 
 **Arresto.** `Ctrl+C` su `docker compose up` (o `docker compose stop`) manda `SIGTERM`. Uvicorn
 chiude il server HTTP, il gestore di `servizio_agente/__main__.py` trasforma il segnale in uscita
@@ -945,7 +982,7 @@ ordinato come sopra. Come le altre prove Docker, sposta da parte `logs/` e `arch
 ### 7.10 Il database delle chat
 
 Dal 10 novembre (specifica `docs/superpowers/specs/2026-11-10-backend-chat-design.md`) `compose.yaml` ha il
-servizio `database` (righe 51-70):
+servizio `database` (oggi righe 65-81):
 
 | Riga | Perché |
 |---|---|
@@ -960,73 +997,102 @@ Variabili del `.env` (in `.env.example` con un commento ciascuna): `BACKEND_PORT
 legge sia Compose sia `servizio_backend/configurazione.py`.
 
 Il volume sopravvive a `docker compose down` e a `docker compose stop database`; `docker compose down -v`
-lo cancella, con tutte le chat. In questo step solo il database è in un container: back-end e agente
-girano con `python -m`. Le prove usano un progetto Compose a parte, con il loro volume
+lo cancella, con tutte le chat. Nello step 7 solo il database era in un container e back-end e agente
+giravano con `python -m`; dallo step 9 sono container anche loro (sezione 7.11). Le prove usano un progetto Compose a parte, con il loro volume
 ([09, sezione 10.4](09-test-e-verifiche.md#104-lo-step-7-database-di-prova-e-prove-del-back-end)).
 
 ### 7.11 Il servizio `frontend`: la chat nel browser
 
 Dall'11 novembre (specifica `docs/superpowers/specs/2026-11-11-frontend-chat-design.md`) `compose.yaml` ha
-il servizio `frontend` (righe 71-81). Il dettaglio sta nel [capitolo 15](15-chat-nel-browser.md); qui le
+il servizio `frontend` (oggi righe 114-130). Il dettaglio sta nel [capitolo 15](15-chat-nel-browser.md); qui le
 scelte di configurazione:
 
 | Riga | Perché |
 |---|---|
 | `build: ./frontend` | immagine in due fasi: Node compila con Vite, nginx senza privilegi serve i file (`frontend/Dockerfile`) |
 | `BACKEND_PORTA: ${BACKEND_PORTA:-8768}` | **senza** `:?`, per lo stesso motivo del database: Compose controlla tutto il file. nginx la usa per raggiungere il back-end |
+| `BACKEND_INDIRIZZO: ${BACKEND_INDIRIZZO:-backend}` (step 9) | il nome del back-end: il servizio Compose `backend`; le prove del browser lo puntano a un back-end di prova sull'host con `host.docker.internal` |
+| `depends_on: backend` (step 9) | `docker compose up -d frontend` accende anche back-end, agente e database |
 | `ports: "127.0.0.1:${FRONTEND_PORTA:-8780}:8080"` | pubblicata solo sull'host locale: il servizio non ha autenticazione; `8780` se la variabile manca |
-| `extra_hosts: host.docker.internal:host-gateway` | il back-end ascolta su `127.0.0.1` dell'host e il container lo raggiunge con questo nome |
+| `extra_hosts: host.docker.internal:host-gateway` | nello step 8 il back-end ascoltava sull'host e il container lo raggiungeva con questo nome. Dallo step 9 nginx usa il suo `resolver`, che non legge `/etc/hosts`: nelle prove del browser `host.docker.internal` lo risolve il DNS di Docker Desktop, e la riga serve agli altri strumenti del container (curl, wget, getent) |
 
 `frontend/nginx/default.conf.template` serve i file e inoltra `/api/` al back-end (senza il prefisso, senza
-buffering, `proxy_read_timeout 300s`). Così pagina e API hanno la stessa origine e non serve CORS.
+buffering, `proxy_read_timeout 300s`). Così pagina e API hanno la stessa origine e non serve CORS. Dallo
+step 9 l'indirizzo è una variabile (`set $backend http://${BACKEND_INDIRIZZO}:${BACKEND_PORTA}`, riga 18,
+e `proxy_pass $backend`, riga 20): con `proxy_pass` a una variabile nginx risolve il nome **a ogni richiesta** con il DNS di Docker
+(`resolver 127.0.0.11 valid=10s ipv6=off`, riga 17). Così parte anche se il back-end è spento e risponde
+`502` finché non c'è; il prezzo è che il nome resta in memoria fino a 10 secondi, quindi subito dopo un
+riavvio del back-end può esserci qualche secondo di `502`. Con una variabile l'URI non si sostituisce da
+solo: lo toglie la `rewrite ^/api/(.*)$ /$1 break` (riga 19).
 `frontend/nginx/sicurezza.conf` (copiato nell'immagine e incluso dal modello) aggiunge a ogni risposta
 una Content-Security-Policy, `X-Content-Type-Options: nosniff` e `Referrer-Policy: no-referrer`
 ([capitolo 15, sezione 4](15-chat-nel-browser.md#4-il-markdown-sicuro-e-la-csp)).
 
+**Il servizio `backend` (step 9, righe 84-110).** Stessa immagine dell'agente (`build: .`; il
+`Dockerfile` copia anche `servizio_backend/` con `schema.sql`), comando `python -m servizio_backend`:
+
+| Riga | Perché |
+|---|---|
+| `BACKEND_HOST: 0.0.0.0` | come `AGENTE_HOST`: nel container nginx arriva dall'interfaccia di rete |
+| `POSTGRES_HOST: database`, `POSTGRES_PORTA: "5432"` | il database per nome nella rete di Compose, sulla sua porta interna (non quella pubblicata sull'host) |
+| `AGENTE_INDIRIZZO: agente` | l'agente per nome: `url_agente` diventa `http://agente:<AGENTE_PORTA>` |
+| nessuna `ports` | il back-end non è pubblicato: ci arriva solo nginx. Dall'host si interroga con `http://127.0.0.1:8780/api/...` |
+| `depends_on`: `database` sano, `agente` avviato | il back-end parte quando il database risponde; se l'agente non è ancora pronto, `/salute` lo dice (`agente: non raggiungibile`) |
+| `restart: on-failure`, `healthcheck` su `/salute` | come l'agente (sezione 7.9) |
+| volume `./logs` | `logs/servizio_backend.log` resta sull'host |
+
+Le tre variabili `BACKEND_HOST`, `POSTGRES_HOST` e `AGENTE_INDIRIZZO` sono facoltative, con predefinito
+`127.0.0.1` (`servizio_backend/configurazione.py:70-76`): fuori da Docker non cambia nulla.
+`leggi_valori_backend` le legge senza importare `psycopg`, che si carica solo in `carica_configurazione_backend`
+(riga 82): così il file del doppio clic può controllare il `.env` anche dove le DLL di `psycopg` sono bloccate.
+
 Avvio dei quattro pezzi (PowerShell, da `assistente-laboratorio/`):
 
 ```powershell
-docker compose up -d database
-python -m servizio_agente
-python -m servizio_backend
-docker compose up -d --build frontend
+docker compose up -d
 ```
 
-L'immagine contiene la versione compilata: **dopo una modifica al codice del front-end va ricostruita**
-(`docker compose up -d --build frontend`), altrimenti il container serve ancora la vecchia. Per
-sviluppare senza ricostruire si usa `cd frontend; npm install; npm run dev` (Vite su `127.0.0.1:5173`).
-Nella configurazione di questo step back-end e agente girano con `python -m`; in container ci sono il
-database e il front-end. Il servizio Compose `agente` (sezione 7.9) esiste, ma è facoltativo e qui non
-si usa: il back-end parla con l'agente avviato con `python -m servizio_agente`. Lo step 9 porterà tutti i
-pezzi in container.
+`assistente` (la CLI) e `test` (la suite) hanno un profilo (`cli`, `test`): `up` non li accende e
+`docker compose build` non li ricostruisce. Le immagini contengono il codice e la pagina compilata: **dopo
+una modifica al codice vanno ricostruite** (`docker compose up -d --build`), altrimenti i container servono
+ancora la versione vecchia. Per sviluppare il front-end senza ricostruire si usa
+`cd frontend; npm install; npm run dev` (Vite su `127.0.0.1:5173`). Fino allo step 8 back-end e agente
+giravano con `python -m`: con lo step 9 è servito, perché da metà novembre Smart App Control di Windows
+blocca le DLL di `psycopg-binary` sull'host.
+
+Prova dal vivo del 16 novembre (Task 3): `docker compose up -d --build --wait` con codice 0; con
+`docker compose stop backend` la pagina risponde `200` e `/api/salute` `502`; con
+`docker compose start backend`, appena `healthy`, `/api/salute` torna tutto `ok`.
 
 ### 7.12 Un doppio clic per tutti i pezzi: `avvia-chat.cmd`
 
-Dal 15 novembre i quattro pezzi della sezione 7.11 si avviano anche con un doppio clic sul file `avvia-chat.cmd`. Non è lo step 9: l'agente e il back-end restano programmi Python sul computer. Il file li avvia soltanto, insieme ai due container, e apre il browser.
+Dal 15 novembre i quattro pezzi della sezione 7.11 si avviano anche con un doppio clic sul file `avvia-chat.cmd`. Nella prima versione l'agente e il back-end erano programmi Python sul computer, avviati dal file. Dallo step 9 (16–18 novembre) sono container: il file accende i quattro container, aspetta che la chat risponda e apre il browser.
 
 Il file `.cmd` ha poche righe: va nella sua cartella, controlla che `.venv` esista e lancia `python -m avvio_chat`. La logica sta nel pacchetto `avvio_chat/`:
 
 | File | Che cosa fa |
 |---|---|
-| `avvio_chat/passi.py` | i passi, uno per funzione: `assicura_docker`, `assicura_lmstudio`, `assicura_container`, `servizio`, `avvia_chat` |
-| `avvio_chat/__main__.py` | legge il `.env` senza copiarlo nell'ambiente, chiama `avvia_chat`, traduce gli errori in `Errore: …` e nel codice di uscita |
+| `avvio_chat/passi.py` | i passi, uno per funzione: `assicura_docker`, `assicura_lmstudio`, `servizi_accesi`, `assicura_container`, `attendi_chat`, `ferma_cio_che_ho_acceso`, `avvia_chat` |
+| `avvio_chat/console.py` | la chiusura della finestra con la X: `installa_chiusura_console` |
+| `avvio_chat/__main__.py` | legge il `.env` senza copiarlo nell'ambiente, le opzioni `--senza-browser` e `--ricostruisci`, chiama `avvia_chat`, traduce gli errori in `Errore: …` (o `Errore inatteso: …`, senza traceback) e nel codice di uscita |
 
 I passi, nell'ordine:
 
-1. **Docker.** `docker info` riesce? Se no, `docker desktop start`, poi si riprova per al massimo 180 secondi.
-2. **LM Studio.** Il server risponde a `GET /v1/models`? Se no, `lms server start`, poi si riprova per al massimo 60 secondi. Il modello resta quello del `.env`: se manca dall'elenco, l'errore è quello di `verifica_server`.
-3. **Container.** `docker compose up -d --wait database frontend`, con un'attesa fino a 600 secondi: la prima volta l'immagine della pagina va costruita.
-4. **Agente.** Se `/salute` risponde, è già acceso e non viene toccato. Altrimenti parte con `processo_in_attesa` (`assistente/avvio_server.py`), la stessa funzione che avvia il server MCP: avvia, aspetta che risponda davvero e all'uscita spegne.
-5. **Back-end.** Come l'agente.
-6. **Browser.** Si apre `http://127.0.0.1:<FRONTEND_PORTA>`.
+1. **[1/4] Docker.** `docker info` riesce? Se no, `docker desktop start`, poi si riprova per al massimo 180 secondi. Subito dopo l'accensione del PC Docker Desktop può essere ancora in avvio: il file aspetta, senza errori intermedi.
+2. **[2/4] LM Studio.** Il server risponde a `GET /v1/models`? Se no, `lms server start`, poi si riprova per al massimo 60 secondi. Il modello resta quello del `.env`: se manca dall'elenco, l'errore è quello di `verifica_server` (oggi in `assistente/lmstudio.py`, con la sola libreria standard).
+3. **Che cosa è già acceso.** `docker compose ps --status running --services`, **prima** di accendere: se `agente` e `backend` ci sono già, non li ha accesi il file e non li spegnerà.
+4. **[3/4] Container.** `docker compose up -d --wait` (con `--ricostruisci` anche `--build`), con un'attesa fino a 600 secondi: la prima volta le immagini vanno costruite. Se scade, il file chiude tutto l'albero di processi di Compose (`taskkill /T`), così i container non partono dopo che ha rinunciato.
+5. **[4/4] La chat risponde.** `GET http://127.0.0.1:<FRONTEND_PORTA>/api/salute`, cioè attraverso nginx, deve dire `stato`, `database` e `agente` tutti `ok` entro 90 secondi. Altrimenti l'errore dice che cosa manca e il comando per il log, per esempio `docker compose logs --tail 30 agente`; un `503` del back-end nomina il database. Se il back-end non risponde (anche il `502` di nginx), l'errore aggiunge «Se hai appena aggiornato il codice: avvia-chat.cmd --ricostruisci»: un'immagine del front-end rimasta allo step 8 inoltrerebbe `/api` all'host.
+6. **Browser.** Si apre `http://127.0.0.1:<FRONTEND_PORTA>` (salvo `--senza-browser`). Se agente e back-end erano già accesi tutti e due, il file esce qui con codice 0.
 
 Tre idee da ricordare:
 
 - **Le dipendenze sono parametri.** Ogni passo riceve come parametri ciò che tocca il mondo esterno: l'esecuzione dei comandi, le richieste HTTP, l'orologio. Così i test li provano con comandi finti, senza Docker e senza LM Studio (`tests/test_avvio_chat.py`). È lo stesso principio del [capitolo 09](09-test-e-verifiche.md).
-- **Si spegne solo ciò che si è avviato.** I servizi stanno in un `ExitStack`: con `esci`, con Ctrl+C o a fine input si spengono in ordine inverso, prima il back-end e poi l'agente. Un servizio che era già acceso resta acceso, e così i container.
-- **Chiudere la finestra spegne i servizi, e solo quelli.** Chi chiude la finestra con la X non passa da `esci`. Windows però avvisa tutti i processi attaccati a quella console e li chiude: l'agente, il back-end e il server MCP lo sono, perché partono nella stessa finestra. Il browser, Docker Desktop e LM Studio no, e restano accesi. Un primo tentativo usava un Job Object, che chiude tutti i discendenti del programma: la revisione l'ha fatto togliere, perché avrebbe chiuso anche il browser e i programmi accesi dal file.
+- **Si spegne solo ciò che si è acceso.** Con `esci`, con Ctrl+C o a fine input il file esegue `docker compose stop backend agente`, ma solo per i servizi che non erano accesi al passo 3. Database e pagina restano accesi. Lo spegnimento avviene anche dopo un errore (un `up` fallito a metà, un Ctrl+C durante l'attesa); se lo spegnimento stesso non riesce, l'errore di prima resta e si aggiunge il comando da dare a mano. Un secondo Ctrl+C durante lo `stop` fa riprovare una volta.
+- **Chiudere la finestra con la X spegne i container accesi, e solo quelli.** Nella prima versione bastava Windows: chiudeva i processi attaccati alla console. I container però vivono in Docker, non nella finestra. Così `avvio_chat/console.py` registra un gestore degli eventi della console (`SetConsoleCtrlHandler`) **prima** di `up`: alla chiusura (X, disconnessione, arresto del sistema) lancia `docker compose stop …` in un processo staccato, con `CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP`, e non lo aspetta, perché Windows concede pochi secondi. `CREATE_NO_WINDOW` e non `DETACHED_PROCESS`: senza nessuna console il plugin `compose` se ne farebbe aprire una, visibile. Il Ctrl+C resta un `KeyboardInterrupt`. Un primo tentativo della versione del 15 novembre usava un Job Object, tolto dalla revisione perché avrebbe chiuso anche il browser e i programmi accesi dal file.
+- **Niente librerie bloccabili.** Il file usa solo la libreria standard e `python-dotenv`: un test controlla che dopo l'import non ci siano `psycopg`, `langchain_core` né `httpx`. È proprio l'import di `psycopg` che, con Smart App Control, fermava il doppio clic con un traceback.
 
-Provato il 15 novembre 2026: primo avvio con agente e back-end spenti (pronto in 16 secondi, `/salute` ok anche attraverso nginx, `esci` con codice 0 e porte libere); secondo avvio con tutto acceso (nessun processo avviato, codice 0). I passi «Docker spento» e «LM Studio spento» sono provati solo con i test automatici. La chiusura della finestra è provata da un test automatico, che avvia un servizio in una console vera e la chiude con il messaggio del pulsante X; un clic vero sulla X non è stato provato.
+Provato il 18 novembre 2026, con `--senza-browser`: con agente e back-end spenti, i quattro passi in 14,8 secondi e `/api/salute` tutto `ok`; `esci` con codice 0, «Fermo ciò che ho acceso (backend, agente)», poi accesi solo `database` e `frontend`; con tutto acceso, «Agente e back-end erano già accesi…» e nessun container fermato; un turno vero con LM Studio attraverso nginx (18 eventi `testo` e `fine`, con lo strumento dell'ora), e la chat ancora lì dopo `docker compose restart backend`. I passi «Docker spento» e «LM Studio spento» sono provati solo con i test automatici. La chiusura con la X è provata da un test su una console vera, da una prova su un progetto Compose separato (container fermo 4 secondi dopo la chiusura; il requisito è 30) e, il 18 novembre, da un clic vero sulla X dell'utente: agente e back-end, accesi dal file alle 09:44 e 09:46 UTC, sono passati a `Exited (0)` alle 09:55:13–16 UTC, dopo la chiusura; `database` e `frontend` sono rimasti accesi. Il tipo di console (finestra classica o Windows Terminal) non è stato indicato: una scheda di Windows Terminal non è verificata separatamente. **Ancora da provare:** il doppio clic subito dopo l'accensione del PC.
 
 ## 8. Arresto ordinato e segnali
 
@@ -1321,7 +1387,7 @@ Una presentazione di circa 10 slide su questo capitolo. Ogni slide: titolo, tre 
 - `-e` cambia un valore nel container senza toccare `.env`
 - `avvia.ps1` passa al container il fuso di Windows
 
-*Da mostrare:* il codice di `avvia.ps1:8-16` e il diagramma «due usi dello stesso `.env`» della sezione 7.4.
+*Da mostrare:* il codice di `avvia.ps1:30-38` e il diagramma «due usi dello stesso `.env`» della sezione 7.4.
 
 ### Slide 9 · Spegnere con ordine
 - Windows: `CTRL_BREAK_EVENT`; Linux e Docker: `SIGTERM`
@@ -1346,10 +1412,17 @@ Una presentazione di circa 10 slide su questo capitolo. Ogni slide: titolo, tre 
 
 ### Slide 10 quater · La chat nel browser
 - Servizio `frontend`: nginx con i file compilati, porta solo su `127.0.0.1:8780`
-- Inoltra `/api` al back-end sull'host, senza `:?` nelle variabili
-- Dopo una modifica: `docker compose up -d --build frontend`
+- Inoltra `/api` al container `backend`, risolvendone il nome a ogni richiesta
+- Dopo una modifica: `docker compose up -d --build`
 
 *Da mostrare:* la tabella della sezione 7.11.
+
+### Slide 10 quinquies · Quattro container con un comando (step 9)
+- `docker compose up -d`: database, agente, back-end e pagina
+- Il back-end non pubblica porte; CLI e test hanno un profilo
+- Il doppio clic accende i container e alla chiusura, anche con la X, ferma ciò che ha acceso
+
+*Da mostrare:* la tabella del servizio `backend` della sezione 7.11 e i passi della sezione 7.12.
 
 ### Slide 10 · Che cosa ricordare
 - Configurazione fuori dal codice, controllata per prima
