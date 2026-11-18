@@ -35,12 +35,12 @@ flowchart LR
 
 | Cosa | Valore | Dove |
 |---|---|---|
-| Nodi del grafo | `modello`, `strumenti`, `limite`, più `router` e `rifiuto` davanti all'agente | `assistente/grafo.py:239-252` |
-| Giri di strumento per turno | al massimo 3 (`MAX_GIRI_STRUMENTO`) | `assistente/grafo.py:24` |
+| Nodi del grafo | `modello`, `strumenti`, `limite`, più `router` e `rifiuto` davanti all'agente | `assistente/grafo.py:264-271` |
+| Giri di strumento per turno | al massimo 3 (`MAX_GIRI_STRUMENTO`) | `assistente/grafo.py:26` |
 | Nome del server MCP | «Strumenti laboratorio», 10 strumenti | `server_mcp/server.py:31` |
 | Indirizzo del server MCP | `http://127.0.0.1:<MCP_PORTA>/mcp` | `assistente/avvio_server.py:142-143` |
 | Chiave per LM Studio | `"lm-studio"`, solo un segnaposto | `assistente/modello.py:9-10` |
-| Dove nasce il `ToolMessage` | nel nodo `strumenti` | `assistente/grafo.py:180-185` |
+| Dove nasce il `ToolMessage` | nel nodo `strumenti` | `assistente/grafo.py:240-245` |
 
 **Se te lo chiedono all'orale**
 
@@ -84,7 +84,7 @@ L'**assistente del laboratorio** è nato come applicazione **da terminale**, scr
 
 Il programma ha quattro caratteristiche principali:
 
-- **organizza la conversazione in un grafo LangGraph esplicito.** Il grafo ha tre nodi: `modello`, `strumenti` e `limite` (`assistente/grafo.py:239-241`); dalla lezione 6 si aggiungono `router` e `rifiuto` (`assistente/grafo.py:245-246`);
+- **organizza la conversazione in un grafo LangGraph esplicito.** Il grafo ha tre nodi: `modello`, `strumenti` e `limite` (`assistente/grafo.py:264-266`); dalla lezione 6 si aggiungono `router` e `rifiuto` (`assistente/grafo.py:270-271`);
 - **dà al modello dieci strumenti.** Il modello li può *chiedere*, e il programma li *esegue davvero*: è il **tool calling**;
 - **gli strumenti stanno in un server MCP.** Si chiama «Strumenti laboratorio» ed è scritto con FastMCP (`server_mcp/server.py:31`). L'assistente lo avvia da solo, ne scopre il catalogo e lo spegne all'uscita;
 - **si avvia in due modi:** direttamente con `python -m assistente`, oppure con Docker Compose (`.\avvia.ps1`).
@@ -180,8 +180,8 @@ flowchart LR
 | Concetto | Dove si vede nel progetto | Sezione |
 |---|---|---|
 | Modello locale, API compatibile OpenAI | `assistente/modello.py` | [3](#3-modello-linguistico-locale-lm-studio-e-api-compatibile-con-openai) |
-| Tool calling | `bind_tools` (`modello.py:21`), nodo `strumenti` (`grafo.py:149-189`) | [4](#4-tool-calling-il-modello-propone-il-programma-esegue) |
-| ToolMessage, `tool_call_id` | `grafo.py:180-185` | [5](#5-toolmessage-e-tool_call_id) |
+| Tool calling | `bind_tools` (`modello.py:21`), nodo `strumenti` (`grafo.py:209-249`) | [4](#4-tool-calling-il-modello-propone-il-programma-esegue) |
+| ToolMessage, `tool_call_id` | `grafo.py:240-245` | [5](#5-toolmessage-e-tool_call_id) |
 | LangGraph | `assistente/grafo.py` | [6](#6-langgraph-il-flusso-come-grafo) |
 | MCP: host, client, server | `assistente/` (host), `client_mcp.py` (client), `server_mcp/` (server) | [7](#7-mcp-model-context-protocol) |
 | API, OpenAPI, FastAPI | `servizio_api/app.py` | [9](#9-api-openapi-e-fastapi) |
@@ -316,16 +316,16 @@ Ecco i messaggi nel formato JSON dell'API OpenAI, cioè quello che viaggia davve
 
 Due osservazioni importanti:
 
-- **`arguments` è una stringa JSON**, non un oggetto. Un modello piccolo può scrivere JSON non valido. LangChain mette allora quella richiesta in `invalid_tool_calls`, e il grafo la chiude comunque con un errore (`grafo.py:61-63`, `:122-129`, testo `TESTO_NON_JSON` a `:24`).
+- **`arguments` è una stringa JSON**, non un oggetto. Un modello piccolo può scrivere JSON non valido. LangChain mette allora quella richiesta in `invalid_tool_calls`, e il grafo la chiude comunque con un errore (`grafo.py:101-103`, `:162-169`, testo `TESTO_NON_JSON` a `:37`).
 - Il messaggio `role: "tool"` porta lo **stesso `tool_call_id`** della richiesta. È il collegamento spiegato nella sezione 5.
 
 ### 4.4 Che cosa fa il programma prima e dopo l'esecuzione
 
-Il nodo `strumenti` (`grafo.py:149-189`) non esegue alla cieca. Per ogni richiesta:
+Il nodo `strumenti` (`grafo.py:209-249`) non esegue alla cieca. Per ogni richiesta:
 
 1. **cerca lo strumento per nome.** Se il nome non esiste: `Strumento sconosciuto: '…'.`, esito `strumento_sconosciuto`;
-2. **controlla gli argomenti contro lo schema**, prima di qualsiasi variante (`grafo.py:158-172`). Se ne manca uno obbligatorio: `Argomenti mancanti per …`. Se ce n'è uno inventato: `Argomenti non previsti per …: … Usa solo: …`;
-3. **esegue lo strumento** con `strumento.invoke(...)`. Qualsiasi eccezione diventa un errore e non blocca il programma (`grafo.py:174-179`);
+2. **controlla gli argomenti contro lo schema**, prima di qualsiasi variante (`grafo.py:218-232`). Se ne manca uno obbligatorio: `Argomenti mancanti per …`. Se ce n'è uno inventato: `Argomenti non previsti per …: … Usa solo: …`;
+3. **esegue lo strumento** con `strumento.invoke(...)`. Qualsiasi eccezione diventa un errore e non blocca il programma (`grafo.py:233-239`);
 4. **crea un `ToolMessage`** con il risultato o l'errore e scrive una riga di log.
 
 Esempio **reale** con il modello finto: il modello inventa un argomento `precisione` e il grafo lo rifiuta senza eseguire.
@@ -342,7 +342,7 @@ E se l'espressione è pericolosa (`__import__('os')`), la calcolatrice la rifiut
 
 ### 4.5 Perché è importante, e che cosa non può garantire
 
-Il tool calling serve a **non far inventare** al modello ciò che non può sapere: l'ora, una conversione esatta, il contenuto del catalogo, il meteo. Il messaggio di sistema lo dice esplicitamente (`grafo.py:35-54`). Per esempio:
+Il tool calling serve a **non far inventare** al modello ciò che non può sapere: l'ora, una conversione esatta, il contenuto del catalogo, il meteo. Il messaggio di sistema lo dice esplicitamente (`grafo.py:51-73`). Per esempio:
 
 > «Non dire mai di aver salvato, eliminato, calcolato o cercato qualcosa senza aver chiamato lo strumento in questo turno: se non hai chiamato lo strumento, non l'hai fatto.»
 
@@ -363,14 +363,14 @@ La cronologia è una lista di messaggi LangChain (`langchain_core.messages`):
 
 | Classe | Ruolo nell'API OpenAI | Chi lo produce nel progetto |
 |---|---|---|
-| `SystemMessage` | `system` | `messaggio_sistema(fuso)` (`grafo.py:35`): viene **ricreato a ogni chiamata** del modello, non è salvato nella cronologia |
-| `HumanMessage` | `user` | `esegui_turno`, con il testo scritto nel terminale (`grafo.py:218`) |
+| `SystemMessage` | `system` | `messaggio_sistema(fuso)` (`grafo.py:51`): viene **ricreato a ogni chiamata** del modello, non è salvato nella cronologia |
+| `HumanMessage` | `user` | `esegui_turno`, con il testo scritto nel terminale (`grafo.py:287`) |
 | `AIMessage` | `assistant` | il modello: testo finale **oppure** `tool_calls`; anche il nodo `limite` ne crea uno con un testo fisso |
 | `ToolMessage` | `tool` | il nodo `strumenti` (e il nodo `limite`), uno per ogni richiesta |
 
 ### 5.2 Com'è fatto un ToolMessage
 
-Il ToolMessage viene creato in `grafo.py:180-185`:
+Il ToolMessage viene creato in `grafo.py:240-245`:
 
 ```python
 messaggio = ToolMessage(
@@ -392,8 +392,8 @@ messaggio = ToolMessage(
 
 1. **Correlazione.** Il modello può chiedere più strumenti nello stesso messaggio. L'id dice quale risultato appartiene a quale richiesta.
 2. **Cronologia valida.** L'API di tipo OpenAI pretende che **ogni** `tool_call` di un messaggio `assistant` abbia il suo messaggio `tool` con lo stesso id. Per questo il progetto chiude **sempre** ogni richiesta, anche quando non la esegue:
-   - quando si raggiunge il limite di giri (`nodo_limite`, `grafo.py:191-201`), con `"limite di chiamate raggiunto"`;
-   - quando gli argomenti non sono JSON (`_malformate_chiuse`, `grafo.py:122-129`). Il commento a `grafo.py:62` lo dice: «vanno chiuse anche loro, o la cronologia resta invalida».
+   - quando si raggiunge il limite di giri (`nodo_limite`, `grafo.py:251-261`), con `"limite di chiamate raggiunto"`;
+   - quando gli argomenti non sono JSON (`_malformate_chiuse`, `grafo.py:162-169`). Il commento a `grafo.py:102` lo dice: «vanno chiuse anche loro, o la cronologia resta invalida».
 3. **Tracciabilità.** Il log dell'assistente registra sia l'id della richiesta sia quello del ToolMessage. Riga **reale** prodotta dal grafo con il modello finto:
 
 ```
@@ -423,15 +423,15 @@ Alla seconda chiamata il modello ha ricevuto `SystemMessage, HumanMessage, AIMes
 
 | Elemento | Che cos'è | Nel progetto |
 |---|---|---|
-| **Stato** | un dizionario tipizzato che passa da un nodo all'altro | `StatoConversazione` (`grafo.py:29-32`): `messages`, `fuso_utente`, `giri_strumento` |
+| **Stato** | un dizionario tipizzato che passa da un nodo all'altro | `StatoConversazione` (`grafo.py:43-48`): `messages`, `fuso_utente`, `giri_strumento` |
 | **Nodo** | una funzione che riceve lo stato e restituisce un aggiornamento | `nodo_modello`, `nodo_strumenti`, `nodo_limite` |
 | **Arco** | un passaggio fisso da un nodo a un altro | `START → modello`, `strumenti → modello`, `limite → END` |
-| **Arco condizionale** | una funzione che sceglie il prossimo nodo guardando lo stato | `instrada_dopo_modello` (`grafo.py:132-138`) |
+| **Arco condizionale** | una funzione che sceglie il prossimo nodo guardando lo stato | `instrada_dopo_modello` (`grafo.py:172-178`) |
 
 Due concetti in più:
 
 - **Reducer.** `messages` è annotato con `add_messages`. Quando un nodo restituisce `{"messages": [nuovo]}`, il nuovo messaggio viene **aggiunto** alla lista, non la sostituisce.
-- **Compile e invoke.** `StateGraph(...).compile()` produce un oggetto eseguibile. `grafo.invoke(stato_iniziale)` lo esegue finché arriva a `END` e restituisce lo stato finale (`grafo.py:211`, `:214-223`).
+- **Compile e invoke.** `StateGraph(...).compile()` produce un oggetto eseguibile. `grafo.invoke(stato_iniziale)` lo esegue finché arriva a `END` e restituisce lo stato finale (`grafo.py:278`, `:285-292`).
 
 ### 6.2 Il grafo del progetto
 
@@ -447,7 +447,7 @@ flowchart TD
 ```
 
 - **`modello`** chiama il modello con il messaggio di sistema più la cronologia.
-- **`instrada_dopo_modello`** guarda l'ultimo messaggio. Se non ci sono richieste di strumento, il turno finisce. Se ci sono ma si è già arrivati a `MAX_GIRI_STRUMENTO = 3` (`grafo.py:20`), si va a `limite`. Altrimenti si va a `strumenti`.
+- **`instrada_dopo_modello`** guarda l'ultimo messaggio. Se non ci sono richieste di strumento, il turno finisce. Se ci sono ma si è già arrivati a `MAX_GIRI_STRUMENTO = 3` (`grafo.py:26`), si va a `limite`. Altrimenti si va a `strumenti`.
 - **`strumenti`** esegue le richieste, produce i ToolMessage e incrementa `giri_strumento`.
 - **`limite`** chiude le richieste rimaste con un errore e aggiunge un `AIMessage` fisso: «Non sono riuscito a completare la richiesta: troppe chiamate agli strumenti…».
 
@@ -701,7 +701,7 @@ Un **wrapper** («involucro») è un pezzo di codice che **avvolge** un'altra co
 | **Ponte MCP** (`avvolgi`) | lo strumento asincrono creato da `langchain-mcp-adapters` | la versione sincrona (`asyncio.run`), il tempo massimo di 10 s, gli errori trasformati in JSON (`tipo: strumento` o `tipo: collegamento`), `metadata={"origine": "mcp"}` | `client_mcp.py:57-77` |
 | **Wrapper delle scadenze** | l'endpoint HTTP `GET /scadenza` del servizio FastAPI | nome, descrizione e schema scritti a mano, chiamata HTTP con `httpx` e tempo massimo di 5 s, risposte `400` trasformate in errori dello strumento, rete o `5xx` in errori di collegamento, `metadata={"origine": "fastapi"}` | `wrapper_scadenze.py:35-79` |
 
-Entrambi rispettano una regola comune: **non sollevano mai eccezioni verso il grafo**. Restituiscono sempre una stringa, con il risultato oppure `{"errore": "…", "tipo": "…"}`. Il grafo legge `tipo` per decidere l'esito nel log: `errore_collegamento` oppure `errore_tool` (`grafo.py:66-74`).
+Entrambi rispettano una regola comune: **non sollevano mai eccezioni verso il grafo**. Restituiscono sempre una stringa, con il risultato oppure `{"errore": "…", "tipo": "…"}`. Il grafo legge `tipo` per decidere l'esito nel log: `errore_collegamento` oppure `errore_tool` (`grafo.py:106-114`).
 
 Esempio **reale**: il wrapper delle scadenze collegato al servizio FastAPI vero tramite il client di test, senza rete.
 
@@ -750,7 +750,7 @@ I **non obiettivi** sono decisioni esplicite, non dimenticanze. Le specifiche li
 | Convertitore | nessuna unità non metrica (miglia, libbre…), tranne °F; niente kelvin, tonnellate, m³ | spec. convertitore §3 |
 | Lezioni future | niente workflow, altri strumenti o framework non concordati | `../CLAUDE.md` («Confini») |
 
-Una sfumatura da saper spiegare sulle note. Il programma non chiede conferma, ma il **messaggio di sistema** (`grafo.py:49-51`) e la descrizione di `delete_note` (`server.py:81-84`) chiedono **al modello** di mostrare ID e testo e di chiedere conferma all'utente prima di eliminare. È un'istruzione al modello, non un controllo del codice. La garanzia del codice è un'altra: si elimina solo la nota con l'ID esatto.
+Una sfumatura da saper spiegare sulle note. Il programma non chiede conferma, ma il **messaggio di sistema** (`grafo.py:65-67`) e la descrizione di `delete_note` (`server.py:81-84`) chiedono **al modello** di mostrare ID e testo e di chiedere conferma all'utente prima di eliminare. È un'istruzione al modello, non un controllo del codice. La garanzia del codice è un'altra: si elimina solo la nota con l'ID esatto.
 
 ### 11.2 Anti-obiettivi: che cosa lo renderebbe un fallimento
 

@@ -33,7 +33,7 @@ flowchart LR
 | Opzioni che attivano le prove reali | `--lmstudio`, `--docker` | `tests/conftest.py:4-6` |
 | Salto automatico se manca l'opzione | `pytest_collection_modifyitems` | `tests/conftest.py:9-16` |
 | Il modello finto | `ModelloFinto`: risposte preparate, restituite in ordine | `tests/finti.py:13-25` |
-| Giri massimi con gli strumenti in un turno | `MAX_GIRI_STRUMENTO = 3` | `assistente/grafo.py:20` |
+| Giri massimi con gli strumenti in un turno | `MAX_GIRI_STRUMENTO = 3` | `assistente/grafo.py:26` |
 | Esito dello step 7, 2026-11-10 | `python -m pytest`: 625 passati, 64 saltati (dopo la revisione finale); `--docker -m docker`: 23 passati; `--lmstudio --docker tests/test_reale_backend.py`: 4 passati | → sezione 10.4 |
 | Esito dello step 8, 2026-11-12 | dopo le correzioni della revisione finale, `python -m pytest`: 625 passati, 74 saltati; `npm test`: 108 passati in 11 file; prove nel browser e di Compose con `--docker`: 9 passate. Prima di quelle correzioni, e non rieseguite dopo: `--docker -m docker`: 31 passati; `--lmstudio --docker -m "lmstudio and docker"`: 5 passati | → sezione 10.5 |
 | Esito dello step 9, 2026-11-18 | `docker compose run --rm test`: 717 passati, 98 saltati; sull'host `tests/test_avvio_chat.py`, `test_avvia_ps1.py` e `test_nginx.py`: 104 passati, 1 saltato; `--docker tests/test_compose_servizi.py tests/test_compose_frontend.py`: 7 passati | → sezione 10.6 |
@@ -300,7 +300,7 @@ Il codice di produzione è scritto apposta per renderlo possibile. Le dipendenze
 
 | Punto del codice | Parametro iniettabile | Che cosa lo sostituisce nei test |
 |---|---|---|
-| `crea_grafo(modello, strumenti)` (`assistente/grafo.py:141`) | `modello`, `strumenti` | `ModelloFinto`, strumenti finti |
+| `crea_grafo(modello, strumenti)` (`assistente/grafo.py:185`) | `modello`, `strumenti` | `ModelloFinto`, strumenti finti |
 | `crea_server(*, adesso, percorso_note, http)` (`server_mcp/server.py:116`) | istante, archivio, client HTTP | istante fisso, `tmp_path`, `http_senza_rete()` |
 | `ArchivioNote(percorso, adesso)` (`logica/note.py:54`) | file e orologio | `tmp_path`, istante fisso |
 | `ora_corrente(fuso, adesso)` (`logica/orologio.py:33`) | l'istante | istante fisso |
@@ -331,7 +331,7 @@ class ModelloFinto:
         return risposta
 ```
 
-Il grafo chiede al modello un solo metodo, `.invoke(messaggi) -> AIMessage` (`assistente/grafo.py:142`
+Il grafo chiede al modello un solo metodo, `.invoke(messaggi) -> AIMessage` (`assistente/grafo.py:186`
 e `:146`). `ModelloFinto` ha esattamente quel metodo, quindi il grafo non distingue il finto dal
 `ChatOpenAI` vero (*duck typing*). Contano tre dettagli:
 
@@ -372,12 +372,12 @@ return StructuredTool(name=nome, description="finto", args_schema=schema, func=e
 Simula uno strumento che risponde con successo (`'{"risultato": 2500}'`), con un errore dello
 strumento (`'{"errore": …, "tipo": "strumento"}'`) o con un errore di collegamento
 (`"tipo": "collegamento"`). Così si verifica che il grafo marchi `status` ed `esito` giusti
-(`assistente/grafo.py:66-74`). Prova eseguita con `'{"errore": "Server MCP non raggiungibile",
+(`assistente/grafo.py:106-114`). Prova eseguita con `'{"errore": "Server MCP non raggiungibile",
 "tipo": "collegamento"}'`: il `ToolMessage` ha `status=error` e il log riporta
 `esito=errore_collegamento`.
 
 Nota tecnica: lo schema ha `additionalProperties: True`. È l'unico caso in cui il controllo
-dell'host sugli argomenti in più viene saltato (`assistente/grafo.py:96`), quindi lo strumento finto
+dell'host sugli argomenti in più viene saltato (`assistente/grafo.py:136-137`), quindi lo strumento finto
 accetta qualunque argomento. Nessuno strumento vero del progetto lo fa.
 
 ### 5.4 `orologio_finto` (`tests/finti.py:50`)
@@ -404,7 +404,7 @@ con_client(lambda c: c.call_tool("ora_corrente", {"fuso": "Asia/Tokyo"}), adesso
 ```
 
 L'istante fisso (`ISTANTE = datetime(2026, 11, 2, 14, 4, 5, tzinfo=timezone.utc)`, un lunedì, in
-`tests/test_grafo.py:19`) rende i test indipendenti dal giorno in cui girano: a Tokyo sono sempre le
+`tests/test_grafo.py:22`) rende i test indipendenti dal giorno in cui girano: a Tokyo sono sempre le
 `23:04:05`.
 
 ### 5.5 `http_senza_rete` (`tests/test_server_mcp.py:31`)
@@ -1157,9 +1157,9 @@ segnala mai argomenti in più. Poi lancia `pytest.main` su
 ```text
 >       assert risultato.status == "error" and eseguito == []
 E       AssertionError: assert ('success' == 'error'
-tests\test_grafo.py:270: AssertionError
+tests\test_grafo.py:284: AssertionError
 ------------------------------ Captured log call ------------------------------
-INFO     assistente.strumenti:grafo.py:107 origine=mcp tool=ora_corrente call_id=x1
+INFO     assistente.strumenti:grafo.py:121 origine=mcp tool=ora_corrente call_id=x1
          argomenti={"fuso":"Europe/Rome","formato":"24h"} esito=ok risultato={} tool_message.call_id=x1
 FAILED tests/test_grafo.py::test_argomento_in_piu_rifiutato_in_italiano - Ass...
 1 failed in 0.22s

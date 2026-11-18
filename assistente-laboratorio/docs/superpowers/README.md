@@ -118,4 +118,12 @@ Dal 14 novembre circa Smart App Control di Windows blocca le DLL di `psycopg-bin
 | Piano | [2026-11-16-quattro-container.md](plans/2026-11-16-quattro-container.md) | gli otto task, con le prove reali |
 | Checkpoint | [2026-11-16-quattro-container.md](checkpoint/2026-11-16-quattro-container.md) | fatto sul branch; dopo la revisione finale container 726 passati e 99 saltati, host 113 passati e 1 saltato; prove reali 1, 2, 3 (la X vera, dell'utente), 4, 5 e 7 della specifica passate, l'avvio subito dopo l'accensione del PC ancora da provare |
 
+### Le istruzioni del progetto con gli strumenti (18 novembre, correzione a parte)
+
+Con gli strumenti legati al modello, `google/gemma-4-e2b` ignorava le istruzioni del progetto in fondo al messaggio di sistema. Branch `dev-istruzioni-progetto`, da unire dopo `dev-quattro-container`; senza specifica propria (tocca il campo `istruzioni` dello step 7).
+
+| Tipo | Documento | In una riga |
+|---|---|---|
+| Checkpoint | [2026-11-18-istruzioni-progetto.md](checkpoint/2026-11-18-istruzioni-progetto.md) | promemoria in fondo a una copia dell'ultima domanda, mai un secondo messaggio di sistema; dal vivo in francese 3 su 3 («ciao») e 2 su 2 («che ore sono?»); container 731 passati e 99 saltati |
+
 Specifica e piani degli step successivi arriveranno qui, con lo stesso schema: `specs/AAAA-MM-GG-<argomento>-design.md`, `plans/AAAA-MM-GG-<argomento>.md`, `checkpoint/AAAA-MM-GG-<passo>.md`.
