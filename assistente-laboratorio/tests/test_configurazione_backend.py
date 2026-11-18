@@ -1,7 +1,7 @@
 import pytest
 
 from assistente.configurazione import ErroreConfigurazione
-from servizio_backend.configurazione import ConfigurazioneBackend, carica_configurazione_backend
+from servizio_backend.configurazione import ConfigurazioneBackend, carica_configurazione_backend, leggi_valori_backend
 
 BASE = {
     "BACKEND_PORTA": "8768",
@@ -76,6 +76,14 @@ def test_backend_host_non_ip():
     with pytest.raises(ErroreConfigurazione) as errore:
         carica_configurazione_backend({**BASE, "BACKEND_HOST": "localhost"})
     assert "BACKEND_HOST" in str(errore.value)
+
+
+@pytest.mark.parametrize("nome", ["AGENTE_INDIRIZZO", "POSTGRES_HOST"])
+@pytest.mark.parametrize("valore", ["http://agente", "agente/", "age nte"])
+def test_indirizzo_con_schema_barre_o_spazi(nome, valore):
+    with pytest.raises(ErroreConfigurazione) as errore:
+        leggi_valori_backend({**BASE, nome: valore})
+    assert nome in str(errore.value)
 
 
 def test_spazi_contano_come_vuoti():

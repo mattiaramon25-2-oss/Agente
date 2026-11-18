@@ -36,6 +36,13 @@ def _installa_segnali_di_arresto() -> None:
             signal.signal(getattr(signal, nome), _arresto_su_segnale)
 
 
+def _come_avviare_agente(url_agente: str) -> str:
+    """Sull'host l'agente si avvia con Python; in Compose (AGENTE_INDIRIZZO=agente) è un container."""
+    if url_agente.startswith("http://127.0.0.1:"):
+        return "Avvialo con python -m servizio_agente"
+    return "Avvialo con docker compose up -d agente (o con python -m servizio_agente, se gira sull'host)"
+
+
 def main() -> int:
     configura_flussi()
     try:
@@ -59,7 +66,7 @@ def main() -> int:
         if not agente.salute():
             print(
                 f"Attenzione: l'agente non risponde su {config.url_agente}. "
-                "Avvialo con python -m servizio_agente; il back-end intanto parte."
+                f"{_come_avviare_agente(config.url_agente)}; il back-end intanto parte."
             )
         _installa_segnali_di_arresto()
         app = crea_app(archivio, agente)

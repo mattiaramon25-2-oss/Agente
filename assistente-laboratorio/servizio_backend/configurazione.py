@@ -9,6 +9,19 @@ OBBLIGATORIE = ("BACKEND_PORTA", "AGENTE_PORTA", "POSTGRES_USER", "POSTGRES_PASS
 PORTA_POSTGRES_PREDEFINITA = "5432"
 
 
+def _leggi_nome_host(nome: str, env: Mapping[str, str]) -> str:
+    """Un nome di host o un indirizzo, senza schema, percorso o spazi; vuoto vale 127.0.0.1."""
+    valore = (env.get(nome) or "").strip()
+    if not valore:
+        return HOST_AGENTE_PREDEFINITO
+    if "/" in valore or any(carattere.isspace() for carattere in valore):
+        raise ErroreConfigurazione(
+            f"{nome} deve essere solo un nome di host o un indirizzo (per esempio agente o 127.0.0.1), "
+            f"senza http://, barre o spazi: trovato {valore!r}."
+        )
+    return valore
+
+
 @dataclass(frozen=True)
 class ValoriBackend:
     porta: int
@@ -56,11 +69,11 @@ def leggi_valori_backend(env: Mapping[str, str]) -> ValoriBackend:
         porta=porta,
         host=leggi_indirizzo_ip("BACKEND_HOST", env),
         porta_agente=porta_agente,
-        indirizzo_agente=(env.get("AGENTE_INDIRIZZO") or "").strip() or HOST_AGENTE_PREDEFINITO,
+        indirizzo_agente=_leggi_nome_host("AGENTE_INDIRIZZO", env),
         utente=valori["POSTGRES_USER"],
         password=valori["POSTGRES_PASSWORD"],
         database=valori["POSTGRES_DB"],
-        host_postgres=(env.get("POSTGRES_HOST") or "").strip() or HOST_AGENTE_PREDEFINITO,
+        host_postgres=_leggi_nome_host("POSTGRES_HOST", env),
         porta_postgres=porta_postgres,
     )
 
