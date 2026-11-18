@@ -745,7 +745,7 @@ MCP Inspector è lo strumento grafico ufficiale per provare un server MCP: si co
 
 Che cosa si osserva con l'Inspector che i test già coprono: catalogo, schema, risultato strutturato, errore MCP. Che cosa aggiunge: la prova che un client **diverso** dall'assistente usa il server, cioè che il server è davvero un servizio indipendente.
 
-Con Docker l'Inspector sull'host **non** può collegarsi: il server ascolta su `127.0.0.1` dentro il container e `compose.yaml` non pubblica la porta (commento alla riga 8: *«Il server MCP gira nello stesso container: la porta non va pubblicata.»*). Vedi [08](08-configurazione-avvio-docker.md).
+Con Docker l'Inspector sull'host **non** può collegarsi: il server ascolta su `127.0.0.1` dentro il container e `compose.yaml` non pubblica la porta (commento alla riga 12: *«Il server MCP gira nello stesso container: la porta non va pubblicata.»*). Vedi [08](08-configurazione-avvio-docker.md).
 
 ### 9.4 Con un client Python via HTTP (non eseguito qui)
 

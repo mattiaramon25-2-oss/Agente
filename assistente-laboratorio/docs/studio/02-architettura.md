@@ -51,7 +51,7 @@ flowchart LR
 | Arresto in ordine inverso | `ExitStack` | `assistente/avvio.py:33` |
 | Porte ammesse | 1024–65535, `API_PORTA` diversa da `MCP_PORTA` | `assistente/configurazione.py:28-34`, `:65-66` |
 | Ponte sincrono | `asyncio.run`, 10 s per chiamata | `assistente/client_mcp.py:57-77` |
-| Servizi della lezione 6 | agente su `AGENTE_PORTA`, back-end su `BACKEND_PORTA`, PostgreSQL su `POSTGRES_PORTA` (5432), nginx su `FRONTEND_PORTA` (8780): tutti solo su `127.0.0.1`; in Docker (step 9) il back-end non è pubblicato | `servizio_agente/__main__.py:69`, `servizio_backend/__main__.py:69`, `compose.yaml:73`, `:123` |
+| Servizi della lezione 6 | agente su `AGENTE_PORTA`, back-end su `BACKEND_PORTA`, PostgreSQL su `POSTGRES_PORTA` (5432), nginx su `FRONTEND_PORTA` (8780): tutti solo su `127.0.0.1`; in Docker (step 9) il back-end non è pubblicato | `servizio_agente/__main__.py:69`, `servizio_backend/__main__.py:76`, `compose.yaml:73`, `:123` |
 
 **Se te lo chiedono all'orale**
 
@@ -424,7 +424,7 @@ flowchart LR
 | File | Ruolo architetturale |
 |---|---|
 | `Dockerfile` | immagine `python:3.14-slim`; `ENV ASSISTENTE_IN_DOCKER=1` (il fuso del container, UTC, non va usato) e `PYTHONUNBUFFERED=1`; copia **solo** `assistente/`, `logica/`, `server_mcp/`, `servizio_api/`, `risorse/` (dalla lezione 6 anche `servizio_agente/` e, con lo step 9, `servizio_backend/`); `CMD ["python", "-m", "assistente"]` |
-| `compose.yaml` | nella lezione 5 **un solo servizio** (`assistente`); dalla lezione 6 ce ne sono altri tre (`agente`, `database`, `frontend`, vedi sotto). Il servizio `assistente`: `env_file: .env`; sostituisce `LMSTUDIO_BASE_URL` con `LMSTUDIO_BASE_URL_DOCKER`; richiede con `:?` `MCP_PORTA` e le due varianti; monta `./logs` e `./archivio`; `extra_hosts: host.docker.internal:host-gateway`; `stdin_open` e `tty` per la chat |
+| `compose.yaml` | nella lezione 5 **un solo servizio** (`assistente`); dalla lezione 6 ce ne sono altri cinque (`agente`, `database`, `backend`, `frontend` e `test`, vedi sotto); dallo step 9 `assistente` ha il profilo `cli` e `test` il profilo `test`. Il servizio `assistente`: `env_file: .env`; sostituisce `LMSTUDIO_BASE_URL` con `LMSTUDIO_BASE_URL_DOCKER`; richiede con `:?` `MCP_PORTA` e le due varianti; monta `./logs` e `./archivio`; `extra_hosts: host.docker.internal:host-gateway`; `stdin_open` e `tty` per la chat |
 | `avvia.ps1` | legge il fuso di Windows e lancia `docker compose run --rm -e FUSO_HOST_WINDOWS=<fuso> assistente` (con `-SenzaTty` aggiunge `-T`, per le prove con la pipe) |
 | `.dockerignore` | esclude `.env`, `.venv`, `tests`, `docs`, `logs`, `archivio`, cache e cartelle di riserva delle prove |
 

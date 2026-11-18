@@ -124,7 +124,9 @@ services:
     depends_on:
       - backend
     extra_hosts:
-      # Per le prove del browser: un back-end finto sull'host, raggiunto con questo nome.
+      # Il resolver di nginx (127.0.0.11) non legge /etc/hosts: per le prove del browser
+      # host.docker.internal lo risolve il DNS di Docker Desktop. Questa riga serve agli altri
+      # strumenti del container (curl, wget, getent), che invece leggono /etc/hosts.
       - "host.docker.internal:host-gateway"
 
   # Lezione 6, step 9: la suite automatica in un container Linux (sull'host psycopg non si carica).

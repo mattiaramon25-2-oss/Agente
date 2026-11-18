@@ -913,7 +913,7 @@ di Windows non servono. Per questo lo step 9 ha aggiunto il servizio Compose `te
 | Pezzo | Che cosa fa | Dove |
 |---|---|---|
 | `Dockerfile.test` | `python:3.14-slim` con `requirements-dev.txt`; il comando è `python -m pytest -q -p no:cacheprovider` | `Dockerfile.test:1-6` |
-| servizio `test` | profilo `test` (non parte con `docker compose up`); monta la cartella del progetto in `/app`, quindi prova il codice di adesso senza ricostruire l'immagine | `compose.yaml:132-138` |
+| servizio `test` | profilo `test` (non parte con `docker compose up`); monta la cartella del progetto in `/app`, quindi prova il codice di adesso senza ricostruire l'immagine | `compose.yaml:134-140` |
 | `tests/compose_prova.py` | costanti e funzioni comuni delle prove con Compose, senza `psycopg`: così i test di `docker compose config` si caricano anche sull'host | `tests/compose_prova.py` |
 
 ```powershell
