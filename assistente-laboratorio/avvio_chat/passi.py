@@ -51,6 +51,7 @@ COMANDO_FERMA = ["docker", "compose", "stop"]
 SERVIZI_DELLA_CHAT = ("agente", "backend")
 PORTA_OCCUPATA = ("port is already allocated", "ports are not available")
 STATI_DI_NGINX = (502, 504)  # le risposte di nginx quando il back-end non c'è o non risponde
+SUGGERIMENTO_RICOSTRUISCI = "Se hai appena aggiornato il codice: avvia-chat.cmd --ricostruisci"
 
 
 @dataclass(frozen=True)
@@ -318,7 +319,11 @@ def _chat_che_non_risponde(imp: Impostazioni, attesa: float, dati: dict | None, 
         )
     if dati is None or dati.get("stato") != "ok":
         motivo = f"{errore}" if dati is None else f"risposta {dati!r}"
-        return inizio + f"il back-end non è pronto ({motivo}). Per leggerne il log: {_log('backend')}"
+        # Un'immagine del front-end rimasta allo step 8 inoltra /api all'host: 502 anche col back-end acceso.
+        return inizio + (
+            f"il back-end non è pronto ({motivo}). Per leggerne il log: {_log('backend')}. "
+            f"{SUGGERIMENTO_RICOSTRUISCI}"
+        )
     mancanti = [nome for nome in ("database", "agente") if dati.get(nome) != "ok"]
     dettagli = ", ".join(f"{nome} {dati.get(nome)}" for nome in mancanti)
     comandi = " e ".join(_log(nome) for nome in mancanti)

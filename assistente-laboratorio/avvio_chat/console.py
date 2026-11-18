@@ -54,8 +54,10 @@ def installa_chiusura_console(comando: list[str]) -> None:
                 stderr=subprocess.DEVNULL,
                 creationflags=subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP,
             )
-        except OSError:
-            pass  # la finestra si sta chiudendo: non c'è più nessuno a cui dirlo
+        except Exception:
+            # Un'eccezione non deve uscire da una callback di ctypes: la finestra si sta chiudendo
+            # e non c'è più nessuno a cui dirlo.
+            pass
         return True
 
     rimuovi_chiusura_console()

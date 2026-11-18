@@ -628,6 +628,18 @@ def test_attendi_chat_il_502_di_nginx_non_accusa_il_database(stato):
     assert "database" not in messaggio
 
 
+def test_attendi_chat_il_502_suggerisce_di_ricostruire():
+    """Dopo un aggiornamento un'immagine vecchia del front-end dà 502: il messaggio dice come ricostruirla."""
+    tempo = Tempo()
+
+    def salute(url, limite):
+        raise errore_http(502)
+
+    with pytest.raises(ErroreAvvio) as errore:
+        passi.attendi_chat(impostazioni(), Righe(), salute=salute, pausa=tempo.pausa, orologio=tempo.orologio)
+    assert "se hai appena aggiornato il codice: avvia-chat.cmd --ricostruisci" in str(errore.value).lower()
+
+
 # --- Il programma intero, con Docker, LM Studio e la chat finti ---
 
 
@@ -1139,7 +1151,7 @@ def test_chiudere_la_finestra_lancia_lo_spegnimento(tmp_path):
     """La X della finestra non passa da «esci»: il gestore lancia lo spegnimento in un processo staccato.
 
     Il launcher gira in una console classica nascosta; la console riceve WM_CLOSE, cioè quello che manda
-    il pulsante X. Il comando aspetta 2 secondi prima di lasciare la traccia: a quel punto la finestra
+    il pulsante X. Il comando aspetta 4 secondi prima di lasciare la traccia: a quel punto la finestra
     non c'è più, quindi la traccia compare solo se il processo staccato le è sopravvissuto.
     """
     from ctypes import wintypes
@@ -1149,7 +1161,7 @@ def test_chiudere_la_finestra_lancia_lo_spegnimento(tmp_path):
     codice = (
         "import ctypes, time\n"
         "from avvio_chat import console\n"
-        f"console.installa_chiusura_console({comando_che_scrive(traccia, 2)!r})\n"
+        f"console.installa_chiusura_console({comando_che_scrive(traccia, 4)!r})\n"
         f"ctypes.windll.kernel32.SetConsoleTitleW({titolo!r})\n"
         "time.sleep(120)\n"
     )
@@ -1173,6 +1185,18 @@ def test_chiudere_la_finestra_lancia_lo_spegnimento(tmp_path):
     finally:
         if finestra.poll() is None:
             finestra.kill()
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="la console di Windows")
+def test_un_errore_qualsiasi_non_esce_dal_gestore(monkeypatch, gestore_tolto):
+    """Nella callback di ctypes nessuna eccezione deve uscire: non solo OSError."""
+
+    def rotto(comando, **opzioni):
+        raise ValueError("argomenti non validi")
+
+    monkeypatch.setattr(console.subprocess, "Popen", rotto)
+    console.installa_chiusura_console(["docker", "compose", "stop", "backend", "agente"])
+    assert console._gestore(2)
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="la console di Windows")
