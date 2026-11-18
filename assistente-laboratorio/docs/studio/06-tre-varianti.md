@@ -141,7 +141,7 @@ flowchart LR
 Tre cose da notare:
 
 - **la logica è una sola** (`logica/`): tutte e tre le frecce finiscono lì;
-- **il nodo `strumenti` non sa quale percorso sta usando**: chiama `strumento.invoke(argomenti)` (`assistente/grafo.py:189`) e legge l'origine solo per scriverla nel log (`assistente/grafo.py:171`);
+- **il nodo `strumenti` non sa quale percorso sta usando**: chiama `strumento.invoke(argomenti)` (`assistente/grafo.py:235`) e legge l'origine solo per scriverla nel log (`assistente/grafo.py:217`);
 - **ogni processo ha il suo log**: per questo dai log si capisce che strada ha fatto una chiamata.
 
 ---
@@ -219,7 +219,7 @@ Qualunque sia la variante, il nodo `strumenti` riceve una **stringa**: il risult
 - `tipo: "strumento"`: l'input non va bene (data inesistente, espressione vietata, ...);
 - `tipo: "collegamento"`: il servizio non risponde o risponde male.
 
-Il grafo legge questo campo in `_esito` (`assistente/grafo.py:69-88`) e scrive nel log `esito=ok`, `errore_tool` o `errore_collegamento`. Le costanti `TIPO_STRUMENTO` e `TIPO_COLLEGAMENTO` sono definite in `assistente/client_mcp.py:17-18` e riusate dalla variante locale e dal wrapper.
+Il grafo legge questo campo in `_esito` (`assistente/grafo.py:106-114`) e scrive nel log `esito=ok`, `errore_tool` o `errore_collegamento`. Le costanti `TIPO_STRUMENTO` e `TIPO_COLLEGAMENTO` sono definite in `assistente/client_mcp.py:17-18` e riusate dalla variante locale e dal wrapper.
 
 ### 3.5 L'etichetta `origine`
 
@@ -231,7 +231,7 @@ Ogni strumento porta nei suoi `metadata` la variante da cui viene:
 | locale | `assistente/calcolatrice_locale.py:33` | `{"origine": "locale"}` |
 | FastAPI | `assistente/wrapper_scadenze.py:78` | `{"origine": "fastapi"}` |
 
-Se manca, vale `locale` (`assistente/varianti.py:53`, `assistente/grafo.py:171`). **Il modello non la vede mai**: i `metadata` di LangChain non entrano nella definizione dello strumento inviata a LM Studio (verificato con `convert_to_openai_tool`, §8). Servono solo all'host: per il log, per la riga del terminale e per il messaggio di benvenuto.
+Se manca, vale `locale` (`assistente/varianti.py:53`, `assistente/grafo.py:217`). **Il modello non la vede mai**: i `metadata` di LangChain non entrano nella definizione dello strumento inviata a LM Studio (verificato con `convert_to_openai_tool`, §8). Servono solo all'host: per il log, per la riga del terminale e per il messaggio di benvenuto.
 
 ---
 
@@ -264,7 +264,7 @@ logs/assistente.log   ... origine=mcp tool=calcola call_id=... argomenti={"espre
 logs/server_mcp.log   ... INFO server_mcp chiamata tool=calcola argomenti={"espressione":"(3 + 4) * 2"} esito=ok risultato={"espressione":"(3 + 4) * 2","risultato":14}
 ```
 
-La seconda riga è stata ottenuta davvero, con il client MCP in memoria (l'ora iniziale è omessa). La prima mostra il formato di `_registra` (`assistente/grafo.py:120-133`).
+La seconda riga è stata ottenuta davvero, con il client MCP in memoria (l'ora iniziale è omessa). La prima mostra il formato di `_registra` (`assistente/grafo.py:146-159`).
 
 ---
 
@@ -310,7 +310,7 @@ Con `Annotated[Any, WithJsonSchema(SCHEMA_ESPRESSIONE)]` spariscono entrambe le 
 
 - **Errori di dominio**: `{"errore": ..., "tipo": "strumento"}`, con lo stesso testo della logica.
 - **Errori di collegamento**: impossibili, perché non c'è niente da raggiungere.
-- **Errori imprevisti** (un'eccezione diversa da `ErroreStrumento`): uscirebbero dalla funzione e li catturerebbe il grafo (`assistente/grafo.py:191-193`), che li riporta come `Argomenti non validi per calcola: ...` con `esito=errore_tool`.
+- **Errori imprevisti** (un'eccezione diversa da `ErroreStrumento`): uscirebbero dalla funzione e li catturerebbe il grafo (`assistente/grafo.py:237-239`), che li riporta come `Argomenti non validi per calcola: ...` con `esito=errore_tool`.
 - **Log**: **solo** `logs/assistente.log`. È proprio la differenza da osservare (specifica, sezione 8). Riga reale prodotta con il modello finto:
 
 ```text
@@ -549,7 +549,7 @@ flowchart TD
 
 L'`ExitStack` garantisce che, se il servizio FastAPI non parte, venga spento anche il server MCP già avviato. Lo verifica `tests/test_avvio_unico.py:146` (`test_servizio_che_non_parte_spegne_tutto`).
 
-La lista selezionata va **sia** al modello (`crea_modello` → `chat.bind_tools(strumenti)`, `assistente/modello.py:21`) **sia** al grafo (`crea_grafo`, che costruisce `per_nome`, `assistente/grafo.py:157`). Quello che il modello conosce e quello che il grafo esegue coincidono sempre.
+La lista selezionata va **sia** al modello (`crea_modello` → `chat.bind_tools(strumenti)`, `assistente/modello.py:21`) **sia** al grafo (`crea_grafo`, che costruisce `per_nome`, `assistente/grafo.py:193`). Quello che il modello conosce e quello che il grafo esegue coincidono sempre.
 
 **Non si cambia variante a sessione in corso**: si cambia la variabile e si riavvia (non obiettivo della specifica, sezione 3). Un dettaglio utile: `load_dotenv(override=False)` (`assistente/__main__.py:23`) dà la precedenza alle variabili già impostate nell'ambiente. Lo usano le prove reali (`ambiente_reale({"VARIANTE_...": ...})`) e Docker (`-e VARIANTE_...`). Dal codice segue che anche una variabile impostata in PowerShell prima dell'avvio (`$env:VARIANTE_CALCOLATRICE="locale"`) prevarrebbe sul `.env`. Il README però documenta come verificato solo il cambio nel `.env`.
 
@@ -589,7 +589,7 @@ Conclusioni:
 
 ## 9. Il controllo dell'host, uguale per tutti
 
-Prima di eseguire qualsiasi variante, il nodo `strumenti` controlla gli argomenti (`assistente/grafo.py:172-186`, commento «Controllo dell'host prima dell'esecuzione (slide 5), uguale per ogni variante»). Lo schema lo legge da `strumento.tool_call_schema` (`_schema`, `assistente/grafo.py:91-93`), che funziona sia per lo schema-dizionario del ponte MCP sia per il modello pydantic di `@tool`.
+Prima di eseguire qualsiasi variante, il nodo `strumenti` controlla gli argomenti (`assistente/grafo.py:218-232`, commento «Controllo dell'host prima dell'esecuzione (slide 5), uguale per ogni variante»). Lo schema lo legge da `strumento.tool_call_schema` (`_schema`, `assistente/grafo.py:117-119`), che funziona sia per lo schema-dizionario del ponte MCP sia per il modello pydantic di `@tool`.
 
 - **argomenti obbligatori mancanti** → `Argomenti mancanti per calcola_scadenza: lavorativi. Riprova indicando tutti gli argomenti richiesti.` (commit `ec2b384`);
 - **argomenti non previsti dallo schema** → `Argomenti non previsti per calcola: precisione. Usa solo: espressione.` (commit `5bed890`).
@@ -772,7 +772,7 @@ Test automatici eseguiti per questo documento: `test_varianti.py`, `test_calcola
 | Configurazione delle varianti e di `API_PORTA` | `tests/test_configurazione.py:51-92` |
 | Sostituzione, duplicati, origini, ordine dei parametri | `tests/test_varianti.py` |
 | Avvio completo con ciascuna variante e log giusti | `tests/test_avvio_unico.py:105` (locale: nessuna riga nel server), `:115` (MCP), `:129` (FastAPI: due processi, riga in `servizio_api.log`, nessuna in `server_mcp.log`) |
-| Controllo dell'host uguale per tutte le varianti | `tests/test_grafo.py:223`, `:229`, `:259`, `:276` |
+| Controllo dell'host uguale per tutte le varianti | `tests/test_grafo.py:212`, `:232`, `:262`, `:279` |
 
 **Prove reali** (attivate solo con `--lmstudio` o `--docker`, non eseguite per questo documento):
 

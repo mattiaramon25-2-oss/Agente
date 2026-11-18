@@ -32,10 +32,10 @@ flowchart LR
 | Cosa | Valore | Dove |
 |---|---|---|
 | I file di log | `logs/assistente.log`, `logs/server_mcp.log`, `logs/servizio_api.log` (più `logs/servizio_backend.log` dal back-end delle chat, capitolo 14 §8) | `assistente/registro.py:8-12` |
-| Riga di una chiamata | sette campi, da `origine` a `tool_message.call_id` | `assistente/grafo.py:120-133` |
-| Scelta tra `ok`, `errore_tool`, `errore_collegamento` | chiave `errore` e campo `tipo` del JSON restituito | `assistente/grafo.py:69-88` |
+| Riga di una chiamata | sette campi, da `origine` a `tool_message.call_id` | `assistente/grafo.py:146-159` |
+| Scelta tra `ok`, `errore_tool`, `errore_collegamento` | chiave `errore` e campo `tipo` del JSON restituito | `assistente/grafo.py:106-114` |
 | Il terminale stampa | solo i `ToolMessage` con `status` diverso da `error` | `assistente/terminale.py:32` |
-| Giri di strumento per turno | 3 (`MAX_GIRI_STRUMENTO`) | `assistente/grafo.py:20` |
+| Giri di strumento per turno | 3 (`MAX_GIRI_STRUMENTO`) | `assistente/grafo.py:26` |
 | Tempi massimi | ponte MCP 10 s; meteo 8 s in tutto | `assistente/client_mcp.py:16`, `logica/meteo.py:20` |
 
 **Se te lo chiedono all'orale**
@@ -194,7 +194,7 @@ Quattro dettagli da saper spiegare:
 
 ### 2.4 La riga di una chiamata: i campi
 
-Ogni chiamata a uno strumento, eseguita o rifiutata, passa da `_registra()` (`assistente/grafo.py:120-133`). La funzione scrive una riga con sette campi, sempre in quest'ordine:
+Ogni chiamata a uno strumento, eseguita o rifiutata, passa da `_registra()` (`assistente/grafo.py:146-159`). La funzione scrive una riga con sette campi, sempre in quest'ordine:
 
 | Campo | Significato | Da dove viene |
 |---|---|---|
@@ -208,7 +208,7 @@ Ogni chiamata a uno strumento, eseguita o rifiutata, passa da `_registra()` (`as
 
 **I due id devono coincidere.** Così si dimostra che il risultato è tornato al modello agganciato alla richiesta giusta. Il protocollo del tool calling lo esige: ogni richiesta del modello va chiusa da un `ToolMessage` con lo stesso id, altrimenti la cronologia non è valida (vedi [04](04-grafo-langgraph.md)).
 
-Un dettaglio su `origine`: `sconosciuta` compare per uno strumento inesistente e per gli argomenti non JSON (`grafo.py:168`, `:127`). Se invece uno strumento esiste ma non ha `metadata`, il nodo `strumenti` scrive `locale` (`grafo.py:171`, coerente con `varianti.origini`). Nel progetto tutti gli strumenti hanno `metadata`, quindi il caso non si presenta.
+Un dettaglio su `origine`: `sconosciuta` compare per uno strumento inesistente e per gli argomenti non JSON (`grafo.py:214`, `:167`). Se invece uno strumento esiste ma non ha `metadata`, il nodo `strumenti` scrive `locale` (`grafo.py:217`, coerente con `varianti.origini`). Nel progetto tutti gli strumenti hanno `metadata`, quindi il caso non si presenta.
 
 I cinque valori di `esito`:
 
@@ -220,7 +220,7 @@ I cinque valori di `esito`:
 | `strumento_sconosciuto` | il modello ha chiesto un nome che non esiste | `error` | no |
 | `limite` | richiesta arrivata dopo 3 giri di strumento: **non eseguita** | `error` | no |
 
-La classificazione tra `ok`, `errore_tool` ed `errore_collegamento` la fa `_esito()` (`assistente/grafo.py:69-88`), leggendo il JSON restituito: se c'è la chiave `errore`, `tipo == "collegamento"` dà `errore_collegamento` e tutto il resto dà `errore_tool`. Lo `status` è `success` solo con `esito=ok` (`assistente/grafo.py:198`). Il terminale stampa soltanto le chiamate con `status` diverso da `error` (`assistente/terminale.py:32`). Quindi **una chiamata fallita si vede solo nel log**.
+La classificazione tra `ok`, `errore_tool` ed `errore_collegamento` la fa `_esito()` (`assistente/grafo.py:106-114`), leggendo il JSON restituito: se c'è la chiave `errore`, `tipo == "collegamento"` dà `errore_collegamento` e tutto il resto dà `errore_tool`. Lo `status` è `success` solo con `esito=ok` (`assistente/grafo.py:244`). Il terminale stampa soltanto le chiamate con `status` diverso da `error` (`assistente/terminale.py:32`). Quindi **una chiamata fallita si vede solo nel log**.
 
 ### 2.5 Esempi reali, caso per caso
 
@@ -273,10 +273,10 @@ Con i tempi massimi veri il testo diventa `Server MCP: nessuna risposta entro 10
 
 ### 2.6 Che cosa notare in questi esempi
 
-1. **`origine` dice quale variante l'host ha scelto, non che la chiamata sia arrivata.** La riga `call_kl11` ha `origine=fastapi`, ma la chiamata non è mai partita: il nodo `strumenti` l'ha rifiutata per l'argomento mancante (`assistente/grafo.py:173-180`). Per sapere se è arrivata si guardano l'`esito` e il log dell'altro processo (§5).
-2. **Argomenti inventati e mancanti si fermano nell'host, uguali per ogni variante.** Il controllo usa lo schema dello strumento (`_argomenti_mancanti` e `_argomenti_in_piu`, `assistente/grafo.py:96-113`). È nato da due problemi. Un argomento mancante dava un errore pydantic in inglese (correzione `ec2b384`). Un argomento in più arrivava a FastMCP, che rispondeva con un errore in inglese e senza riga nel log, mentre la variante `@tool` lo ignorava (correzione `5bed890`).
-3. **Con argomenti non JSON, `argomenti` contiene il testo grezzo.** La chiamata arriva da `invalid_tool_calls`, dove `args` è una stringa, e `origine` vale `sconosciuta` (`assistente/grafo.py:136-143`). Anche questa richiesta va chiusa con un `ToolMessage`, altrimenti la cronologia resterebbe invalida.
-4. **Il JSON degli errori ha gli spazi** (`"errore": "…"`), quello dei risultati MCP no. Gli errori sono prodotti da `json.dumps` con i separatori predefiniti (`client_mcp.py:27`, `grafo.py:61`, `grafo.py:117`). I risultati MCP sono il testo compatto del server (`server_mcp/server.py:94-95`). Anche il risultato della calcolatrice locale ha gli spazi (`calcolatrice_locale.py:29`): è una differenza di forma nota e rimandata (checkpoint del passo 2).
+1. **`origine` dice quale variante l'host ha scelto, non che la chiamata sia arrivata.** La riga `call_kl11` ha `origine=fastapi`, ma la chiamata non è mai partita: il nodo `strumenti` l'ha rifiutata per l'argomento mancante (`assistente/grafo.py:219-226`). Per sapere se è arrivata si guardano l'`esito` e il log dell'altro processo (§5).
+2. **Argomenti inventati e mancanti si fermano nell'host, uguali per ogni variante.** Il controllo usa lo schema dello strumento (`_argomenti_mancanti` e `_argomenti_in_piu`, `assistente/grafo.py:122-139`). È nato da due problemi. Un argomento mancante dava un errore pydantic in inglese (correzione `ec2b384`). Un argomento in più arrivava a FastMCP, che rispondeva con un errore in inglese e senza riga nel log, mentre la variante `@tool` lo ignorava (correzione `5bed890`).
+3. **Con argomenti non JSON, `argomenti` contiene il testo grezzo.** La chiamata arriva da `invalid_tool_calls`, dove `args` è una stringa, e `origine` vale `sconosciuta` (`assistente/grafo.py:162-169`). Anche questa richiesta va chiusa con un `ToolMessage`, altrimenti la cronologia resterebbe invalida.
+4. **Il JSON degli errori ha gli spazi** (`"errore": "…"`), quello dei risultati MCP no. Gli errori sono prodotti da `json.dumps` con i separatori predefiniti (`client_mcp.py:27`, `grafo.py:98`, `grafo.py:143`). I risultati MCP sono il testo compatto del server (`server_mcp/server.py:94-95`). Anche il risultato della calcolatrice locale ha gli spazi (`calcolatrice_locale.py:29`): è una differenza di forma nota e rimandata (checkpoint del passo 2).
 5. **Il limite si vede dal quarto `call_id`.** Le tre chiamate precedenti sono `ok`, quindi sono state eseguite davvero (§7.4).
 6. **L'ora nel `risultato` dell'orologio non è l'ora della riga**: qui l'istante era fisso. Con il server vero `adesso` è `ora_utc` (`server_mcp/server.py:118`), quindi le due ore coincidono, a parte il fuso.
 7. **I log contengono i dati dell'utente**: testi delle note, città, espressioni. Restano sul disco, fuori da Git.
@@ -467,7 +467,7 @@ Si confrontano **strumento, argomenti e ora** (README, sezione «Log»):
 |---|---|
 | **strumento** | `tool=<nome>` in entrambi i file |
 | **argomenti** | Possono differire per i valori predefiniti che il server aggiunge (`list_notes`, `search_catalog`). Il server registra con `_json`, l'assistente con `formatta`: entrambi producono JSON compatto, quindi a parità di valori il testo coincide |
-| **ora** | `assistente.log` è al secondo, `server_mcp.log` al millesimo. La riga del server viene **prima**, perché l'host scrive la sua solo dopo aver ricevuto il risultato (`_registra` è chiamata dopo `invoke`, `assistente/grafo.py:188-200`) |
+| **ora** | `assistente.log` è al secondo, `server_mcp.log` al millesimo. La riga del server viene **prima**, perché l'host scrive la sua solo dopo aver ricevuto il risultato (`_registra` è chiamata dopo `invoke`, `assistente/grafo.py:233-246`) |
 | **fuso dell'ora** | `asctime` usa l'ora locale del processo. In Docker assistente e server girano nello stesso container, quindi i due file sono coerenti tra loro. Il container però è in UTC (lo dice il commento del `Dockerfile`, e `compose.yaml` non imposta `TZ`). L'ora delle righe scritte dal container dovrebbe quindi essere UTC, diversa dall'orologio di Windows. È una deduzione dal codice, non una verifica |
 
 ```mermaid
@@ -662,7 +662,7 @@ Il servizio è pronto quando `/openapi.json` descrive `/scadenza` (`assistente/a
 
 ### Livello 7 — Grafo: argomenti e limite
 
-Sono gli errori che l'host produce da solo, prima di eseguire o al posto di eseguire (`assistente/grafo.py:163-215`):
+Sono gli errori che l'host produce da solo, prima di eseguire o al posto di eseguire (`assistente/grafo.py:209-261`):
 
 | Contenuto | Esito | Codice |
 |---|---|---|
@@ -687,7 +687,7 @@ Arrivati qui, tutto il resto funziona: il problema è che cosa il modello decide
 | il modello dice di aver salvato o eliminato qualcosa che nel log non c'è | falsa dichiarazione (§7.1) | controllare con «Quali note ho?» (`list_notes`); riprovare |
 | `(nessuna risposta dal modello)` nel terminale | l'ultimo messaggio del modello è vuoto (`assistente/terminale.py:11`, `:83-84`) | riprovare la domanda |
 
-Le leve a disposizione sono poche e note: le **descrizioni** degli strumenti (`server_mcp/server.py:43-89`), il **messaggio di sistema** (`assistente/grafo.py:38-57`) e il **modello**. Il modello si cambia solo con `LMSTUDIO_MODEL`, e la scelta spetta all'utente.
+Le leve a disposizione sono poche e note: le **descrizioni** degli strumenti (`server_mcp/server.py:43-89`), il **messaggio di sistema** (`assistente/grafo.py:51-73`) e il **modello**. Il modello si cambia solo con `LMSTUDIO_MODEL`, e la scelta spetta all'utente.
 
 ---
 
@@ -707,7 +707,7 @@ Tutto quello che segue è documentato nei checkpoint (`docs/superpowers/checkpoi
 - in `assistente.log` manca la riga `origine=mcp tool=add_note`;
 - in `server_mcp.log` manca `modifica note operazione=aggiunta`.
 
-**Perché il codice non può impedirlo.** Nel tool calling è il **modello** a decidere se produrre una richiesta di strumento. Se genera solo testo, `instrada_dopo_modello` trova un `AIMessage` senza `tool_calls` e chiude il turno (`assistente/grafo.py:146-152`). Il codice non ha niente da eseguire e niente da registrare.
+**Perché il codice non può impedirlo.** Nel tool calling è il **modello** a decidere se produrre una richiesta di strumento. Se genera solo testo, `instrada_dopo_modello` trova un `AIMessage` senza `tool_calls` e chiude il turno (`assistente/grafo.py:172-178`). Il codice non ha niente da eseguire e niente da registrare.
 
 ```mermaid
 flowchart LR
@@ -718,7 +718,7 @@ flowchart LR
 
 Le contromisure adottate riducono il problema ma non lo eliminano:
 
-- il messaggio di sistema dice: *«Non dire mai di aver salvato, eliminato, calcolato o cercato qualcosa senza aver chiamato lo strumento in questo turno: se non hai chiamato lo strumento, non l'hai fatto.»* (`assistente/grafo.py:48-49`, introdotto nel commit `fe2048d`);
+- il messaggio di sistema dice: *«Non dire mai di aver salvato, eliminato, calcolato o cercato qualcosa senza aver chiamato lo strumento in questo turno: se non hai chiamato lo strumento, non l'hai fatto.»* (`assistente/grafo.py:61-62`, introdotto nel commit `fe2048d`);
 - la descrizione di `add_note` spiega quando usarla (`server_mcp/server.py:74-77`);
 - la riga del terminale rende **visibile** l'assenza della chiamata.
 
@@ -726,7 +726,7 @@ Il codice non tenta di riconoscere la frase «ho salvato» per forzare una chiam
 
 ### 7.2 Calcolo a mente e mancati nuovi tentativi
 
-Il messaggio di sistema chiede di usare sempre gli strumenti per conversioni e calcoli, senza farli a mente (`assistente/grafo.py:46-47`). Il checkpoint del passo 5 riporta due casi, comparsi dopo che il messaggio di sistema era diventato più lungo:
+Il messaggio di sistema chiede di usare sempre gli strumenti per conversioni e calcoli, senza farli a mente (`assistente/grafo.py:59-60`). Il checkpoint del passo 5 riporta due casi, comparsi dopo che il messaggio di sistema era diventato più lungo:
 
 - **calcolatrice locale**: alla domanda «Quanto fa (3+4)*2?» il modello ha risposto «14» **a mente**. Il numero era giusto, ma senza una chiamata non si può dire che lo strumento abbia funzionato. La prova reale lo considera un fallimento, perché cerca la riga `origine=locale tool=calcola`;
 - **«750 ml in litri»**: il modello ha passato `litri` come unità, ha ricevuto l'errore `Unità sconosciuta` e **non ha riprovato** con `l`.
@@ -749,7 +749,7 @@ A ogni chiamata il modello riceve il messaggio di sistema (una decina di regole)
 
 Altre osservazioni utili:
 
-- **Eliminazione senza ID.** La regola chiede di elencare le note e di chiedere conferma prima di eliminare (`assistente/grafo.py:52-54`). Dopo la correzione, con una nota sola e con due note simili, il modello ha elencato e chiesto. Il README avverte però che «con una sola nota corrispondente un modello piccolo può eliminarla direttamente». Le prove `test_eliminazione_senza_id_solo_osservata` e `test_eliminazione_ambigua_solo_osservata` (`tests/test_reale_note.py:64`, `:81`) **osservano e riportano**, ma non falliscono: il risultato dipende dal modello, non dal codice. La conferma umana obbligatoria nel grafo è stata esclusa di proposito, perché anticiperebbe l'intervento umano delle lezioni successive (checkpoint del passo 5).
+- **Eliminazione senza ID.** La regola chiede di elencare le note e di chiedere conferma prima di eliminare (`assistente/grafo.py:65-67`). Dopo la correzione, con una nota sola e con due note simili, il modello ha elencato e chiesto. Il README avverte però che «con una sola nota corrispondente un modello piccolo può eliminarla direttamente». Le prove `test_eliminazione_senza_id_solo_osservata` e `test_eliminazione_ambigua_solo_osservata` (`tests/test_reale_note.py:64`, `:81`) **osservano e riportano**, ma non falliscono: il risultato dipende dal modello, non dal codice. La conferma umana obbligatoria nel grafo è stata esclusa di proposito, perché anticiperebbe l'intervento umano delle lezioni successive (checkpoint del passo 5).
 - **La regola «in questo turno»** del messaggio di sistema può essere letta in modo troppo stretto: è un difetto minore rimandato (checkpoint conclusivo).
 - **La soluzione proposta** è sempre la stessa: provare un modello più grande cambiando solo `LMSTUDIO_MODEL`. Il codice non cambia, perché nome, descrizione e schema degli strumenti arrivano dalla discovery.
 
@@ -757,7 +757,7 @@ Altre osservazioni utili:
 
 È un limite **del codice**, non del modello, e conviene saperlo spiegare bene.
 
-**Come funziona un turno.** `esegui_turno` chiama `grafo.invoke(...)` e restituisce la cronologia **solo alla fine** (`assistente/grafo.py:228-237`). Gli strumenti non sollevano mai eccezioni verso il grafo: il ponte, il wrapper e il nodo `strumenti` trasformano tutto in un `ToolMessage`. L'unico nodo che può far fallire un turno a metà è quindi `nodo_modello`, per esempio alla seconda chiamata, se LM Studio si è chiuso. In quel caso `invoke` non restituisce niente. Il terminale cattura l'eccezione, stampa `Errore: …` e **tiene la cronologia di prima** (`assistente/terminale.py:71-78`):
+**Come funziona un turno.** `esegui_turno` chiama `grafo.invoke(...)` e restituisce la cronologia **solo alla fine** (`assistente/grafo.py:281-293`). Gli strumenti non sollevano mai eccezioni verso il grafo: il ponte, il wrapper e il nodo `strumenti` trasformano tutto in un `ToolMessage`. L'unico nodo che può far fallire un turno a metà è quindi `nodo_modello`, per esempio alla seconda chiamata, se LM Studio si è chiuso. In quel caso `invoke` non restituisce niente. Il terminale cattura l'eccezione, stampa `Errore: …` e **tiene la cronologia di prima** (`assistente/terminale.py:71-78`):
 
 ```python
 try:
@@ -932,14 +932,14 @@ Una presentazione di circa 9 slide su questo capitolo. Ogni slide: titolo, tre p
 - `origine` dice quale variante ha scelto l'host
 - `call_id` e `tool_message.call_id` devono coincidere
 
-*Da mostrare:* il codice di `assistente/grafo.py:120-133` e una riga riuscita della sezione 2.5.
+*Da mostrare:* il codice di `assistente/grafo.py:146-159` e una riga riuscita della sezione 2.5.
 
 ### Slide 4 · Cinque esiti
 - `ok`, `errore_tool`, `errore_collegamento`, `strumento_sconosciuto`, `limite`
 - Il campo `tipo` separa errore dell'input ed errore di rete
 - Il terminale mostra solo le chiamate riuscite
 
-*Da mostrare:* la tabella degli esiti della sezione 2.4 e il codice di `assistente/grafo.py:69-88`.
+*Da mostrare:* la tabella degli esiti della sezione 2.4 e il codice di `assistente/grafo.py:106-114`.
 
 ### Slide 5 · Incrociare i log
 - Il `call_id` nasce nel modello e non arriva al server

@@ -145,15 +145,15 @@ flowchart LR
 
 | Tema | Valore | Dove |
 |---|---|---|
-| Nodi del grafo | `modello`, `strumenti`, `limite`, più `router` e `rifiuto` quando c'è il router (sempre, con `crea_agente`); dopo `router` decide `instrada_dopo_router`, dopo `modello` `instrada_dopo_modello` | `assistente/grafo.py:253-266`, `:156`, `:147` |
-| Stato | `messages` (con `add_messages`), `fuso_utente`, `giri_strumento`, più `categoria` e `istruzioni` (facoltativi) | `assistente/grafo.py:42-47` |
-| Limite di giri | `MAX_GIRI_STRUMENTO = 3` per turno, poi un testo fisso di scuse | `assistente/grafo.py:24-27` |
+| Nodi del grafo | `modello`, `strumenti`, `limite`, più `router` e `rifiuto` quando c'è il router (sempre, con `crea_agente`); dopo `router` decide `instrada_dopo_router`, dopo `modello` `instrada_dopo_modello` | `assistente/grafo.py:263-278`, `:181`, `:172` |
+| Stato | `messages` (con `add_messages`), `fuso_utente`, `giri_strumento`, più `categoria` e `istruzioni` (facoltativi) | `assistente/grafo.py:43-48` |
+| Limite di giri | `MAX_GIRI_STRUMENTO = 3` per turno, poi un testo fisso di scuse | `assistente/grafo.py:26-29` |
 | Server MCP | FastMCP, trasporto HTTP (Streamable HTTP), `http://127.0.0.1:<MCP_PORTA>/mcp` | `server_mcp/__main__.py:39-44`, `assistente/avvio_server.py:143` |
 | Dieci strumenti | `ora_corrente`, `converti_unita`, `calcola`, `calcola_scadenza`, `search_catalog`, `get_item`, `add_note`, `list_notes`, `delete_note`, `get_weather` | `server_mcp/server.py:128-193` |
 | Varianti | `VARIANTE_CALCOLATRICE` = `mcp`/`locale`; `VARIANTE_SCADENZE` = `mcp`/`fastapi`; una sola versione per nome | `assistente/configurazione.py:7-8`, `assistente/varianti.py:17-43` |
 | Server pronto | solo quando la discovery (`tools/list`) riesce, non un semplice HTTP 200; attesa massima 10 s | `assistente/avvio_server.py:25`, `:154-169` |
 | Tempi massimi | MCP 10 s, FastAPI 5 s, meteo 4 s per fase e 8 s in tutto, LM Studio 120 s | `client_mcp.py:16`, `wrapper_scadenze.py:19`, `logica/meteo.py:17-20`, `modello.py:18` |
-| Esiti nel log | `ok`, `errore_tool`, `errore_collegamento`, `strumento_sconosciuto`, `limite` | `assistente/grafo.py:95-103` (primi tre), `:189` (`strumento_sconosciuto`), `:233` (`limite`); README «Log» |
+| Esiti nel log | `ok`, `errore_tool`, `errore_collegamento`, `strumento_sconosciuto`, `limite` | `assistente/grafo.py:106-114` (primi tre), `:214` (`strumento_sconosciuto`), `:258` (`limite`); README «Log» |
 | Log | `logs/assistente.log` (scritto anche dal servizio dell'agente), `logs/server_mcp.log`, `logs/servizio_api.log` (solo con `fastapi`), `logs/servizio_backend.log` (solo con il back-end) | `assistente/registro.py:9-13` |
 | Persistenza | nel terminale la cronologia è solo in memoria e le note stanno in `archivio/note.sqlite3`; nella chat nel browser progetti, chat e messaggi stanno in PostgreSQL (volume Docker `dati_postgres`) | `logica/note.py:19`, `servizio_backend/schema.sql:3-27`, `compose.yaml:76` |
 | Fuso, in ordine | `FUSO_HOST_WINDOWS` (da `avvia.ps1`), poi il fuso del computer (solo fuori da Docker), poi `FUSO_ORARIO`, poi `UTC` con avviso | `assistente/fuso.py:36-53` |
@@ -163,7 +163,7 @@ flowchart LR
 | Chat nel browser | cartella `frontend/` (Svelte 5, Vite); nginx nel container `frontend` su `127.0.0.1:8780` (`FRONTEND_PORTA`) inoltra `/api` al container `backend`, risolvendone il nome a ogni richiesta; il testo del modello passa solo da `rendiMarkdown` | `compose.yaml:114-130`, `frontend/nginx/default.conf.template:16-27`, `frontend/src/lib/markdown.ts:38` |
 | Test | suite nel container il 18/11/2026: 717 passati e 98 saltati (prove reali e test solo per Windows); sull'host i test del doppio clic, di `avvia.ps1` e di nginx 104 passati e 1 saltato, quelli di Compose (`--docker`) 7 passati; front-end `npm test` 108 passati (12/11); vedi capitolo 09 §10.6 | `docker compose run --rm test`, `npm test` |
 
-**Prova lampo.** Eseguita davvero con il modello finto di `tests/finti.py`, senza LM Studio. Lo script costruisce il grafo con `crea_grafo` (`assistente/grafo.py:155`), passando `ModelloFinto` con due risposte preparate e `orologio_finto` fermo al 2026-11-08 20:13 UTC. Poi esegue un turno con `esegui_turno` (`assistente/grafo.py:228`). Questa è la cronologia restituita:
+**Prova lampo.** Eseguita davvero con il modello finto di `tests/finti.py`, senza LM Studio. Lo script costruisce il grafo con `crea_grafo` (`assistente/grafo.py:185`), passando `ModelloFinto` con due risposte preparate e `orologio_finto` fermo al 2026-11-08 20:13 UTC. Poi esegue un turno con `esegui_turno` (`assistente/grafo.py:281`). Questa è la cronologia restituita:
 
 ```
 HumanMessage | che ore sono a Tokyo?

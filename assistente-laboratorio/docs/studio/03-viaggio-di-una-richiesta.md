@@ -48,7 +48,7 @@ flowchart LR
 
 | Cosa | Valore | Dove |
 |---|---|---|
-| Giri di strumento per turno | al massimo 3 (`MAX_GIRI_STRUMENTO`) | `assistente/grafo.py:20` |
+| Giri di strumento per turno | al massimo 3 (`MAX_GIRI_STRUMENTO`) | `assistente/grafo.py:26` |
 | Attesa massima di una chiamata MCP | 10 secondi (`TIMEOUT_CHIAMATA`) | `assistente/client_mcp.py:16` |
 | Attesa massima del wrapper FastAPI | 5 secondi (`TIMEOUT_HTTP`) | `assistente/wrapper_scadenze.py:19` |
 | L'unico punto asincrono | `asyncio.run(asyncio.wait_for(...))` | `assistente/client_mcp.py:62` |
@@ -226,12 +226,12 @@ il modo in cui il nodo `strumenti` ottiene il risultato.
 | Passo | File e funzione | Che cosa succede |
 |---|---|---|
 | 1 | `terminale.py:63` `esegui_sessione` | `leggi("Tu: ")`, tolti BOM e spazi; riga vuota ignorata, `esci` chiude |
-| 2 | `terminale.py:72` → `grafo.py:228` `esegui_turno` | costruisce lo stato iniziale e chiama `grafo.invoke` |
-| 3 | `grafo.py:159` `nodo_modello` | primo giro: il modello chiede uno strumento (`AIMessage` con `tool_calls`) |
-| 4 | `grafo.py:146` `instrada_dopo_modello` | ci sono `tool_calls` e `giri_strumento < 3` → `"strumenti"` |
-| 5 | `grafo.py:163` `nodo_strumenti` | controlla gli argomenti, esegue lo strumento, crea il `ToolMessage`, scrive il log |
-| 6 | `grafo.py:159` `nodo_modello` | secondo giro: il modello legge il risultato e risponde |
-| 7 | `grafo.py:146` `instrada_dopo_modello` | nessuna `tool_calls` → `END` |
+| 2 | `terminale.py:72` → `grafo.py:281` `esegui_turno` | costruisce lo stato iniziale e chiama `grafo.invoke` |
+| 3 | `grafo.py:202` `nodo_modello` | primo giro: il modello chiede uno strumento (`AIMessage` con `tool_calls`) |
+| 4 | `grafo.py:172` `instrada_dopo_modello` | ci sono `tool_calls` e `giri_strumento < 3` → `"strumenti"` |
+| 5 | `grafo.py:209` `nodo_strumenti` | controlla gli argomenti, esegue lo strumento, crea il `ToolMessage`, scrive il log |
+| 6 | `grafo.py:202` `nodo_modello` | secondo giro: il modello legge il risultato e risponde |
+| 7 | `grafo.py:172` `instrada_dopo_modello` | nessuna `tool_calls` → `END` |
 | 8 | `terminale.py:80-84` | stampa una riga `[strumento · origine: valori]` per ogni chiamata riuscita, poi la risposta |
 
 ```mermaid
@@ -249,10 +249,10 @@ flowchart LR
 
 | Tipo | Chi lo crea | Campi importanti | Resta nella cronologia? |
 |---|---|---|---|
-| `SystemMessage` | `messaggio_sistema(fuso)` (`grafo.py:38-57`) | le regole, con il fuso dell'utente | **no**: viene ricreato e anteposto a ogni chiamata del modello (`grafo.py:160`) |
-| `HumanMessage` | `esegui_turno` (`grafo.py:232`) | `content` = il testo scritto | sì |
+| `SystemMessage` | `messaggio_sistema(fuso)` (`grafo.py:51-73`) | le regole, con il fuso dell'utente | **no**: viene ricreato e anteposto a ogni chiamata del modello (`grafo.py:204-206`) |
+| `HumanMessage` | `esegui_turno` (`grafo.py:287`) | `content` = il testo scritto | sì |
 | `AIMessage` con `tool_calls` | il modello | `content` vuoto, `tool_calls=[{name, args, id, type}]` | sì |
-| `ToolMessage` | `nodo_strumenti` (`grafo.py:229-234`) | `content` (stringa JSON), `tool_call_id`, `name`, `status` (`success`/`error`) | sì |
+| `ToolMessage` | `nodo_strumenti` (`grafo.py:240-245`) | `content` (stringa JSON), `tool_call_id`, `name`, `status` (`success`/`error`) | sì |
 | `AIMessage` finale | il modello | `content` = la risposta | sì |
 
 Il **`tool_call_id`** del `ToolMessage` deve essere uguale all'`id` della richiesta nell'`AIMessage`:
@@ -262,17 +262,17 @@ riga del terminale (`terminale.py:32`) e, indirettamente, per il campo `esito` d
 
 ### Come si legge una riga di `assistente.log`
 
-Ogni chiamata a uno strumento produce una riga scritta da `_registra` (`grafo.py:120-133`) con il
+Ogni chiamata a uno strumento produce una riga scritta da `_registra` (`grafo.py:146-159`) con il
 formato `chiave=valore` di `formatta` (`registro.py:15-24`): le stringhe così come sono (con gli a
 capo trasformati in spazi), gli altri valori come JSON compatto.
 
 | Campo | Da dove viene | Valori possibili |
 |---|---|---|
-| `origine` | `strumento.metadata["origine"]` (`grafo.py:171`) | `mcp`, `locale`, `fastapi`, `sconosciuta` |
+| `origine` | `strumento.metadata["origine"]` (`grafo.py:217`) | `mcp`, `locale`, `fastapi`, `sconosciuta` |
 | `tool` | `chiamata["name"]` | il nome chiesto dal modello |
 | `call_id` | `chiamata["id"]`, deciso dal server del modello | per esempio `call_tokyo_01` |
 | `argomenti` | `chiamata["args"]` (dizionario → JSON compatto) | `{"fuso":"Asia/Tokyo"}` |
-| `esito` | `_esito(contenuto)` (`grafo.py:69-88`) o i controlli del nodo | `ok`, `errore_tool`, `errore_collegamento`, `strumento_sconosciuto`, `limite` |
+| `esito` | `_esito(contenuto)` (`grafo.py:106-114`) o i controlli del nodo | `ok`, `errore_tool`, `errore_collegamento`, `strumento_sconosciuto`, `limite` |
 | `risultato` | la stringa restituita dallo strumento, **così com'è** | JSON del risultato o dell'errore |
 | `tool_message.call_id` | `ToolMessage.tool_call_id` | deve coincidere con `call_id` |
 
@@ -296,7 +296,7 @@ Non è vuoto e non è `esci`, quindi si passa a `esegui_turno(grafo, cronologia,
 
 ### 2.2 `esegui_turno` costruisce lo stato
 
-`grafo.py:230-236`. Lo stato iniziale, così come è arrivato a `grafo.invoke` nell'esperimento:
+`grafo.py:285-292`. Lo stato iniziale, così come è arrivato a `grafo.invoke` nell'esperimento:
 
 ```json
 {
@@ -308,12 +308,12 @@ Non è vuoto e non è `esci`, quindi si passa a `esegui_turno(grafo, cronologia,
 
 `giri_strumento` riparte da 0 a ogni turno: il limite di 3 vale **per turno**, non per sessione.
 La lista `cronologia` del terminale non viene modificata: `esegui_turno` crea una lista nuova e
-restituisce la cronologia completa alla fine (`grafo.py:237`). Il grafo non ha un checkpointer: la
+restituisce la cronologia completa alla fine (`grafo.py:293`). Il grafo non ha un checkpointer: la
 memoria della conversazione è proprio questa lista, che il terminale ripassa a ogni turno.
 
 ### 2.3 Primo giro del modello: la richiesta di strumento
 
-`nodo_modello` (`grafo.py:159-161`) chiama `modello.invoke([SystemMessage, HumanMessage])`.
+`nodo_modello` (`grafo.py:202-207`) chiama `modello.invoke([SystemMessage, HumanMessage])`.
 Nell'esperimento il modello finto ha registrato esattamente questa sequenza di tipi:
 `["SystemMessage", "HumanMessage"]`.
 
@@ -363,28 +363,28 @@ La risposta del modello, convertita da LangChain, è un `AIMessage` come questo:
 Due osservazioni da orale:
 
 - il modello traduce «Tokyo» in `Asia/Tokyo` perché il messaggio di sistema glielo chiede
-  (`grafo.py:44-45`) e perché la descrizione dello strumento lo suggerisce
+  (`grafo.py:57-58`) e perché la descrizione dello strumento lo suggerisce
   (`server_mcp/server.py:47-50`). Il programma non fa nessuna traduzione da città a fuso;
 - l'`id` (`call_tokyo_01` nell'esperimento) lo genera **il server del modello**, non il programma.
 
 ### 2.4 L'instradamento
 
-`instrada_dopo_modello` (`grafo.py:146-152`): l'ultimo messaggio ha `tool_calls` e
-`giri_strumento` vale 0 (minore di `MAX_GIRI_STRUMENTO = 3`, `grafo.py:20`), quindi la funzione
+`instrada_dopo_modello` (`grafo.py:172-178`): l'ultimo messaggio ha `tool_calls` e
+`giri_strumento` vale 0 (minore di `MAX_GIRI_STRUMENTO = 3`, `grafo.py:26`), quindi la funzione
 restituisce `"strumenti"`.
 
 ### 2.5 Il nodo `strumenti` prepara la chiamata
 
-`nodo_strumenti` (`grafo.py:163-203`), per ogni elemento di `tool_calls`:
+`nodo_strumenti` (`grafo.py:209-249`), per ogni elemento di `tool_calls`:
 
-1. cerca lo strumento per nome nel dizionario `per_nome` (`grafo.py:157`, `152`): trovato;
+1. cerca lo strumento per nome nel dizionario `per_nome` (`grafo.py:212`, `193`): trovato;
 2. legge l'origine dai metadati: `"mcp"`, messa da `avvolgi` (`client_mcp.py:76`);
-3. **controllo dell'host prima di eseguire** (`grafo.py:173-186`): argomenti obbligatori mancanti
-   (`_argomenti_mancanti`, `grafo.py:96-99`) o non previsti dallo schema (`_argomenti_in_piu`,
-   `grafo.py:102-113`). Lo schema richiede solo `fuso` e la richiesta contiene solo `fuso`: si va avanti.
+3. **controllo dell'host prima di eseguire** (`grafo.py:218-232`): argomenti obbligatori mancanti
+   (`_argomenti_mancanti`, `grafo.py:122-125`) o non previsti dallo schema (`_argomenti_in_piu`,
+   `grafo.py:128-139`). Lo schema richiede solo `fuso` e la richiesta contiene solo `fuso`: si va avanti.
    Il controllo serve perché, per uno strumento con schema dato come dizionario JSON (come quelli
    MCP), LangChain non convalida gli argomenti: li passa così come sono;
-4. `strumento.invoke({"fuso": "Asia/Tokyo"})` (`grafo.py:189`).
+4. `strumento.invoke({"fuso": "Asia/Tokyo"})` (`grafo.py:235`).
 
 Lo strumento è il **tool sincrono** costruito da `avvolgi` (`client_mcp.py:57-77`). La sua funzione
 `esegui` fa:
@@ -494,9 +494,9 @@ eccezioni verso il grafo ma restituisce un JSON d'errore (`client_mcp.py:63-68`)
 
 ### 2.9 Il `ToolMessage` e la riga di `assistente.log`
 
-Tornato in `nodo_strumenti`, `_esito(contenuto)` (`grafo.py:69-88`) legge la stringa: è JSON ma non
+Tornato in `nodo_strumenti`, `_esito(contenuto)` (`grafo.py:106-114`) legge la stringa: è JSON ma non
 ha la chiave `errore`, quindi l'esito è `ok` e lo `status` sarà `success`. Si costruisce il
-messaggio (`grafo.py:229-234`):
+messaggio (`grafo.py:240-245`):
 
 ```json
 {
@@ -508,7 +508,7 @@ messaggio (`grafo.py:229-234`):
 }
 ```
 
-e `_registra` (`grafo.py:120-133`) scrive in `logs/assistente.log`:
+e `_registra` (`grafo.py:146-159`) scrive in `logs/assistente.log`:
 
 ```text
 2026-11-09 04:23:51 origine=mcp tool=ora_corrente call_id=call_tokyo_01 argomenti={"fuso":"Asia/Tokyo"} esito=ok risultato={"fuso":"Asia/Tokyo","data_ora":"2026-11-08T19:30:00+09:00","scarto_utc":"+09:00","giorno_settimana":"domenica"} tool_message.call_id=call_tokyo_01
@@ -516,7 +516,7 @@ e `_registra` (`grafo.py:120-133`) scrive in `logs/assistente.log`:
 
 `call_id` e `tool_message.call_id` coincidono: è la prova scritta che il risultato è stato
 collegato alla richiesta giusta. Il nodo restituisce
-`{"messages": [ToolMessage], "giri_strumento": 1}` (`grafo.py:203`); il reducer `add_messages`
+`{"messages": [ToolMessage], "giri_strumento": 1}` (`grafo.py:249`); il reducer `add_messages`
 accoda il messaggio alla lista dello stato.
 
 Intanto, nel processo del server, `logs/server_mcp.log` ha ricevuto queste righe (formato
@@ -543,7 +543,7 @@ file perché il server registra a livello INFO su stderr e l'assistente dirige s
 
 ### 2.10 Secondo giro del modello e risposta
 
-Il grafo torna a `modello` (arco fisso `strumenti → modello`, `grafo.py:223`). Ora il modello
+Il grafo torna a `modello` (arco fisso `strumenti → modello`, `grafo.py:276`). Ora il modello
 riceve quattro messaggi, `["SystemMessage", "HumanMessage", "AIMessage", "ToolMessage"]`, che nel
 corpo per LM Studio diventano (dopo il messaggio di sistema):
 
@@ -689,7 +689,7 @@ d'errore con `"tipo": "strumento"`. La cronologia del turno diventa:
 Nel terminale c'è **una sola** riga `[ora_corrente · mcp: Asia/Tokyo]`: le chiamate fallite non
 vengono stampate (`terminale.py:32`). Se il modello avesse continuato a sbagliare, dopo il terzo giro
 di strumento `instrada_dopo_modello` avrebbe scelto `limite` e il turno si sarebbe chiuso con il
-testo `TESTO_LIMITE` (`grafo.py:21-23`, `191-201`): vedi [04](04-grafo-langgraph.md).
+testo `TESTO_LIMITE` (`grafo.py:27-29`, `251-261`): vedi [04](04-grafo-langgraph.md).
 
 ---
 
@@ -752,7 +752,7 @@ La descrizione viene dalla docstring della funzione (`calcolatrice_locale.py:27`
 dell'argomento dalla costante condivisa `SCHEMA_ESPRESSIONE` (`logica/calcolatrice.py:22`). Unica
 differenza visibile rispetto alla versione MCP: manca `"additionalProperties": false`, che lo schema
 MCP dichiara e quello generato da `@tool` no. Per il modello non cambia nulla, e gli argomenti in
-più sono comunque rifiutati dal grafo per tutte le varianti (`grafo.py:102-113`).
+più sono comunque rifiutati dal grafo per tutte le varianti (`grafo.py:128-139`).
 
 E i messaggi del **secondo giro**, dopo l'esecuzione:
 
@@ -770,7 +770,7 @@ Tre dettagli:
   LangChain li trasforma nel dizionario `args` quando legge la risposta (verificato convertendo una
   risposta d'esempio: si ottiene `{'espressione': '(3+4)*2'}`). Se la stringa non è JSON valido,
   la chiamata finisce in `invalid_tool_calls`, che il grafo chiude con un errore
-  (`grafo.py:64-66`, `122-129`);
+  (`grafo.py:101-103`, `162-169`);
 - il `ToolMessage` diventa un messaggio con `role: "tool"` e `tool_call_id`;
 - **lo `status` non c'è**: per il modello conta solo il contenuto.
 
@@ -1158,19 +1158,19 @@ flowchart TB
 | Logica eseguita | `logica/orologio.py` | `logica/calcolatrice.py` | `logica/scadenze.py` |
 
 Che cosa **non** cambia mai: il grafo, i due giri del modello, i controlli sugli argomenti prima di
-eseguire (`grafo.py:173-186`, uguali per tutte le varianti), la forma del `ToolMessage`, la riga di
+eseguire (`grafo.py:218-232`, uguali per tutte le varianti), la forma del `ToolMessage`, la riga di
 `assistente.log` e la regola del terminale. È il senso del confronto della lezione 5: cambia solo il
 percorso, non lo strumento.
 
 ### Quando la chiamata non arriva a nessuno
 
 Se il modello dimentica un argomento obbligatorio o ne inventa uno, `nodo_strumenti` rifiuta la
-chiamata **prima** di invocare lo strumento (`grafo.py:175-186`), con un messaggio italiano uguale
+chiamata **prima** di invocare lo strumento (`grafo.py:219-232`), con un messaggio italiano uguale
 per tutte le varianti (`Argomenti mancanti per ...` oppure
 `Argomenti non previsti per ...: ... Usa solo: ...`) e `"tipo": "strumento"`. In quel caso non parte
 nessuna richiesta, né verso `/mcp` né verso `/scadenza`: la traccia c'è solo in `assistente.log`, con
 `esito=errore_tool`. Se invece il modello chiede uno strumento che non esiste, l'esito è
-`strumento_sconosciuto` e l'origine `sconosciuta` (`grafo.py:167-169`). In tutti questi casi il
+`strumento_sconosciuto` e l'origine `sconosciuta` (`grafo.py:213-215`). In tutti questi casi il
 `ToolMessage` ha `status="error"` e nel terminale non compare nessuna riga `[...]`.
 
 ---

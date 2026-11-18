@@ -217,7 +217,7 @@ Gli argomenti facoltativi (`max_results`, `limit`) hanno un `default` e non comp
 
 ### 3.2 Il controllo dell'host prima di eseguire
 
-Prima di eseguire qualsiasi strumento, in qualsiasi variante, il nodo `strumenti` del grafo confronta gli argomenti con lo schema (`assistente/grafo.py:96-113` e `158-172`). Esempi reali, ottenuti con il modello finto e la calcolatrice locale:
+Prima di eseguire qualsiasi strumento, in qualsiasi variante, il nodo `strumenti` del grafo confronta gli argomenti con lo schema (`assistente/grafo.py:122-139` e `218-232`). Esempi reali, ottenuti con il modello finto e la calcolatrice locale:
 
 | Situazione | Messaggio restituito al modello |
 |---|---|
@@ -373,7 +373,7 @@ Prove dirette su `numero_json`: `Decimal("3.00")` esatto → `3`; `Decimal("0.10
 
 ### 5.1 Scopo
 
-Restituisce data e ora **attuali** in un fuso orario indicato esplicitamente. È lo strumento più vecchio del progetto: nato come funzione locale nella prima specifica (2026-11-02), è stato spostato nel server MCP nel passo 1 della lezione 5, mantenendo nome, argomento e risultato. Il messaggio di sistema lo nomina in modo esplicito (`assistente/grafo.py:41-42`): *per conoscere la data o l'ora usa sempre lo strumento ora_corrente: non inventarle e non dedurle dai messaggi precedenti*.
+Restituisce data e ora **attuali** in un fuso orario indicato esplicitamente. È lo strumento più vecchio del progetto: nato come funzione locale nella prima specifica (2026-11-02), è stato spostato nel server MCP nel passo 1 della lezione 5, mantenendo nome, argomento e risultato. Il messaggio di sistema lo nomina in modo esplicito (`assistente/grafo.py:54-55`): *per conoscere la data o l'ora usa sempre lo strumento ora_corrente: non inventarle e non dedurle dai messaggi precedenti*.
 
 ### 5.2 Contratto
 
@@ -422,7 +422,7 @@ Un solo messaggio, con il valore ricevuto tra apici:
 
 ### 5.6 Scelte progettuali
 
-- **Fuso sempre esplicito.** Lo strumento non «indovina» il fuso: è il modello a passarlo. Il fuso dell'utente, rilevato all'avvio da `assistente/fuso.py`, sta nello stato del grafo e viene scritto nel messaggio di sistema (`assistente/grafo.py:43-45`), così il modello sa quale usare se l'utente non nomina un luogo, e come tradurre un luogo in nome IANA («Asia/Tokyo per Tokyo»).
+- **Fuso sempre esplicito.** Lo strumento non «indovina» il fuso: è il modello a passarlo. Il fuso dell'utente, rilevato all'avvio da `assistente/fuso.py`, sta nello stato del grafo e viene scritto nel messaggio di sistema (`assistente/grafo.py:56-58`), così il modello sa quale usare se l'utente non nomina un luogo, e come tradurre un luogo in nome IANA («Asia/Tokyo per Tokyo»).
 - **Istante iniettabile.** `ora_corrente(fuso, adesso)` riceve l'istante come argomento; il server lo prende da `adesso()`, che per default è `ora_utc` (`server_mcp/server.py:118` e `146`). Nei test si passa un istante fisso: è così che i test dell'orologio sono ripetibili.
 - **Errore MCP invece di risultato.** Prima dello spostamento nel server un fuso sconosciuto era un risultato normale `{"errore": ...}`; ora è un errore MCP (`isError`), come per tutti gli strumenti (specifica, sezione 5.1).
 - **Riuso senza dipendenze dal server.** `assistente/fuso.py:9` importa `è_fuso_valido` da `logica.orologio`, non dal pacchetto del server: il rilevamento del fuso funziona senza importare `fastmcp`, come chiede la specifica.
@@ -908,7 +908,7 @@ for corso in catalogo:
 - **Ricerca per parole e non per frase intera.** Nella prima versione la query era un'unica sottostringa: «Python base» o «Deep Learning LLM» davano zero risultati, presentati come esatti. La revisione del passo 4 (commit `b4d0fe5`) l'ha cambiata in «ogni parola deve comparire»; con una parola sola il comportamento non è cambiato. Il README avverte del limite opposto: `corsi di Python` non trova niente, perché «corsi» non c'è.
 - **Due strumenti con descrizioni ben distinte** (slide 28: *il modello deve scegliere lo strumento corretto*): la ricerca dice esplicitamente «senza dettagli; per durata e dettagli usa get_item».
 - **Risultati brevi:** la ricerca restituisce solo codice, titolo e sede (riga 95). La durata manca apposta, così il modello deve chiamare `get_item` e la divisione dei compiti resta chiara.
-- **Nessun risultato non è un errore**, così il modello non lo scambia per un guasto e non inventa corsi. Il messaggio di sistema rinforza la regola (`assistente/grafo.py:50-51`).
+- **Nessun risultato non è un errore**, così il modello non lo scambia per un guasto e non inventa corsi. Il messaggio di sistema rinforza la regola (`assistente/grafo.py:63-64`).
 
 ### 9.9 File
 
@@ -1070,7 +1070,7 @@ Il testo inviato era `"  Consegnare il report venerdì  "`: gli spazi ai lati ve
 - **Ora in UTC:** il server non conosce il fuso dell'utente, quindi salva un istante non ambiguo con lo scarto esplicito (specifica, sezione 5.6).
 - **Limite di 500 caratteri** e testo non vuoto: una nota è un promemoria, non un documento. Il limite è scritto anche nella descrizione, così il modello lo conosce prima di chiamare.
 - **Controllo dei caratteri non codificabili in UTF-8** (righe 75-78, commit `82007eb`): un surrogato isolato è un carattere che una stringa Python può contenere ma che non esiste in UTF-8. Senza il controllo, SQLite sollevava un'eccezione in inglese.
-- **Quando usarla lo dice la descrizione** («solo quando l'utente chiede di ricordare o annotare») e lo ripete il messaggio di sistema (`assistente/grafo.py:52`). Nelle prove reali il modello piccolo a volte risponde «Ho salvato la nota» **senza** chiamare lo strumento (circa una volta su tre, secondo il README): il messaggio di sistema contiene apposta la regola *se non hai chiamato lo strumento, non l'hai fatto* (`assistente/grafo.py:48-49`), e il README spiega come riconoscerlo (manca la riga `modifica note operazione=aggiunta`).
+- **Quando usarla lo dice la descrizione** («solo quando l'utente chiede di ricordare o annotare») e lo ripete il messaggio di sistema (`assistente/grafo.py:65`). Nelle prove reali il modello piccolo a volte risponde «Ho salvato la nota» **senza** chiamare lo strumento (circa una volta su tre, secondo il README): il messaggio di sistema contiene apposta la regola *se non hai chiamato lo strumento, non l'hai fatto* (`assistente/grafo.py:61-62`), e il README spiega come riconoscerlo (manca la riga `modifica note operazione=aggiunta`).
 - **Istante non iniettato dal server:** `ArchivioNote` accetta un parametro `adesso` (riga 54), ma `crea_server` non lo passa (`server_mcp/server.py:125`, difetto minore rimandato nel passo 5). Per questo negli esempi la data di creazione è quella reale dell'esecuzione, anche se al server era stato passato un istante fisso per l'orologio.
 
 ---
@@ -1185,7 +1185,7 @@ L'errore «inesistente» è creato una volta sola (riga 106) e sollevato da tre 
 
 ### 14.7 Scelte progettuali
 
-- **Eliminazione mai ambigua: solo per ID.** Non esiste un'eliminazione «per testo». Se l'utente dice «elimina la nota sul report», il messaggio di sistema chiede al modello di elencare le note, mostrare ID e testo e chiedere conferma, anche quando corrisponde una sola nota (`assistente/grafo.py:52-54`). La descrizione dello strumento ripete la regola.
+- **Eliminazione mai ambigua: solo per ID.** Non esiste un'eliminazione «per testo». Se l'utente dice «elimina la nota sul report», il messaggio di sistema chiede al modello di elencare le note, mostrare ID e testo e chiedere conferma, anche quando corrisponde una sola nota (`assistente/grafo.py:65-67`). La descrizione dello strumento ripete la regola.
 - **Nessuna conferma obbligatoria nel grafo.** Un'interruzione del grafo per chiedere conferma all'utente anticiperebbe l'intervento umano delle lezioni successive, che i Confini del `CLAUDE.md` escludono (decisione del checkpoint del passo 5). La sicurezza sta nell'ID esatto, in AUTOINCREMENT e nelle istruzioni.
 
 ### 14.8 File (tutte le note)
@@ -1272,7 +1272,7 @@ Il codice WMO è uno standard dell'Organizzazione meteorologica mondiale: un num
 "nota":"Nessuna località chiamata esattamente 'Paris': scelta 'Parigi'."
 ```
 
-Con `udine` (minuscolo) e la località «Udine» la nota **non** compare, perché il confronto usa `casefold`. Il messaggio di sistema chiede al modello di riferire la nota all'utente (`assistente/grafo.py:55-56`).
+Con `udine` (minuscolo) e la località «Udine» la nota **non** compare, perché il confronto usa `casefold`. Il messaggio di sistema chiede al modello di riferire la nota all'utente (`assistente/grafo.py:68-69`).
 
 **`altre_corrispondenze`.** Contiene solo gli **omonimi** del nome chiesto o del nome scelto (righe 182-191):
 
