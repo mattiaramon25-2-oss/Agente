@@ -297,7 +297,7 @@ Le due correzioni finali di questa fase sono ancora nel codice:
   - *Come è stato corretto:* anche quelle chiamate vengono chiuse con un `ToolMessage` di errore (`assistente/grafo.py:61-63` e `:122-129`), e l'instradamento ne tiene conto (`:132-138`).
 - **`edac61f` fix(modello): indirizzi scritti male.**
   - *Che cosa succedeva:* un `LMSTUDIO_BASE_URL` come `http://localhost:1234v1` produceva un traceback.
-  - *Come è stato corretto:* ora viene rifiutato prima della richiesta, con un esempio corretto (`assistente/modello.py:27-39`).
+  - *Come è stato corretto:* ora viene rifiutato prima della richiesta, con un esempio corretto (`assistente/lmstudio.py:23-35`).
 
 ### 3.3 L'importazione nel repository `Agente`
 
@@ -972,7 +972,7 @@ Gli esiti vengono dai checkpoint di `docs/superpowers/checkpoint/` (`2026-11-09-
 **Che cosa.** La cartella `frontend/`: una chat in Svelte 5 che parla solo con il back-end, tramite nginx in un container (`frontend`, `127.0.0.1:8780`). Capitolo 15.
 
 **Le decisioni.** L'utente voleva all'inizio un'app installata, non web. Ha scelto una **PWA**, una pagina con manifest e service worker minimo che Edge installa come app, sapendo che altrimenti cambiavano `CLAUDE.md` e lo step 9. La tecnologia, approvata nella specifica: **Svelte 5 con Vite e TypeScript** (6.0.3, perché `svelte-check` non supporta TypeScript 7), pochi pacchetti a versioni esatte. Durante l'esecuzione:
-- **nginx con `max_fails=0`** (`frontend/nginx/default.conf.template:1-3`): con l'impostazione predefinita rispondeva `502` per 10 secondi dopo il ritorno del back-end. In più `proxy_buffering off` (riga 23), altrimenti lo streaming non è più uno streaming;
+- **nginx con `max_fails=0`** (allora nelle righe 1-3 di `frontend/nginx/default.conf.template`): con l'impostazione predefinita rispondeva `502` per 10 secondi dopo il ritorno del back-end. In più `proxy_buffering off` (oggi riga 24), altrimenti lo streaming non è più uno streaming. Con lo step 9 il blocco `upstream` non c'è più: nginx risolve il nome del back-end a ogni richiesta ([08, sezione 7.11](08-configurazione-avvio-docker.md#711-il-servizio-frontend-la-chat-nel-browser));
 - ogni turno porta il suo `chatId` e non compare in un'altra chat;
 - le attese delle prove con LM Studio salgono a 300 secondi, perché il modello ora ragiona prima di rispondere e un turno dura 1–2 minuti.
 
@@ -1044,13 +1044,13 @@ Legenda: **U** = decisione dell'utente; **E** = scelta dell'esecutore (*«scelta
 |---|---|---|---|
 | Il router usa lo stesso modello, senza strumenti, con output strutturato; se l'output non è valido, la domanda passa all'agente | E, approvata con la specifica | `assistente/router.py`; spec. router | un errore del router non deve bloccare la conversazione; resta visibile nel log (`esito=errore`) |
 | Un servizio dell'agente **senza stato** | E, approvata con la specifica | `servizio_agente/app.py`; spec. agente-servizio | la cronologia la tiene chi chiama; il back-end la potrà salvare senza cambiare l'agente |
-| Porta solo su `127.0.0.1` (anche per PostgreSQL, back-end e `frontend`); in Docker pubblicata solo su `127.0.0.1` | E, approvata con le specifiche | `compose.yaml:43`, `:59`, `:78` | nessuna autenticazione: nessun altro computer deve raggiungere i servizi |
+| Porta solo su `127.0.0.1` (anche per PostgreSQL, back-end e `frontend`); in Docker pubblicata solo su `127.0.0.1` | E, approvata con le specifiche | `compose.yaml:49`, `:73`, `:123` | nessuna autenticazione: nessun altro computer deve raggiungere i servizi |
 | Servizio dell'agente in Docker come secondo servizio Compose, con il suo server MCP | **U** | spec. docker-agente | la CLI in Docker non cambia; i quattro container sono lo step 9 |
 | Un turno si salva **solo a risposta completa**, in una transazione, anche se il browser si scollega | E, approvata con la specifica | `servizio_backend/turni.py:115-121`, `servizio_backend/archivio.py:218` | niente domande senza risposta; il turno ormai eseguito può aver avuto effetti |
 | PostgreSQL, `psycopg` 3 con SQL a mano, SSE, ricerca nel database | **U** | spec. backend | nessun ORM da spiegare; SSE basta per un flusso in una sola direzione |
 | Una **PWA** al posto di un'app nativa | **U** | spec. frontend; `frontend/public/sw.js` | finestra e icona da app senza cambiare `CLAUDE.md` e lo step 9 |
 | **Svelte 5 e TypeScript**, pacchetti npm a versioni esatte | **U**, nella specifica | `frontend/package.json:12-25` | pochi pacchetti, rune per lo stato; TypeScript 6.0.3 perché `svelte-check` non supporta il 7 |
-| nginx con `max_fails=0` e `proxy_buffering off` | E, durante l'esecuzione | `frontend/nginx/default.conf.template:3`, `:23` | senza `max_fails=0`, `502` per 10 secondi dopo il ritorno del back-end; senza buffering lo streaming arriverebbe tutto insieme |
+| nginx con `max_fails=0` e `proxy_buffering off` | E, durante l'esecuzione | `frontend/nginx/default.conf.template:24` (`max_fails=0` tolto con lo step 9, insieme all'`upstream`) | senza `max_fails=0`, `502` per 10 secondi dopo il ritorno del back-end; senza buffering lo streaming arriverebbe tutto insieme |
 | Il testo del modello passa solo da `rendiMarkdown`, con un **elenco chiuso** di tag e attributi (DOMPurify) | R (revisione finale dello step 8) | `frontend/src/lib/markdown.ts:38-42` | i divieti lasciavano passare tag che caricano risorse esterne |
 | **Content-Security-Policy**, `nosniff` e `Referrer-Policy` su ogni risposta di nginx | R (revisione finale dello step 8) | `frontend/nginx/sicurezza.conf:8-10` | anche se qualcosa sfugge al filtro, il browser non carica risorse da altri siti |
 | Un turno fallito non perde la domanda | R (revisione finale dello step 8) | `frontend/src/lib/stato.svelte.ts` | l'errore resta nella chat del turno e la domanda torna nella casella |

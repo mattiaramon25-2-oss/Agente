@@ -21,7 +21,8 @@ conversazione completa dal browser, errori mostrati. Il programma da terminale r
    elenco di tag ammessi): niente immagini, audio, video, SVG, moduli e stili. È l'unico `{@html}` del
    progetto; in più nginx manda una CSP che blocca le richieste verso altri siti. → sezione 4
 5. **nginx serve i file e inoltra `/api`.** Stessa origine, quindi niente CORS; `proxy_buffering off`,
-   altrimenti gli eventi arriverebbero tutti insieme alla fine. → sezione 5
+   altrimenti gli eventi arriverebbero tutti insieme alla fine. Dallo step 9 inoltra al container
+   `backend` e ne risolve il nome a ogni richiesta. → sezione 5
 6. **Il turno appartiene alla sua chat.** Se l'utente cambia chat mentre il modello risponde, la risposta
    non compare nella chat sbagliata. → sezione 6
 7. **Gli errori si vedono e la domanda non si perde.** Back-end spento: striscia rossa che sparisce da
@@ -35,7 +36,7 @@ conversazione completa dal browser, errori mostrati. Il programma da terminale r
 ```mermaid
 flowchart LR
     U[Edge: chat installata] -->|"http://127.0.0.1:8780"| N["nginx (container frontend)"]
-    N -->|"/api/... senza prefisso"| B[servizio_backend, sull'host]
+    N -->|"/api/... senza prefisso"| B["servizio_backend (container backend)"]
     B -->|SQL| P[(PostgreSQL)]
     B -->|SSE| A[servizio_agente]
 ```
@@ -44,10 +45,10 @@ flowchart LR
 
 | Cosa | Valore | Dove |
 |---|---|---|
-| Quattro pezzi da avviare | `docker compose up -d database`, `python -m servizio_agente`, `python -m servizio_backend`, `docker compose up -d --build frontend` | README «La chat nel browser» |
-| Indirizzo | `http://127.0.0.1:8780` (`FRONTEND_PORTA`, predefinita 8780), solo su `127.0.0.1` | `compose.yaml:78` |
+| Quattro pezzi da avviare | dallo step 9 un comando: `docker compose up -d` (oppure il doppio clic su `avvia-chat.cmd`); fino allo step 8 erano quattro comandi, con agente e back-end sull'host | README «La chat nel browser» |
+| Indirizzo | `http://127.0.0.1:8780` (`FRONTEND_PORTA`, predefinita 8780), solo su `127.0.0.1` | `compose.yaml:123` |
 | Sviluppo | `cd frontend; npm install; npm run dev` (Vite su `127.0.0.1:5173`, inoltra `/api` a `BACKEND_PORTA`) | `frontend/vite.config.ts:11-20` |
-| Dopo una modifica al front-end | ricostruire l'immagine: `docker compose up -d --build frontend` | `frontend/Dockerfile:1-7` |
+| Dopo una modifica al codice | ricostruire le immagini: `docker compose up -d --build` | `frontend/Dockerfile:1-7` |
 | Pacchetti | esecuzione: `svelte`, `marked`, `dompurify`; sviluppo: Vite, Vitest, jsdom, svelte-check, TypeScript | `frontend/package.json:12-25` |
 | Intestazioni di sicurezza | CSP, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer` su ogni risposta di nginx | `frontend/nginx/sicurezza.conf` |
 | Testi fissi degli errori | «Il back-end non risponde: avvialo con python -m servizio_backend.»; «La risposta si è interrotta: il messaggio non è stato salvato.»; «Errore inatteso del back-end (stato N).» | `frontend/src/lib/api.ts:57-58,110` |
@@ -201,36 +202,45 @@ mostra così come sono. Le immagini nelle risposte non si vedono: è voluto.
 
 ## 5. nginx: inoltro di `/api`
 
-Il container `frontend` (`compose.yaml:71-81`) è fatto in due fasi (`frontend/Dockerfile`): la prima
+Il container `frontend` (`compose.yaml:114-128`) è fatto in due fasi (`frontend/Dockerfile`): la prima
 compila con Vite (`npm ci`, `npm run build`), la seconda è nginx senza privilegi
 (`nginx-unprivileged`, porta 8080) con i file compilati. Compose lo pubblica solo come
 `127.0.0.1:${FRONTEND_PORTA:-8780}:8080`; la variabile ha un valore predefinito e niente `:?`, come
 per il database, perché Compose controlla tutto il file.
 
-La configurazione è `frontend/nginx/default.conf.template` (nginx sostituisce `${BACKEND_PORTA}` con la
-variabile d'ambiente all'avvio; `sicurezza.conf` è copiato accanto, in `/etc/nginx/`):
+La configurazione è `frontend/nginx/default.conf.template` (nginx sostituisce `${BACKEND_INDIRIZZO}` e
+`${BACKEND_PORTA}` con le variabili d'ambiente all'avvio; `sicurezza.conf` è copiato accanto, in `/etc/nginx/`):
 
 | Righe | Scelta | Perché |
 |---|---|---|
-| `:18-19` | `location /api/` con `proxy_pass http://backend/` | il `/` finale toglie il prefisso: `/api/chat` diventa `/chat` |
-| `:23-24` | `proxy_buffering off`, `proxy_cache off` | gli eventi SSE devono passare uno alla volta |
-| `:20-21` | HTTP/1.1 e `Connection ""` | connessioni persistenti verso il back-end |
-| `:25` | `proxy_read_timeout 300s` | un turno con il modello in «thinking» dura 1–2 minuti |
-| `:2-4` | `upstream` con `max_fails=0` | vedi sotto |
-| `:14` e in ogni `location` con `add_header` | `include /etc/nginx/sicurezza.conf` | CSP, `nosniff` e `Referrer-Policy` su ogni risposta (sezione 4) |
+| `:16-20` | `location /api/` con `resolver 127.0.0.11 valid=10s`, `set $backend http://${BACKEND_INDIRIZZO}:${BACKEND_PORTA}`, `rewrite ^/api/(.*)$ /$1 break` e `proxy_pass $backend` | step 9: il nome del back-end si risolve a ogni richiesta con il DNS di Docker; la `rewrite` toglie il prefisso (`/api/chat` diventa `/chat`) |
+| `:24-25` | `proxy_buffering off`, `proxy_cache off` | gli eventi SSE devono passare uno alla volta |
+| `:21-22` | HTTP/1.1 e `Connection ""` | connessioni persistenti verso il back-end |
+| `:26` | `proxy_read_timeout 300s` | un turno con il modello in «thinking» dura 1–2 minuti |
+| `:9` e in ogni `location` con `add_header` | `include /etc/nginx/sicurezza.conf` | CSP, `nosniff` e `Referrer-Policy` su ogni risposta (sezione 4) |
 | `:29-33` | `/assets/` con cache lunga e `immutable` | i nomi dei file cambiano a ogni compilazione |
 | `:36-47` | `index.html`, `sw.js`, manifest con `no-cache` | un aggiornamento dell'app non deve restare bloccato nella cache |
 | `:50-54` | tutto il resto torna a `index.html` | la chat è una pagina sola |
 
 **Stessa origine, niente CORS.** Il browser vede pagina e API sullo stesso indirizzo e non fa richieste
-tra origini diverse: il back-end non deve elencare origini ammesse e resta su `127.0.0.1`. Il container
-lo raggiunge con `host.docker.internal` (`extra_hosts` in `compose.yaml`). In sviluppo lo stesso lavoro lo
-fa Vite (`vite.config.ts:11-20`), con la stessa regola «togli `/api`».
+tra origini diverse: il back-end non deve elencare origini ammesse e non pubblica nessuna porta. Nello
+step 8 il back-end girava sull'host e il container lo raggiungeva con `host.docker.internal`
+(`extra_hosts` in `compose.yaml`); dallo step 9 lo raggiunge per nome, `backend`, nella rete di Compose
+(`BACKEND_INDIRIZZO`, predefinita `backend`). `extra_hosts` resta per le prove del browser, che puntano
+nginx a un back-end di prova sull'host con `BACKEND_INDIRIZZO=host.docker.internal`. In sviluppo lo
+stesso lavoro lo fa Vite (`vite.config.ts:11-20`), con la stessa regola «togli `/api`».
 
-**`max_fails=0`** si è aggiunto durante la revisione: con l'impostazione predefinita nginx, dopo
-un errore, mette da parte il back-end per 10 secondi e risponde `502` anche se è già tornato. Contraddiceva
-la promessa «la striscia sparisce da sola quando il back-end torna»; con un solo back-end non c'è niente
-da escludere, quindi si disattiva.
+**Il nome si risolve a ogni richiesta (step 9).** Con un nome scritto in `proxy_pass` nginx lo risolve
+una volta sola, all'avvio, e non parte se il nome non esiste: con il back-end spento e la pagina accesa
+(come resta dopo `esci`) il container `frontend` si fermerebbe. Con `proxy_pass` a una variabile e un
+`resolver` (il DNS di Docker, `127.0.0.11`) nginx parte comunque e risolve il nome a ogni richiesta;
+finché il back-end non c'è risponde `502` e la chat mostra la striscia rossa. `valid=10s` tiene il nome in
+memoria fino a 10 secondi: subito dopo un riavvio del back-end può esserci qualche secondo di `502`. Con
+una variabile nginx non sostituisce più l'URI da solo, quindi il prefisso lo toglie la `rewrite`.
+
+**`max_fails=0`** si era aggiunto durante la revisione dello step 8: con l'impostazione predefinita nginx,
+dopo un errore, metteva da parte il back-end dell'`upstream` per 10 secondi e rispondeva `502` anche se
+era già tornato. Con lo step 9 l'`upstream` non c'è più, e con lui `max_fails=0`.
 
 ## 6. Il turno appartiene alla sua chat
 
@@ -344,7 +354,15 @@ e non sono state rieseguite:
   ora lavora in «thinking» e un turno dura 1–2 minuti. Una prova di questo tipo può fallire se il modello
   non chiama `calcola`: succede, è un esito da riportare.
 - **Contratto di Compose**: `tests/test_compose_frontend.py` (porta solo su `127.0.0.1`, valore
-  predefinito senza `FRONTEND_PORTA`).
+  predefinito senza `FRONTEND_PORTA`); dallo step 9 anche `tests/test_compose_servizi.py` (il valore
+  predefinito di `BACKEND_INDIRIZZO`) e `tests/test_nginx.py` (il modello usa `BACKEND_INDIRIZZO` e il
+  `resolver`).
+- **Step 9.** `tests/frontend_prova.py` accende il container di prova con `--no-deps` (il nuovo
+  `depends_on` accenderebbe database, agente e back-end veri nel progetto di prova) e con
+  `BACKEND_INDIRIZZO=host.docker.internal`. Le prove con Playwright avviano il back-end sull'host: finché
+  Smart App Control blocca `psycopg` non si possono eseguire, quindi questa modifica non è verificata dal
+  vivo. Esiti del 18 novembre 2026: `--docker tests/test_compose_servizi.py tests/test_compose_frontend.py`
+  7 passati, `tests/test_nginx.py` passato (insieme ai test del doppio clic, 104 passati e 1 saltato).
 
 I comandi:
 
@@ -362,6 +380,8 @@ python -m pytest --docker tests/test_compose_frontend.py
   Non è stato verificato il comportamento con il modello precedente, senza «thinking».
 - Le formule LaTeX si vedono grezze.
 - `Ctrl+C` su `servizio_backend` in una console vera non è stato provato a mano (resta dallo step 7).
+- Subito dopo un riavvio del back-end nginx può rispondere `502` per qualche secondo (`resolver … valid=10s`).
+- Le prove con Playwright non sono state rieseguite con lo step 9 (Smart App Control).
 - Nel browser incorporato di Claude il service worker non si registra; in Edge e in Chromium sì.
 - Se una chat nuova non si riesce nemmeno a creare (back-end spento) e l'utente è già passato a
   un'altra chat, della domanda resta solo l'inizio nell'avviso: non c'è una chat dove ritrovarla.
@@ -442,7 +462,7 @@ Una presentazione di 10 slide. Ogni slide: titolo, tre punti brevi, che cosa mos
 ### Slide 10 · Che cosa ricordare
 - PWA: una pagina, installata da Edge
 - Il modello non è fidato: markdown ripulito
-- Il passo successivo: i quattro container (step 9)
+- Step 9: i quattro container con `docker compose up -d`
 
 *Da mostrare:* la tabella «Da sapere a memoria».
 

@@ -338,8 +338,8 @@
       { id: 'pg', c: 2, r: 0, t: 'PostgreSQL', s: ['container database', ':5432'], forma: 'cilindro', stile: 'dati' },
       { id: 'browser', c: 0, r: 1, t: 'Browser', s: ['la chat, installata', 'come app'] },
       { id: 'nginx', c: 1, r: 1, t: 'nginx', s: ['container frontend', ':8780'] },
-      { id: 'backend', c: 2, r: 1, t: 'Back-end', s: ['servizio_backend', ':8768'] },
-      { id: 'agente', c: 3, r: 1, t: 'Servizio agente', s: ['servizio_agente', ':8767'] },
+      { id: 'backend', c: 2, r: 1, t: 'Back-end', s: ['container backend', 'nessuna porta'] },
+      { id: 'agente', c: 3, r: 1, t: 'Servizio agente', s: ['container agente', ':8767'] },
       { id: 'lm', c: 4, r: 1, t: 'LM Studio', s: ['sul computer', ':1234'], stile: 'llm esterno' },
       { id: 'cli', c: 3, r: 2, t: 'Terminale', s: ['python -m assistente'] },
       { id: 'mcp', c: 4, r: 2, t: 'Server MCP', s: ['10 strumenti', ':8765'], stile: 'esegue' },
@@ -539,19 +539,19 @@
 
   SCHEMI.processi = {
     tipo: 'flusso',
-    titolo: 'Chi avvia chi: tu avvii sei cose, e due di loro avviano e spengono da sole il server MCP, ciascuna il suo',
+    titolo: 'Chi avvia chi: tu apri LM Studio e la chat da terminale, e accendi i quattro container con un solo comando; la chat da terminale e il servizio dell\'agente avviano e spengono da soli il server MCP, ciascuno il suo',
     griglia: { col: [84, 262, 224], riga: 70, dx: 128, dy: 14 },
     nodi: [
       { id: 'tu', c: 0, r: 0, ar: 6, t: 'Tu', forma: 'pillola' },
       { id: 'lm', c: 1, r: 0, t: 'LM Studio', s: ['lo apri a mano · :1234'], stile: 'llm esterno' },
       { id: 'cli', c: 1, r: 1, t: 'Chat da terminale', s: ['python -m assistente'] },
-      { id: 'ag', c: 1, r: 2, t: 'Servizio dell\'agente', s: ['python -m servizio_agente', ':8767'] },
-      { id: 'be', c: 1, r: 3, t: 'Back-end delle chat', s: ['python -m servizio_backend', ':8768'] },
-      { id: 'db', c: 1, r: 4, t: 'Database', s: ['docker compose up -d database', ':5432'], stile: 'dati' },
-      { id: 'fe', c: 1, r: 5, t: 'Chat nel browser', s: ['docker compose up -d', '--build frontend · :8780'] },
+      { id: 'ag', c: 1, r: 2, t: 'Servizio dell\'agente', s: ['container agente', ':8767'] },
+      { id: 'be', c: 1, r: 3, t: 'Back-end delle chat', s: ['container backend', 'nessuna porta'] },
+      { id: 'db', c: 1, r: 4, t: 'Database', s: ['container database', ':5432'], stile: 'dati' },
+      { id: 'fe', c: 1, r: 5, t: 'Chat nel browser', s: ['container frontend', ':8780'] },
       { id: 'api', c: 2, r: 0, t: 'Servizio FastAPI', s: ['solo variante fastapi', ':8766'], stile: 'esegue' },
       { id: 'mcp1', c: 2, r: 1, t: 'Server MCP', s: [':8765'], stile: 'esegue' },
-      { id: 'mcp2', c: 2, r: 2, t: 'Server MCP', s: ['uno suo, stessa porta'], stile: 'esegue' }
+      { id: 'mcp2', c: 2, r: 2, t: 'Server MCP', s: ['uno suo, nel container'], stile: 'esegue' }
     ],
     frecce: [
       { da: 'tu', a: 'lm' },

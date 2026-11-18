@@ -25,6 +25,8 @@ sono ancora dopo il riavvio.
    salvataggio e porta la risposta definitiva. → sezione 6
 7. **L'evidenza.** Back-end vero e database di prova fermati e riavviati: progetti, chat e messaggi
    identici. A mano, sul database dell'utente, lo stesso. → sezione 9
+8. **Dallo step 9 è un container.** Il servizio Compose `backend` usa la stessa immagine dell'agente,
+   raggiunge database e agente per nome e non pubblica porte: ci arriva solo nginx. → sezione 13
 
 **Il quadro**
 
@@ -41,14 +43,14 @@ flowchart LR
 
 | Cosa | Valore | Dove |
 |---|---|---|
-| Avvio | `docker compose up -d database`, poi `python -m servizio_agente` e `python -m servizio_backend` | `compose.yaml:51`, `servizio_backend/__main__.py:39` |
+| Avvio | dallo step 9 `docker compose up -d` (servizio `backend`); fuori da Docker `docker compose up -d database`, poi `python -m servizio_agente` e `python -m servizio_backend` | `compose.yaml:84-110`, `servizio_backend/__main__.py:39` |
 | Tabelle | `progetti`, `chat`, `messaggi`, create all'avvio con `IF NOT EXISTS` | `servizio_backend/schema.sql:3,11,20` |
 | Salvataggio del turno | una transazione: due messaggi, cronologia, `aggiornata`, titolo | `servizio_backend/archivio.py:218-234` |
 | Un turno per chat | `RegistroTurni.occupa` / `libera`; `409` se occupata | `servizio_backend/turni.py:20-40`, `app.py:197-198` |
 | Tempi verso l'agente | 5 s per collegarsi, 180 s di lettura tra due eventi | `servizio_backend/client_agente.py:10` |
 | Limiti | `nome` 1–100, `istruzioni` fino a 4000, `q` almeno 2, ricerca al massimo 50, titolo 60 + «…» | `servizio_backend/app.py:30-35,228`, `archivio.py:80`, `testi.py` |
-| Variabili | `BACKEND_PORTA`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `POSTGRES_PORTA` (predefinita 5432) | `servizio_backend/configurazione.py:10` |
-| Ascolto | solo `127.0.0.1`, anche PostgreSQL | `servizio_backend/__main__.py`, `compose.yaml` |
+| Variabili | `BACKEND_PORTA`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `POSTGRES_PORTA` (predefinita 5432); facoltative `BACKEND_HOST`, `POSTGRES_HOST`, `AGENTE_INDIRIZZO` (predefinite `127.0.0.1`) | `servizio_backend/configurazione.py:8`, `:57-63` |
+| Ascolto | fuori da Docker solo `127.0.0.1`, anche PostgreSQL; nel container `0.0.0.0`, senza porta pubblicata | `servizio_backend/__main__.py:69`, `compose.yaml:84-110` |
 | Log | `logs/servizio_backend.log`, mai i testi dei messaggi | `assistente/registro.py:12` |
 | Prove | 625 passati e 64 saltati (dopo le correzioni della revisione finale); `--docker` 23 passati; `--lmstudio --docker tests/test_reale_backend.py` 4 passati | → sezione 9 |
 
@@ -73,9 +75,9 @@ salvata e le istruzioni del progetto, le passa all'agente, inoltra al browser qu
 produce e salva il risultato.
 
 Il vantaggio è la separazione: l'agente si può riavviare o duplicare senza perdere conversazioni, e il
-database si può fermare senza toccare l'agente. Nello step 9 i tre pezzi (più il front-end) saranno
-container diversi. In questo step solo il database è in un container; back-end e agente girano con
-`python -m`.
+database si può fermare senza toccare l'agente. Nello step 7 solo il database era in un container;
+back-end e agente giravano con `python -m`. Dallo step 9 i tre pezzi (più il front-end) sono container
+diversi (sezione 13).
 
 Il back-end non importa il grafo: conosce l'agente solo attraverso HTTP (`client_agente.py`). Condivide
 con il servizio dell'agente due moduli piccoli, `assistente/sse.py` (scrive e legge gli eventi SSE) e
@@ -209,7 +211,7 @@ resta il testo fisso. Dettagli in [04, sezione 23](04-grafo-langgraph.md#23-le-i
   JSON `500`, e un percorso senza questo gestore darebbe una pagina di testo non conforme al vincolo
   «errori sempre in JSON». Decisione presa dopo la revisione del Task 8, insieme a: id limitati a
   `2**31 - 1` (sono `INTEGER`), nome del progetto ripulito dagli spazi.
-- `carica_configurazione_backend` (`configurazione.py:22`) elenca tutte le variabili mancanti insieme;
+- `leggi_valori_backend` (`configurazione.py:35`), chiamata da `carica_configurazione_backend` (riga 68), elenca tutte le variabili mancanti insieme;
   `BACKEND_PORTA` deve essere diversa da `AGENTE_PORTA`, `MCP_PORTA` e `API_PORTA`.
 - Avvio (`__main__.py:39`): configurazione, log, porta libera, database (`controlla` e `prepara`; se non risponde,
   l'errore riporta il motivo di psycopg, per esempio `password authentication failed`, e suggerisce
@@ -251,7 +253,7 @@ Esiti della verifica finale (10 novembre 2026, `google/gemma-4-e2b`):
 
 ## 10. Decisioni prese durante l'esecuzione
 
-- **Healthcheck su TCP.** `pg_isready -h 127.0.0.1` (`compose.yaml:64`): senza `-h` il controllo passa dal
+- **Healthcheck su TCP.** `pg_isready -h 127.0.0.1` (`compose.yaml:78`): senza `-h` il controllo passa dal
   socket interno anche mentre l'inizializzazione ha ancora un server temporaneo, e il container risulta
   sano prima che la porta funzioni.
 - **`DatabaseProva` e non una stringa.** `database_di_prova()` restituisce anche l'ambiente, perché
@@ -272,12 +274,38 @@ Dallo step 8 il back-end ha un cliente: la chat nel browser ([15](15-chat-nel-br
 
 ## 12. Limiti noti
 
-- Nessuna autenticazione e un solo utente: per questo tutto ascolta su `127.0.0.1`.
+- Nessuna autenticazione e un solo utente: per questo fuori da Docker tutto ascolta su `127.0.0.1`, e in
+  Docker il back-end non ha nessuna porta sull'host.
 - Il flag `scollegato` è «al meglio»: può restare `false` se l'ultimo evento era già stato letto.
 - `Ctrl+C` digitato in una console vera su `servizio_backend` non è stato provato a mano; l'arresto con
   CTRL_BREAK è provato dalla prova Docker (uscita 0, «arresto servizio backend» nel log).
 - `.\avvia.ps1` non è stato rilanciato a mano; è coperto dalle prove Docker esistenti.
 - La cronologia passata all'agente cresce come nella CLI (il riassunto è lo step 3).
+- Finché Smart App Control è attivo, le prove della sezione 9 che avviano il back-end sull'host
+  (`test_reale_backend.py`, `test_reale_docker_backend.py`) non si possono eseguire; con lo step 9 non
+  sono state rieseguite.
+
+## 13. Lo step 9: il back-end in un container
+
+Da metà novembre Smart App Control di Windows blocca le DLL di `psycopg-binary`: `python -m servizio_backend`
+sull'host si ferma all'import. Lo step 9 (specifica `docs/superpowers/specs/2026-11-16-quattro-container-design.md`)
+ha messo il back-end in Docker, nel servizio Compose `backend` ([08, sezione 7.11](08-configurazione-avvio-docker.md#711-il-servizio-frontend-la-chat-nel-browser)).
+
+- **Tre indirizzi da variabili.** Prima `127.0.0.1` era scritto nel codice in tre punti. Ora ci sono
+  `BACKEND_HOST` (indirizzo di ascolto di uvicorn, un indirizzo IP come `AGENTE_HOST`), `POSTGRES_HOST`
+  (host del database nel DSN) e `AGENTE_INDIRIZZO` (host di `url_agente`), tutte con predefinito
+  `127.0.0.1` (`servizio_backend/configurazione.py:57-63`): fuori da Docker non cambia nulla. Nel
+  container le imposta Compose: `0.0.0.0`, `database`, `agente`, più `POSTGRES_PORTA: "5432"`, la porta
+  dentro la rete di Compose.
+- **I messaggi dicono l'indirizzo vero**, per esempio «Il database PostgreSQL non risponde su
+  database:5432 …» (`servizio_backend/__main__.py:54`).
+- **La configurazione si legge senza `psycopg`.** `leggi_valori_backend` controlla le variabili e
+  restituisce i valori; solo `carica_configurazione_backend` importa `make_conninfo` (riga 69). Così il
+  file del doppio clic, che gira sull'host, controlla il `.env` senza caricare le DLL bloccate.
+- **Nessuna porta pubblicata.** Dall'host il back-end si interroga attraverso nginx:
+  `Invoke-RestMethod http://127.0.0.1:8780/api/salute`.
+- **Le chat restano.** Il 18 novembre 2026 una chat salvata attraverso la pagina, con un turno vero di
+  LM Studio, c'era ancora dopo `docker compose restart backend`.
 
 ---
 
@@ -351,7 +379,7 @@ Una presentazione di circa 9 slide. Ogni slide: titolo, tre punti brevi, che cos
 ### Slide 10 · Che cosa ricordare
 - Tre servizi, tre ruoli
 - Si salva solo ciò che è completo
-- Prossimo passo: la chat nel browser (step 8), vedi [15](15-chat-nel-browser.md)
+- Prossimo passo: la chat nel browser (step 8), vedi [15](15-chat-nel-browser.md); con lo step 9 il back-end è un container
 
 *Da mostrare:* la tabella «Da sapere a memoria».
 

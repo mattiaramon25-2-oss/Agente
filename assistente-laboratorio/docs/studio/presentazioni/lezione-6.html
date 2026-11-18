@@ -19,7 +19,7 @@
 
   <section class="slide">
     <p class="occhiello">Il programma della lezione</p>
-    <h2>Nove step: quattro fatti, cinque da fare</h2>
+    <h2>Nove step: cinque fatti, quattro da fare</h2>
     <table class="tabella fitta">
       <thead>
         <tr><th>Step</th><th>Che cosa</th><th>Stato</th></tr>
@@ -33,13 +33,13 @@
         <tr><td>6 · Agente come servizio</td><td>l'agente risponde anche via HTTP</td><td class="si">fatto</td></tr>
         <tr><td>7 · Back-end</td><td>API per le chat, salvate in PostgreSQL</td><td class="si">fatto</td></tr>
         <tr><td>8 · Front-end</td><td>chat nel browser, installabile come app</td><td class="si">fatto</td></tr>
-        <tr><td>9 · Docker Compose</td><td>quattro container avviati con un solo comando</td><td class="no">da fare</td></tr>
+        <tr><td>9 · Docker Compose</td><td>quattro container avviati con un solo comando</td><td class="si">fatto (sul branch)</td></tr>
       </tbody>
     </table>
     <aside class="note">
-      <p>Le slide del docente dividono la lezione in nove step. Ognuno parte dal precedente funzionante e si chiude con un'evidenza. Al 12 novembre sono fatti e uniti in main gli step 1, 6, 7 e 8. Restano il revisore, il riassunto, le resource, i prompt e lo step 9, che mette tutto in quattro container.</p>
+      <p>Le slide del docente dividono la lezione in nove step. Ognuno parte dal precedente funzionante e si chiude con un'evidenza. Al 12 novembre sono fatti e uniti in main gli step 1, 6, 7 e 8. Lo step 9, che mette tutto in quattro container, è fatto il 18 novembre sul suo branch e non è ancora unito. Restano il revisore, il riassunto, le resource e i prompt.</p>
     </aside>
-    <p class="fonte">Capitolo 00, «Lezione 6» · stato al 12 novembre 2026</p>
+    <p class="fonte">Capitolo 00, «Lezione 6» · stato al 18 novembre 2026</p>
   </section>
 
   <section class="slide">
@@ -292,6 +292,30 @@ nodo=router <b>categoria=fuori_ambito</b>
   </section>
 
   <section class="slide">
+    <p class="occhiello">Step 9 · Docker Compose</p>
+    <h2>Quattro container con un solo comando</h2>
+    <div class="schede">
+      <div class="scheda">
+        <h3>Un comando</h3>
+        <p><code>docker compose up -d</code> accende database, agente, back-end e pagina. La CLI e i test hanno un profilo e partono solo se chiamati per nome.</p>
+      </div>
+      <div class="scheda">
+        <h3>Per nome</h3>
+        <p>Il back-end raggiunge <code>database</code> e <code>agente</code> per nome e non pubblica porte: ci arriva solo nginx, che ne risolve il nome a ogni richiesta.</p>
+      </div>
+      <div class="scheda">
+        <h3>Un doppio clic</h3>
+        <p><code>avvia-chat.cmd</code> accende i container e aspetta che la chat risponda. Con <code>esci</code> o con la X ferma l'agente e il back-end che ha acceso.</p>
+      </div>
+    </div>
+    <p style="margin-top: 26px">Provato il 18 novembre: pronto in 15 secondi, un turno vero con il modello, la chat ancora lì dopo il riavvio del back-end.</p>
+    <aside class="note">
+      <p>Lo step 9 è nato da un blocco: da metà novembre Smart App Control di Windows blocca le DLL di psycopg, e il back-end non partiva più sul computer. In un container Linux quelle DLL non servono. Il file del doppio clic usa solo la libreria standard, e alla chiusura della finestra lancia lo spegnimento in un processo staccato, perché i container non vivono nella finestra. Restano da provare un clic vero sulla X e il doppio clic subito dopo l'accensione del PC.</p>
+    </aside>
+    <p class="fonte">compose.yaml, avvio_chat/ · Capitolo 08, sezioni 7.11 e 7.12</p>
+  </section>
+
+  <section class="slide">
     <p class="occhiello">Le prove</p>
     <h2>Vitest per la logica, Playwright nel browser vero</h2>
     <div class="schede" style="--n: 4">
@@ -328,23 +352,23 @@ nodo=router <b>categoria=fuori_ambito</b>
       <div class="scheda spenta">
         <h3>Da fare</h3>
         <ul class="punti fitti">
-          <li>Step 9: oggi agente e back-end sono programmi sul computer, che <code>avvia-chat.cmd</code> avvia insieme ai due container</li>
+          <li>Step 9: fatto sul suo branch; mancano un clic vero sulla X e il doppio clic subito dopo l'accensione del PC</li>
           <li>Step 2–5: revisore, riassunto, resource, prompt</li>
         </ul>
       </div>
       <div class="scheda attenzione">
         <h3>Da sapere</h3>
         <ul class="punti fitti">
-          <li>Nessuna autenticazione: tutto ascolta solo su <code>127.0.0.1</code></li>
+          <li>Nessuna autenticazione: le porte sono solo su <code>127.0.0.1</code>, e il back-end non ne ha</li>
           <li>Con il modello che ragiona, un turno dura 1–2 minuti</li>
           <li>Le formule LaTeX compaiono come testo grezzo</li>
         </ul>
       </div>
     </div>
     <aside class="note">
-      <p>Un buon resoconto dice anche che cosa manca. Dal 15 novembre un file avvia tutti i pezzi con un doppio clic, ma agente e back-end restano fuori da Docker: lo step 9 li metterà in container. E alcune cose sono scelte dichiarate, non dimenticanze: non c'è autenticazione, quindi nessun servizio è raggiungibile da altri computer.</p>
+      <p>Un buon resoconto dice anche che cosa manca. Dal 15 novembre un file avvia tutti i pezzi con un doppio clic, e dal 18 novembre, con lo step 9, i pezzi sono quattro container; restano due prove a mano. E alcune cose sono scelte dichiarate, non dimenticanze: non c'è autenticazione, quindi nessun servizio è raggiungibile da altri computer.</p>
     </aside>
-    <p class="fonte">Checkpoint del 12 novembre 2026 · README «La chat nel browser»</p>
+    <p class="fonte">Checkpoint del 12 e del 16 novembre 2026 · README «La chat nel browser»</p>
   </section>
 
   <section class="slide">
@@ -360,7 +384,7 @@ nodo=router <b>categoria=fuori_ambito</b>
     </div>
     <div class="domanda">
       <p class="q">Perché nginx inoltra <code>/api</code>, invece di far parlare il browser con il back-end?</p>
-      <p class="r">Pagina e API hanno la stessa origine, quindi niente CORS, e il back-end resta su <code>127.0.0.1</code>. Serve però <code>proxy_buffering off</code>.</p>
+      <p class="r">Pagina e API hanno la stessa origine, quindi niente CORS, e il back-end non pubblica nessuna porta. Serve però <code>proxy_buffering off</code>.</p>
     </div>
     <aside class="note">
       <p>Prova a rispondere a voce prima di leggere. Le tre risposte hanno la stessa forma: una scelta, il suo perché, e che cosa costa.</p>

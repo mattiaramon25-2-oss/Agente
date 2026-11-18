@@ -32,7 +32,7 @@ flowchart TB
 |---|---|---|
 | Giri di strumento per turno | 3 (`MAX_GIRI_STRUMENTO`) | `assistente/grafo.py:24` |
 | Tempo massimo di una chiamata MCP | 10 s (`TIMEOUT_CHIAMATA`) | `assistente/client_mcp.py:16` |
-| Tempo massimo del modello | 120 s, un solo nuovo tentativo | `assistente/modello.py:84-85` |
+| Tempo massimo del modello | 120 s, un solo nuovo tentativo | `assistente/modello.py:18-19` |
 | Porte ammesse | da 1024 a 65535, solo cifre | `assistente/configurazione.py:28-34` |
 | Lunghezza massima di una nota | 500 caratteri | `logica/note.py:20` |
 | Variante di ogni strumento | `metadata["origine"]`, `locale` se manca | `assistente/varianti.py:51-53` |
@@ -118,7 +118,7 @@ Il glossario contiene 146 voci. Nella colonna «Dove» c'è il primo posto da ap
 | `add_note` | Strumento che salva una nota persistente (al massimo 500 caratteri). Restituisce `id`, `testo`, `creata` (UTC) ed `esito`. | `server_mcp/server.py:175-179`, `logica/note.py:69-85` |
 | Agente | Programma che usa un LLM per decidere quali azioni compiere (qui: quali strumenti chiamare), le esegue davvero e restituisce il risultato al modello. Qui l'agente è l'assistente, nel ruolo di *host* MCP. | `assistente/` |
 | `AIMessage` | Messaggio prodotto dal modello. Può contenere testo, richieste di strumento (`tool_calls`) oppure chiamate malformate (`invalid_tool_calls`). | `assistente/grafo.py:15`, `:236` |
-| API compatibile con OpenAI | Interfaccia HTTP che imita quella di OpenAI (`/v1/models`, `/v1/chat/completions`). LM Studio la offre, quindi si può usare il client `ChatOpenAI`. | `assistente/modello.py:1`, `:80-87` |
+| API compatibile con OpenAI | Interfaccia HTTP che imita quella di OpenAI (`/v1/models`, `/v1/chat/completions`). LM Studio la offre, quindi si può usare il client `ChatOpenAI`. | `assistente/modello.py:1`, `:13-21` |
 | Archivio delle note | File SQLite `archivio/note.sqlite3`, fuori da Git e dall'immagine Docker. È l'unico stato che sopravvive alla sessione. | `logica/note.py:19`, `.gitignore:7` |
 | `ArchivioNote` | Classe che gestisce le note. Ogni operazione apre una connessione, la esegue in una transazione e la chiude sempre. | `logica/note.py:53-119` |
 | `ast` (albero sintattico) | Modulo Python che trasforma un testo in un albero di nodi. La calcolatrice lo usa con `mode="eval"` e poi visita solo i nodi ammessi, senza eseguire codice. | `logica/calcolatrice.py:91`, `:47-71` |
@@ -133,7 +133,7 @@ Il glossario contiene 146 voci. Nella colonna «Dove» c'è il primo posto da ap
 |---|---|---|
 | `BaseExceptionGroup` | Gruppo di eccezioni (Python 3.11+). Il trasporto MCP può sollevarlo: `_prima_causa` lo scende fino alla prima eccezione vera, per scrivere un messaggio leggibile. | `assistente/client_mcp.py:30-33` |
 | `BaseTool` | Classe base di LangChain per gli strumenti. Tutte le varianti producono un `BaseTool`, quindi il grafo le tratta allo stesso modo. | `assistente/varianti.py:9` |
-| `bind_tools` | Metodo di `ChatOpenAI` che allega al modello gli schemi degli strumenti. Così il modello sa che esistono e può chiederli. | `assistente/modello.py:87` |
+| `bind_tools` | Metodo di `ChatOpenAI` che allega al modello gli schemi degli strumenti. Così il modello sa che esistono e può chiederli. | `assistente/modello.py:21` |
 | BOM | *Byte Order Mark* (`U+FEFF`), un carattere invisibile che PowerShell mette all'inizio di una pipe. Va tolto, altrimenti «esci» non verrebbe riconosciuto. | `assistente/console.py:17`, `assistente/terminale.py:63` |
 
 ### C
@@ -175,7 +175,7 @@ Il glossario contiene 146 voci. Nella colonna «Dove» c'è il primo posto da ap
 | `.env` / `.env.example` | `.env.example` è versionato e non contiene credenziali. `.env` è la copia reale, fuori da Git, letta con `python-dotenv`. | `.env.example`, `assistente/__main__.py:23` |
 | `ErroreAvvio` | Eccezione per i problemi che impediscono di aprire la chat: porta occupata, processo che non parte, catalogo vuoto, nomi duplicati. | `assistente/errori.py:4` |
 | `ErroreConfigurazione` | Eccezione per variabili d'ambiente mancanti o non valide. Il messaggio dice che cosa correggere. | `assistente/configurazione.py:24` |
-| `ErroreServer` | Eccezione per LM Studio irraggiungibile, risposta non valida o modello non disponibile. | `assistente/modello.py:18` |
+| `ErroreServer` | Eccezione per LM Studio irraggiungibile, risposta non valida o modello non disponibile. | `assistente/lmstudio.py:14` |
 | `ErroreStrumento` | Eccezione comune a tutta la logica (sottoclasse di `ValueError`), con un messaggio in italiano per il modello. | `logica/errori.py:4` |
 | `esegui_registrato` | Funzione del server che esegue lo strumento, scrive la riga di log e trasforma `ErroreStrumento` in `ToolError`. Fa anche da rete di sicurezza per gli errori imprevisti. | `server_mcp/server.py:98-109` |
 | `esegui_turno` | Funzione che esegue un turno del grafo partendo da cronologia + nuovo `HumanMessage`, con `giri_strumento=0`. Restituisce la nuova cronologia senza modificare quella passata. | `assistente/grafo.py:256-269` |
@@ -328,7 +328,7 @@ Il glossario contiene 146 voci. Nella colonna «Dove» c'è il primo posto da ap
 
 | Termine | Definizione | Dove |
 |---|---|---|
-| Timeout | Tempi massimi: 120 s per il modello, 10 s per una chiamata MCP, 5 s per il wrapper FastAPI, 4 s per fase e 8 s in totale per il meteo, 10 s per l'avvio di un processo, 5 s per l'arresto. | `modello.py:84`, `client_mcp.py:16`, `wrapper_scadenze.py:19`, `meteo.py:17-20`, `avvio_server.py:25-26` |
+| Timeout | Tempi massimi: 120 s per il modello, 10 s per una chiamata MCP, 5 s per il wrapper FastAPI, 4 s per fase e 8 s in totale per il meteo, 10 s per l'avvio di un processo, 5 s per l'arresto. | `modello.py:18`, `client_mcp.py:16`, `wrapper_scadenze.py:19`, `meteo.py:17-20`, `avvio_server.py:25-26` |
 | `@tool` | Decoratore di LangChain che trasforma una funzione Python in uno strumento. Nome, descrizione e schema vengono dalla firma e dalla docstring. | `assistente/calcolatrice_locale.py:25`, `assistente/wrapper_scadenze.py:45` |
 | Tool calling | Capacità del modello di rispondere con una richiesta strutturata di strumento (nome + argomenti JSON) invece che con un testo. Lo strumento lo esegue poi il programma. | `assistente/grafo.py:184-224` |
 | `ToolError` | Eccezione di FastMCP. Sollevata da uno strumento, diventa un risultato MCP con `isError`. | `server_mcp/server.py:11`, `:104` |
@@ -351,7 +351,7 @@ Il glossario contiene 146 voci. Nella colonna «Dove» c'è il primo posto da ap
 |---|---|---|
 | Vitest | Strumento di prova del front-end (`npm test`): prove di logica come lettore SSE, markdown, stato e API; 108 passati il 12/11/2026. | `frontend/package.json:10`, `:24` |
 | Variante | Modo di collegare uno strumento: `mcp` (tutti), `locale` (solo `calcola`), `fastapi` (solo `calcola_scadenza`). Si sceglie nel `.env` e il modello ne vede una sola per nome. | `assistente/configurazione.py:7-8`, `assistente/varianti.py` |
-| `verifica_server` | Controllo all'avvio: `GET <base_url>/models`, poi verifica che `LMSTUDIO_MODEL` sia nell'elenco. | `assistente/modello.py:42-76` |
+| `verifica_server` | Controllo all'avvio: `GET <base_url>/models`, poi verifica che `LMSTUDIO_MODEL` sia nell'elenco. | `assistente/lmstudio.py:38-72` |
 | Volume (bind mount) | Cartella dell'host montata nel container (`./logs:/app/logs`, `./archivio:/app/archivio`). Log e note sopravvivono a `--rm`. | `compose.yaml:14-18` |
 
 ### W
@@ -481,14 +481,14 @@ LM Studio gira sul computer dell'utente e non va mai containerizzato. L'assisten
 <summary><b>D6.</b> Perché l'identificativo del modello non si può inventare?</summary>
 
 Perché all'avvio `verifica_server` chiede `GET /models` e controlla che `LMSTUDIO_MODEL` sia nell'elenco. Se non c'è, esce con un errore che elenca i modelli disponibili. L'identificativo giusto è quello restituito dal server.
-→ `assistente/modello.py:42-76`
+→ `assistente/lmstudio.py:38-72`
 </details>
 
 <details>
 <summary><b>D7.</b> Perché serve una chiave API se LM Studio non la controlla?</summary>
 
 La libreria `ChatOpenAI` ne esige una. Il progetto passa il segnaposto `"lm-studio"`, che non è una credenziale.
-→ `assistente/modello.py:14-15`, `:83`
+→ `assistente/modello.py:9-10`, `:17`
 </details>
 
 ### 5.2 Architettura
@@ -968,7 +968,7 @@ Il codice lo rende visibile ma non può impedirlo. Il messaggio di sistema lo vi
 <summary><b>D59.</b> «Impossibile raggiungere LM Studio» e «Il modello '…' non è disponibile»: che differenza c'è?</summary>
 
 Il primo è un errore di **rete o indirizzo** (`OSError` in `verifica_server`): LM Studio è chiuso, il server non è attivo o `LMSTUDIO_BASE_URL` è sbagliato. Un indirizzo scritto male, come `http://localhost:1234v1`, viene rifiutato prima ancora della richiesta. Il secondo dice che il server risponde, ma `LMSTUDIO_MODEL` non è tra gli ID restituiti: il messaggio li elenca. In entrambi i casi l'uscita ha codice 1.
-→ `assistente/modello.py:27-76`
+→ `assistente/lmstudio.py:23-72`
 </details>
 
 <details>

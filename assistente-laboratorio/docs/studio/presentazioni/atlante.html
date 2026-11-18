@@ -116,7 +116,7 @@
     <section>
       <h2 id="processi"><span class="n">10</span> Chi avvia chi</h2>
       <figure class="schema stretto" data-schema="processi"></figure>
-      <p>LM Studio, la chat da terminale, il servizio dell'agente, il back-end e i due container li avvii tu: sei cose. Il server MCP no: lo avviano e lo spengono la chat da terminale e il servizio dell'agente, ciascuno il suo, sulla stessa porta. Per questo i due non si usano insieme: il secondo si ferma con <code>Porta … già in uso</code>. Con la variante <code>fastapi</code> avviano anche il servizio delle scadenze. Il file <code>avvia-chat.cmd</code> avvia con un doppio clic i quattro pezzi della chat nel browser, e accende anche Docker e LM Studio se sono spenti.</p>
+      <p>LM Studio e la chat da terminale li avvii tu. I quattro pezzi della chat nel browser sono container (step 9): <code>docker compose up -d</code> accende database, agente, back-end e pagina con un solo comando, e il back-end non ha porte sul computer, ci arriva solo nginx. Il server MCP no: lo avviano e lo spengono la chat da terminale e il servizio dell'agente, ciascuno il suo; quello dell'agente sta dentro il suo container. I due condividono però le note: con l'agente acceso, <code>.\avvia.ps1</code> avvisa e chiede conferma. Con la variante <code>fastapi</code> avviano anche il servizio delle scadenze. Il file <code>avvia-chat.cmd</code> accende con un doppio clic i quattro container, e anche Docker e LM Studio se sono spenti; alla chiusura, anche con la X, ferma l'agente e il back-end che ha acceso.</p>
       <p class="leggi">Le porte sono quelle di <code>.env.example</code>. I comandi sono nella guida <a href="../../../AVVIO-RAPIDO.md">AVVIO-RAPIDO.md</a>. Approfondisci: <a href="../02-architettura.md">capitolo 02</a>, sezione 2.</p>
     </section>
 
@@ -173,7 +173,8 @@
       <h2 id="test"><span class="n">18</span> Quattro tipi di verifica</h2>
       <figure class="schema" data-schema="test"></figure>
       <p>I test automatici usano un modello finto che recita un copione: provano il codice, non il modello. Che il modello vero sappia usare gli strumenti lo dicono solo le prove reali. Il front-end ha in più i test Vitest, per la logica.</p>
-      <p class="leggi">Al 12 novembre 2026: <code>python -m pytest</code> 625 passati e 74 saltati; <code>npm test</code> 108 passati. Approfondisci: <a href="../09-test-e-verifiche.md">capitolo 09</a>.</p>
+      <p>Dallo step 9 i test automatici girano in un container, con <code>docker compose run --rm test</code>: sul computer Smart App Control di Windows blocca le DLL di <code>psycopg</code>. Sul computer restano i test del doppio clic, di <code>avvia.ps1</code>, di nginx e di Compose.</p>
+      <p class="leggi">Al 18 novembre 2026: nel container 717 passati e 98 saltati; sul computer 104 passati e 1 saltato, più 7 con <code>--docker</code>. Al 12 novembre: <code>npm test</code> 108 passati. Approfondisci: <a href="../09-test-e-verifiche.md">capitolo 09</a>, sezione 10.6.</p>
     </section>
   </main>
 </body>

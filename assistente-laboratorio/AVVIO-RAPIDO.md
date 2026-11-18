@@ -10,22 +10,20 @@ Fai doppio clic su **`avvia-chat.cmd`**, nella cartella `assistente-laboratorio`
 
 ```text
 Assistente del laboratorio · avvio della chat
-[1/5] Docker: acceso
-[2/5] LM Studio: risponde, modello google/gemma-4-e2b presente
-      Accendo database e pagina (la prima volta ci vuole qualche minuto)...
-[3/5] Database e pagina: accesi
-      Avvio il servizio dell'agente...
-[4/5] Agente: pronto su http://127.0.0.1:8767
-      Avvio il back-end delle chat...
-[5/5] Back-end: pronto su http://127.0.0.1:8768
+[1/4] Docker: acceso
+[2/4] LM Studio: risponde, modello google/gemma-4-e2b presente
+      Accendo i container (la prima volta ci vuole qualche minuto)...
+[3/4] Container: accesi
+[4/4] Chat: risponde (database ok, agente ok)
 Apro http://127.0.0.1:8780
 La chat è accesa. Per spegnerla scrivi «esci» e premi Invio, oppure chiudi questa finestra.
 ```
 
-- **Accende da solo ciò che è spento:** Docker Desktop, il server di LM Studio, il database, la pagina, l'agente e il back-end.
-- **Per spegnere:** scrivi `esci` nella finestra e premi Invio. Si spengono l'agente e il back-end; il database e la pagina restano accesi in Docker.
-- **Se chiudi la finestra** senza scrivere `esci`, Windows chiude comunque l'agente e il back-end. Il browser, Docker Desktop e LM Studio restano aperti.
-- **Se è già tutto acceso**, il doppio clic apre solo il browser.
+- **Accende da solo ciò che è spento:** Docker Desktop, il server di LM Studio e i quattro container (database, agente, back-end e pagina). Aspetta che la chat risponda davvero prima di aprire il browser.
+- **Per spegnere:** scrivi `esci` nella finestra e premi Invio, oppure chiudi la finestra. Si spengono l'agente e il back-end, se li ha accesi lui; il database e la pagina restano accesi in Docker. Il browser, Docker Desktop e LM Studio restano aperti.
+- **Se agente e back-end sono già accesi**, il doppio clic apre solo il browser e la finestra si chiude.
+- **Dopo un aggiornamento del codice** ricostruisci una volta le immagini dei container: `docker compose up -d --build`.
+- **Per fermare anche database e pagina:** `docker compose stop`.
 - **Prima serve** aver fatto una volta i passi di «La prima volta», più sotto.
 
 Il resto di questa pagina spiega gli stessi passi fatti a mano, e gli altri due modi di usare l'assistente.
@@ -35,12 +33,12 @@ Il resto di questa pagina spiega gli stessi passi fatti a mano, e gli altri due 
 | Modo | Che cosa ottieni | Che cosa deve essere acceso | Comandi |
 |---|---|---|---|
 | **A · Chat da terminale** | la chat nella finestra di PowerShell | LM Studio | 1 |
-| **B · Chat nel browser** | la chat in una pagina web, con le conversazioni salvate | LM Studio e Docker Desktop | un doppio clic, oppure 4 a mano |
+| **B · Chat nel browser** | la chat in una pagina web, con le conversazioni salvate | LM Studio e Docker Desktop | un doppio clic, oppure 1 a mano |
 | **C · Terminale in Docker** | come A, ma dentro un container | LM Studio e Docker Desktop | 2 |
 
 Se vuoi solo provarlo, parti da **A**.
 
-**Uno alla volta.** Non usare A e B insieme: usano la stessa porta per il server degli strumenti (`MCP_PORTA`), e il secondo che parte si ferma con `Porta … già in uso`. Non usare C insieme ad A o a B: condividono l'archivio delle note.
+**Uno alla volta.** A, B e C usano lo stesso archivio delle note (`archivio/note.sqlite3`): non usarli insieme. Con l'agente di B acceso, `.\avvia.ps1` (modo C) lo dice e chiede `S`/`N` prima di partire.
 
 ## La prima volta (si fa una volta sola)
 
@@ -103,31 +101,29 @@ Prova con `che ore sono a Tokyo?`. Prima della risposta compare la riga dello st
 
 Il doppio clic su `avvia-chat.cmd` fa da solo tutti i passi di questa sezione. Qui c'è la versione a mano.
 
-I pezzi da avviare sono quattro. Ognuno parla solo con il vicino:
+I pezzi sono quattro container, più LM Studio sul computer. Ognuno parla solo con il vicino:
 
 ```text
-Browser ──► nginx :8780 ──► back-end :8768 ──► agente :8767 ──► LM Studio :1234
-            (container)          │                   │
-                                 ▼                   ▼
-                          PostgreSQL :5432    server degli strumenti :8765
-                            (container)        (lo avvia l'agente)
+Browser ──► nginx :8780 ──► back-end ──► agente :8767 ──► LM Studio :1234
+            (frontend)     (backend)        │
+                               │            ▼
+                               ▼      server degli strumenti
+                          PostgreSQL   (dentro il container agente)
+                          (database)
 ```
 
-Servono **tre terminali**, tutti nella cartella `assistente-laboratorio` e con l'ambiente attivato. I due comandi `docker compose` tornano subito al prompt; l'agente e il back-end restano in primo piano.
+Il back-end non ha una porta sul computer: ci arriva solo nginx. Basta un comando:
 
-| # | Terminale | Comando | Quando è pronto |
-|---|---|---|---|
-| 1 | primo | `docker compose up -d database` | `docker compose ps` mostra `database` con `healthy` |
-| 2 | secondo | `python -m servizio_agente` | compare `Servizio dell'agente in ascolto su 127.0.0.1:8767 …` |
-| 3 | terzo | `python -m servizio_backend` | compare `Back-end delle chat in ascolto su http://127.0.0.1:8768 …` |
-| 4 | primo | `docker compose up -d --build frontend` | il comando finisce senza errori |
+| Comando | Quando è pronto |
+|---|---|
+| `docker compose up -d` | `docker compose ps` mostra `agente` e `backend` con `healthy` (l'agente ci mette fino a un minuto) |
 
 Poi apri **<http://127.0.0.1:8780>** in Edge o in Chrome.
 
-Per controllare che tutto sia collegato, dal primo terminale:
+Per controllare che tutto sia collegato:
 
 ```powershell
-Invoke-RestMethod http://127.0.0.1:8768/salute
+Invoke-RestMethod http://127.0.0.1:8780/api/salute
 ```
 
 La risposta deve dire `stato ok`, `database ok`, `agente ok`.
@@ -136,17 +132,13 @@ La risposta deve dire `stato ok`, `database ok`, `agente ok`.
 
 - Il modello attuale ragiona prima di rispondere: un turno può durare 1–2 minuti.
 - Le chat restano salvate anche dopo lo spegnimento.
-- Dopo una modifica ai file di `frontend/` va ripetuto il comando 4.
+- Dopo una modifica al codice: `docker compose up -d --build`.
 
 **Per fermare tutto:**
 
-1. `Ctrl+C` nel terminale del back-end e in quello dell'agente.
-2. Nel primo terminale:
-
-   ```powershell
-   docker compose stop frontend
-   docker compose stop database
-   ```
+```powershell
+docker compose stop
+```
 
 Attenzione: `docker compose down -v` **cancella tutte le chat e i progetti**. Per spegnere usa `stop`.
 
@@ -155,13 +147,13 @@ Attenzione: `docker compose down -v` **cancella tutte le chat e i progetti**. Pe
 ## C · Terminale in Docker
 
 ```powershell
-docker compose build
+docker compose build assistente
 .\avvia.ps1
 ```
 
 La chat è la stessa del modo A, ma gira in un container. LM Studio resta sul computer. La riga di benvenuto mostra `Fuso orario: Europe/Berlin (host Windows)`. Si esce con `esci`.
 
-`docker compose build` serve la prima volta e dopo ogni modifica al codice o ai file di `risorse/`.
+`docker compose build assistente` serve la prima volta e dopo ogni modifica al codice o ai file di `risorse/`: il servizio della CLI non parte con `docker compose up` e non si ricostruisce con `docker compose build` senza nome. Se l'agente della chat nel browser è acceso, `.\avvia.ps1` avvisa che le note sono condivise e chiede `Aprire comunque la CLI? (S/N)`: con una risposta diversa da `S` esce.
 
 ---
 
@@ -172,13 +164,12 @@ La chat è la stessa del modo A, ma gira in un container. LM Studio resta sul co
 | `Impossibile raggiungere LM Studio all'indirizzo …` | LM Studio è chiuso o il suo server non è attivo: aprilo e attiva il server |
 | `Il modello '…' non è disponibile su LM Studio` | `LMSTUDIO_MODEL` nel `.env` non è tra i modelli di LM Studio: il messaggio li elenca, copiane uno |
 | `Variabili d'ambiente mancanti: …` | manca il file `.env` o una riga è vuota: confrontalo con `.env.example` |
-| `Porta … già in uso` oppure `La porta … è occupata` | un altro programma, o un avvio precedente rimasto acceso, usa quella porta: chiudilo o cambia la porta nel `.env`. Succede anche se provi il modo A con il servizio dell'agente del modo B acceso: usane uno alla volta |
-| `Il database PostgreSQL non risponde su 127.0.0.1:…` | il database è spento: `docker compose up -d database` |
+| `Porta … già in uso` oppure `La porta … è occupata` | un altro programma, o un avvio precedente rimasto acceso, usa quella porta: chiudilo o cambia la porta nel `.env`. Con `(AGENTE_PORTA)` c'è probabilmente un `python -m servizio_agente` acceso fuori da Docker: chiudilo e rifai il doppio clic |
+| `La chat non risponde del tutto dopo 90 secondi` | il messaggio dice che cosa manca (database, agente o back-end) e il comando per leggerne il log, per esempio `docker compose logs --tail 30 agente` |
 | lo stesso messaggio, con `password authentication failed` | la password nel `.env` è diversa da quella con cui il database è stato creato. Rimetti quella vecchia, oppure dai al database quella nuova (vedi sotto): in tutti e due i casi le chat restano. `docker compose down -v` invece **cancella tutte le chat** |
-| `La porta … (MCP_PORTA) è occupata ma il servizio dell'agente è spento` | è aperta la chat da terminale (modo A): chiudila e rifai il doppio clic |
 | `Docker Desktop non risponde dopo 180 secondi` | apri Docker Desktop a mano, aspetta che sia pronto e rifai il doppio clic |
 | `LM Studio non risponde su … dopo 60 secondi` | apri LM Studio, attiva il server e rifai il doppio clic |
-| striscia rossa «Il back-end non risponde: avvialo con python -m servizio_backend.» | il back-end è spento: avvialo (comando 3). La striscia sparisce da sola |
+| striscia rossa «Il back-end non risponde: avvialo con python -m servizio_backend.» | il back-end è spento: `docker compose up -d`, oppure rifai il doppio clic. La striscia sparisce da sola, fino a una decina di secondi dopo che il back-end è ripartito |
 | `required variable … is missing a value` | Docker Compose non trova una variabile: aggiungila al `.env` come in `.env.example` |
 | `.\avvia.ps1` non può essere eseguito perché l'esecuzione di script è disabilitata | `powershell -NoProfile -ExecutionPolicy Bypass -File .\avvia.ps1` |
 | la prima risposta è molto lenta | LM Studio sta caricando il modello in memoria: aspetta |
@@ -189,7 +180,7 @@ La chat è la stessa del modo A, ma gira in un container. LM Studio resta sul co
 docker compose exec -T database psql -U assistente -d assistente -c "ALTER USER assistente WITH PASSWORD 'la-password-nuova';"
 ```
 
-La risposta è `ALTER ROLE`. Se il back-end è acceso, riavvialo: legge la password solo all'avvio. `assistente` è il valore di `POSTGRES_USER` e di `POSTGRES_DB` in `.env.example`: se nel tuo `.env` sono diversi, usa i tuoi.
+La risposta è `ALTER ROLE`. Se il back-end è acceso, riavvialo con `docker compose restart backend`: legge la password solo all'avvio. `assistente` è il valore di `POSTGRES_USER` e di `POSTGRES_DB` in `.env.example`: se nel tuo `.env` sono diversi, usa i tuoi.
 
 Per tutto il resto: sezione «Diagnosi» del [README](README.md#diagnosi).
 
@@ -197,8 +188,8 @@ Per tutto il resto: sezione «Diagnosi» del [README](README.md#diagnosi).
 
 - **Per studiare il progetto:** [`docs/studio/00-indice.md`](docs/studio/00-indice.md).
 - **Per provare gli strumenti:** «Quanto fa (3+4)*2?» deve dare 14; «Se parto il 23 dicembre 2026, quando scadono 3 giorni lavorativi?» deve dare il 29 dicembre 2026.
-- **Per i test:** `python -m pytest` (non servono né LM Studio né Docker).
+- **Per i test:** `docker compose run --rm test`, la suite in un container (non serve LM Studio). Su questo computer `python -m pytest` sull'host si ferma: Smart App Control di Windows blocca le DLL di `psycopg`.
 
 ---
 
-*Comandi presi dal README. Rieseguiti il 15 novembre 2026: l'avvio e l'uscita del modo A; nel modo B il servizio dell'agente e il back-end, con `/salute` che risponde `ok` sia direttamente sia attraverso nginx (`http://127.0.0.1:8780/api/salute`), con database e `frontend` già accesi; il cambio della password del database, dopo il quale le chat c'erano ancora; il modo A con il servizio dell'agente acceso, che si ferma con `Porta 8765 già in uso`. Non rieseguiti il 15 novembre: una conversazione completa con il modello, i comandi 1 e 4 del modo B (i due container erano già accesi) e il modo C. Per il modo C il README segnala che l'avvio con la tastiera va ancora confermato: finora è stato provato con l'ingresso da una pipe. Il file `avvia-chat.cmd` è stato provato il 15 novembre 2026: primo avvio completo, secondo avvio con tutto acceso, spegnimento con `esci`. La chiusura della finestra è provata da un test automatico, che chiude una console vera come fa il pulsante X. Non provati dal vivo: Docker spento, LM Studio spento e un clic vero sulla X.*
+*Comandi presi dal README. Rieseguiti il 15 novembre 2026: l'avvio e l'uscita del modo A; il cambio della password del database, dopo il quale le chat c'erano ancora. Con lo step 9 il modo A non è stato riprovato insieme all'agente in Docker (non si scontrano più sulla porta degli strumenti, che resta dentro il container, ma condividono le note). Per il modo C il README segnala che l'avvio con la tastiera va ancora confermato: finora è stato provato con l'ingresso da una pipe. Dal 18 novembre 2026 (step 9) il modo B gira in quattro container: provati `avvia-chat.cmd --senza-browser` con agente e back-end spenti (pronto in 15 secondi, `/api/salute` tutto `ok`), `esci` (fermi agente e back-end, accesi database e pagina), il doppio clic con tutto acceso (nessun container fermato), un turno vero con il modello attraverso nginx e la chat ancora presente dopo `docker compose restart backend`; `.\avvia.ps1` con l'agente acceso, con la risposta `N` da una pipe. `docker compose up -d --build` è stato provato con `--wait`. La chiusura della finestra è provata da un test automatico su una console vera e da una prova su un progetto Compose separato. Non provati dal vivo: `--ricostruisci` (solo test automatici), Docker spento, LM Studio spento, un clic vero sulla X (da una finestra classica e da una scheda di Windows Terminal) e il doppio clic subito dopo l'accensione del PC.*
