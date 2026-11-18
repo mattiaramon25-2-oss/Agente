@@ -1,8 +1,3 @@
-# max_fails=0: nginx non mette da parte il back-end dopo un errore, così al riavvio risponde subito.
-upstream backend {
-    server host.docker.internal:${BACKEND_PORTA} max_fails=0;
-}
-
 server {
     listen 8080;
     server_name _;
@@ -13,10 +8,16 @@ server {
     # add_header propri; ogni location con un suo add_header le include di nuovo.
     include /etc/nginx/sicurezza.conf;
 
-    # Il back-end gira sull'host (solo su 127.0.0.1); si toglie il prefisso /api.
+    # Il back-end ha il nome BACKEND_INDIRIZZO nella rete di Compose (backend; le prove del
+    # browser lo puntano all'host). Con proxy_pass a una variabile nginx risolve il nome
+    # a ogni richiesta con il DNS di Docker: parte anche se il back-end è spento, e dà 502
+    # finché non risponde. Con una variabile l'URI non si sostituisce: la rewrite toglie /api.
     # Niente buffering: gli eventi SSE devono arrivare uno alla volta.
     location /api/ {
-        proxy_pass http://backend/;
+        resolver 127.0.0.11 valid=10s ipv6=off;
+        set $backend http://${BACKEND_INDIRIZZO}:${BACKEND_PORTA};
+        rewrite ^/api/(.*)$ /$1 break;
+        proxy_pass $backend;
         proxy_http_version 1.1;
         proxy_set_header Connection "";
         proxy_set_header Host $host;

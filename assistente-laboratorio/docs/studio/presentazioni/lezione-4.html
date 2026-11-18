@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lezione 4 · Assistente del laboratorio</title>
+  <link rel="stylesheet" href="stile.css">
+  <script src="slide.js"></script>
+  <script src="schemi.js"></script>
+</head>
+<body class="mazzo">
+
+  <section class="slide titolo">
+    <p class="occhiello">Lezione 4 · 2 novembre 2026</p>
+    <h1>L'assistente di base</h1>
+    <p class="sottotitolo">Una chat da terminale con un modello locale, un grafo e un solo strumento: l'orologio.</p>
+    <p class="fonte">Assistente del laboratorio · corso «Deep Learning e LLM: costruire chatbot e agenti»</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">Il punto di partenza</p>
+    <h2>Cinque pezzi, tutti ancora in uso</h2>
+    <ul class="punti">
+      <li>Una <strong>chat da terminale</strong> con un modello locale, servito da LM Studio</li>
+      <li>Un <strong>grafo LangGraph</strong> con tre nodi e un limite di 3 giri di strumento</li>
+      <li>Un solo <strong>strumento</strong>, l'orologio: allora stava dentro l'assistente, oggi è nel server MCP</li>
+      <li>La <strong>cronologia</strong> solo in memoria, e il <strong>fuso dell'utente</strong> rilevato anche in Docker</li>
+      <li>L'avvio diretto e con <strong>Docker Compose</strong>; i test con un <strong>modello finto</strong></li>
+    </ul>
+    <aside class="note">
+      <p>La lezione 4 costruisce la base. È piccola, ma ha già tutte le idee che servono dopo: il modello locale, il tool calling, il grafo, la configurazione fuori dal codice e la separazione tra test automatici e prove reali. Le lezioni 5 e 6 aggiungono pezzi senza cambiare questa struttura.</p>
+    </aside>
+    <p class="fonte">Capitolo 00, «Lezione 4» · Capitolo 11, sezione 3</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">Il modello locale</p>
+    <h2>Il modello gira sul tuo computer, in LM Studio</h2>
+    <div class="colonne">
+      <ul class="punti">
+        <li>LM Studio offre un'<strong>API compatibile con OpenAI</strong>: il programma gli parla via HTTP</li>
+        <li>Niente cloud: i dati restano sul PC. La chiave <code>"lm-studio"</code> è solo un <strong>segnaposto</strong></li>
+        <li>L'identificativo del modello è quello che <strong>restituisce il server</strong>, mai inventato</li>
+      </ul>
+      <div>
+        <pre class="codice"><i>PowerShell</i>
+(Invoke-RestMethod
+  http://localhost:1234/v1/models).data.id
+
+<b>google/gemma-4-e2b</b></pre>
+        <pre class="codice"><i>.env</i>
+LMSTUDIO_BASE_URL=http://localhost:1234/v1
+LMSTUDIO_MODEL=google/gemma-4-e2b</pre>
+      </div>
+    </div>
+    <aside class="note">
+      <p>LM Studio è un programma a parte: lo apro io, attivo il suo server e scarico un modello. L'assistente lo raggiunge all'indirizzo scritto nel file .env. All'avvio controlla due cose: che il server risponda e che il modello configurato sia nell'elenco. Ogni chiamata al modello aspetta al massimo 120 secondi.</p>
+    </aside>
+    <p class="fonte">Capitolo 01, sezione 3 · assistente/modello.py</p>
+  </section>
+
+  <section class="slide grande">
+    <p class="occhiello">Tool calling</p>
+    <h2>Il modello propone, il programma esegue</h2>
+    <figure class="schema" data-schema="tool-calling"></figure>
+    <aside class="note">
+      <p>È il concetto più importante del corso. Il modello non esegue niente: al passo 3 scrive una richiesta, con il nome dello strumento e gli argomenti. Il programma la controlla, la esegue e rimanda il risultato. Il modello fa due giri: nel primo chiede, nel secondo legge il risultato e risponde.</p>
+    </aside>
+    <p class="fonte">Capitolo 01, sezione 4</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">ToolMessage</p>
+    <h2>Ogni richiesta riceve una risposta con lo stesso identificativo</h2>
+    <pre class="codice"><b>HumanMessage</b> | che ore sono a Tokyo?
+<b>AIMessage</b>    | richiesta: ora_corrente, fuso Asia/Tokyo, <b>id c1</b>
+<b>ToolMessage</b>  | {"fuso": "Asia/Tokyo", "data_ora": "2026-11-09T05:13:00+09:00", …}  <b>id c1</b>
+<b>AIMessage</b>    | A Tokyo sono le 05:13.</pre>
+    <ul class="punti fitti">
+      <li>Il risultato torna al modello in un <code>ToolMessage</code>, con il <code>tool_call_id</code> della richiesta</li>
+      <li>Il programma chiude <strong>ogni</strong> richiesta, anche quando non la esegue</li>
+      <li>Una richiesta senza risposta rende la cronologia non valida: il turno dopo fallirebbe</li>
+    </ul>
+    <aside class="note">
+      <p>Queste quattro righe sono la cronologia di un turno. La seconda è la richiesta del modello, la terza è il risultato dello strumento. Hanno lo stesso identificativo: così il modello sa a quale richiesta risponde ogni risultato. Attenzione: questo esempio usa il modello finto. Mostra il meccanismo, non prova che il modello vero sappia usare lo strumento.</p>
+    </aside>
+    <p class="fonte">Capitolo 00, «Prova lampo» · Capitolo 01, sezione 5</p>
+  </section>
+
+  <section class="slide grande">
+    <p class="occhiello">Il grafo</p>
+    <h2>Tre nodi e una sola decisione</h2>
+    <figure class="schema" data-schema="grafo-base"></figure>
+    <aside class="note">
+      <p>Il grafo descrive un turno. Il nodo modello chiama LM Studio. Poi una funzione, instrada dopo modello, sceglie tra tre strade. Se il modello non chiede strumenti, il turno finisce. Se li chiede, il nodo strumenti li esegue e si torna al modello. Se i giri sono già tre, scatta il nodo limite.</p>
+    </aside>
+    <p class="fonte">assistente/grafo.py · Capitolo 04, sezioni 3 e 8</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">Lo stato</p>
+    <h2>Lo stato è piccolo: messaggi, fuso, contatore</h2>
+    <table class="tabella">
+      <thead>
+        <tr><th>Campo</th><th>Che cosa contiene</th><th>Da sapere</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>messages</code></td><td>i messaggi della conversazione</td><td>un <em>reducer</em>, <code>add_messages</code>, aggiunge in coda invece di sostituire</td></tr>
+        <tr><td><code>fuso_utente</code></td><td>il fuso dell'utente</td><td>entra nel messaggio di sistema</td></tr>
+        <tr><td><code>giri_strumento</code></td><td>i giri di strumento del turno</td><td>riparte da zero a ogni turno</td></tr>
+      </tbody>
+    </table>
+    <ul class="punti fitti" style="margin-top: 22px">
+      <li>Un nodo restituisce <strong>solo i campi che cambia</strong></li>
+      <li>Il <strong>messaggio di sistema</strong> non entra nella cronologia: il nodo modello lo ricrea a ogni chiamata</li>
+    </ul>
+    <aside class="note">
+      <p>Lo stato è ciò che passa da un nodo all'altro. Nella lezione 4 ha tre campi. Il messaggio di sistema non sta nella cronologia: viene ricreato a ogni chiamata e messo in testa, così ha sempre il fuso giusto e non si duplica. Con la lezione 6 lo stato ha due campi facoltativi in più: la categoria decisa dal router e le istruzioni del progetto.</p>
+    </aside>
+    <p class="fonte">assistente/grafo.py, StatoConversazione · Capitolo 04, sezioni 2, 4 e 7</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">Il limite</p>
+    <h2>Al massimo 3 giri di strumento per turno</h2>
+    <div class="schede">
+      <div class="scheda">
+        <span class="numero">3</span>
+        <p>giri di strumento in un turno: <code>MAX_GIRI_STRUMENTO</code></p>
+      </div>
+      <div class="scheda attenzione">
+        <span class="numero">4ª</span>
+        <p>richiesta: scatta il nodo <code>limite</code>, che risponde con un testo fisso</p>
+      </div>
+      <div class="scheda">
+        <span class="numero">0</span>
+        <p>il contatore riparte da zero a ogni nuovo messaggio dell'utente</p>
+      </div>
+    </div>
+    <p class="avviso buono" style="margin-top: 24px">Il nodo <code>limite</code> chiude le richieste rimaste aperte: la cronologia resta valida e l'utente legge una risposta.</p>
+    <aside class="note">
+      <p>Senza un limite il modello potrebbe chiedere strumenti all'infinito. Il contatore conta i passaggi dal nodo strumenti. Alla quarta richiesta il nodo limite fa due cose: chiude con un errore le richieste ancora aperte, così la cronologia resta valida, e aggiunge un testo di scuse leggibile.</p>
+    </aside>
+    <p class="fonte">assistente/grafo.py · Capitolo 04, sezione 12</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">La memoria</p>
+    <h2>La conversazione vive in memoria, nel terminale</h2>
+    <ul class="punti">
+      <li>Il grafo <strong>non ha un checkpointer</strong>: non salva lo stato tra un turno e l'altro</li>
+      <li>Il terminale tiene la lista dei messaggi e <strong>la ripassa a ogni turno</strong></li>
+      <li>Un turno fallito <strong>non entra</strong> nella cronologia</li>
+      <li>Alla chiusura la cronologia <strong>si perde</strong>: nella lezione 4 non resta niente</li>
+    </ul>
+    <aside class="note">
+      <p>Il grafo esegue un turno e basta: non ricorda niente. La memoria della conversazione è una lista di messaggi che il terminale conserva e ripassa al grafo a ogni domanda. Chiuso il programma, la lista sparisce. Con la lezione 5 restano le note; con la lezione 6, nella chat nel browser, restano anche le conversazioni.</p>
+    </aside>
+    <p class="fonte">assistente/terminale.py · Capitolo 04, sezione 16</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">La configurazione</p>
+    <h2>La configurazione sta fuori dal codice, nel file .env</h2>
+    <div class="colonne">
+      <ul class="punti">
+        <li>Indirizzo di LM Studio, modello e porte arrivano <strong>solo da variabili d'ambiente</strong></li>
+        <li>Il controllo è severo, ma dice che cosa fare: le variabili mancanti compaiono <strong>tutte insieme</strong></li>
+        <li>Tra <code>.env</code> e ambiente <strong>vince l'ambiente</strong></li>
+      </ul>
+      <div>
+        <pre class="codice"><i>se manca qualcosa</i>
+<b>Errore:</b> Variabili d'ambiente mancanti: …</pre>
+        <pre class="codice"><i>assistente/__main__.py</i>
+load_dotenv(override=False)
+config = carica_configurazione(os.environ)</pre>
+      </div>
+    </div>
+    <aside class="note">
+      <p>Nel codice non c'è nessun indirizzo e nessun nome di modello. Tutto arriva dalle variabili d'ambiente: in avvio diretto si leggono dal file .env, in Docker le passa Compose. Così cambio modello o porta senza toccare il programma. Il file .env resta fuori da Git; nel repository c'è solo un esempio, senza credenziali.</p>
+    </aside>
+    <p class="fonte">Capitolo 08, sezioni 1 e 2</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">Il fuso orario</p>
+    <h2>Il fuso dell'utente si cerca in quattro posti</h2>
+    <ol class="punti">
+      <li><code>FUSO_HOST_WINDOWS</code>: il fuso di Windows, che <code>avvia.ps1</code> passa al container</li>
+      <li>Il fuso del <strong>computer</strong>, ma solo fuori da Docker</li>
+      <li><code>FUSO_ORARIO</code>, scritto a mano nel file <code>.env</code></li>
+      <li><code>UTC</code>, con un <strong>avviso ben visibile</strong> nella riga di benvenuto</li>
+    </ol>
+    <p class="avviso buono" style="margin-top: 12px"><code>Europe/Berlin</code> in Italia è normale: Windows chiama il fuso dell'Europa centrale <code>W. Europe Standard Time</code>, che la tabella standard traduce in <code>Europe/Berlin</code>. È la stessa ora di Roma.</p>
+    <aside class="note">
+      <p>L'orologio deve sapere dove si trova l'utente. Fuori da Docker basta chiedere al computer. Dentro un container, però, il fuso del sistema è UTC. Per questo lo script di avvio legge il fuso di Windows e lo passa al container. Se nessun posto dà una risposta, il programma usa UTC, ma lo dice sempre.</p>
+    </aside>
+    <p class="fonte">assistente/fuso.py · Capitolo 08, sezione 3</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">L'avvio</p>
+    <h2>All'avvio, prima i controlli che costano poco</h2>
+    <figure class="schema" data-schema="avvio"></figure>
+    <ul class="punti fitti">
+      <li>Se manca una variabile o LM Studio è spento, il programma <strong>si ferma subito</strong> e dice che cosa fare</li>
+      <li>Lo schema mostra l'ordine di oggi: l'ambito e i processi figli sono arrivati con le lezioni 5 e 6</li>
+    </ul>
+    <aside class="note">
+      <p>L'ordine non è casuale. Prima ciò che costa poco e fallisce in fretta: la console, il file .env, il log, LM Studio, il fuso. Solo alla fine partono i processi che l'assistente avvia da sé. Così un errore di configurazione non lascia processi accesi.</p>
+    </aside>
+    <p class="fonte">assistente/__main__.py · Capitolo 08, sezione 5</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">Docker</p>
+    <h2>In Docker tutto sta in un container, tranne LM Studio</h2>
+    <div class="colonne">
+      <ul class="punti">
+        <li>LM Studio resta sul computer: il container lo raggiunge con <code>host.docker.internal</code></li>
+        <li>Per questo gli indirizzi sono <strong>due</strong>: <code>LMSTUDIO_BASE_URL</code> e <code>LMSTUDIO_BASE_URL_DOCKER</code></li>
+        <li>Nel container il fuso è UTC: lo script <code>avvia.ps1</code> passa quello di Windows</li>
+      </ul>
+      <div>
+        <pre class="codice"><i>PowerShell</i>
+docker compose build
+.\avvia.ps1</pre>
+        <pre class="codice"><i>riga di benvenuto</i>
+Fuso orario: Europe/Berlin <b>(host Windows)</b></pre>
+      </div>
+    </div>
+    <aside class="note">
+      <p>Dentro un container, localhost è il container stesso. Per raggiungere LM Studio, che resta sul computer, serve un altro indirizzo. Compose lo passa al programma con il nome di sempre, quindi il codice Python è identico nei due modi di avvio. LM Studio non va mai messo in un container.</p>
+    </aside>
+    <p class="fonte">Capitolo 08, sezione 7 · README «Avvio con Docker»</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">Test e verifiche</p>
+    <h2>I test usano un modello finto, le prove reali il modello vero</h2>
+    <div class="schede" style="--n: 2">
+      <div class="scheda">
+        <h3>Test automatici</h3>
+        <p><code>python -m pytest</code>. Il <code>ModelloFinto</code> restituisce in ordine risposte preparate; l'orologio è fermo a un istante controllato. Non servono né LM Studio né la rete.</p>
+      </div>
+      <div class="scheda llm">
+        <h3>Prove reali</h3>
+        <p><code>--lmstudio</code> e <code>--docker</code>. Usano il modello vero e il container vero. Senza l'opzione risultano saltate, <code>skipped</code>.</p>
+      </div>
+    </div>
+    <p class="avviso" style="margin-top: 24px">Una risposta simulata non dimostra che il modello locale sappia usare lo strumento.</p>
+    <aside class="note">
+      <p>I test automatici provano il codice: dato un certo comportamento del modello, il programma fa la cosa giusta. Ma quel comportamento l'ha scritto chi ha scritto il test. Che il modello vero chiami davvero l'orologio lo dicono solo le prove reali, che partono solo se le chiedo.</p>
+    </aside>
+    <p class="fonte">tests/finti.py · Capitolo 09</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">Se te lo chiedono all'orale</p>
+    <h2>Tre domande, tre risposte brevi</h2>
+    <div class="domanda">
+      <p class="q">Chi esegue lo strumento: il modello o il programma?</p>
+      <p class="r">Il programma. Il modello produce solo la richiesta; il nodo <code>strumenti</code> la controlla e la esegue.</p>
+    </div>
+    <div class="domanda">
+      <p class="q">Perché esiste il nodo <code>limite</code>, invece di andare subito a <code>END</code>?</p>
+      <p class="r">L'ultimo messaggio del modello contiene richieste ancora aperte. Il nodo le chiude con un errore, così la cronologia resta valida, e aggiunge una risposta leggibile.</p>
+    </div>
+    <div class="domanda">
+      <p class="q">Perché ci sono due indirizzi di LM Studio?</p>
+      <p class="r">Dentro il container <code>localhost</code> è il container stesso. Docker usa l'indirizzo con <code>host.docker.internal</code>, che Compose passa come <code>LMSTUDIO_BASE_URL</code>: il codice resta identico.</p>
+    </div>
+    <aside class="note">
+      <p>Prova a rispondere a voce prima di leggere. Una buona risposta d'orale ha tre parti: la risposta in una frase, il perché, e dove si vede nel codice o nei log.</p>
+    </aside>
+    <p class="fonte">Schede dei capitoli 01, 04 e 08</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">Da ricordare</p>
+    <h2>La lezione 4 in cinque frasi</h2>
+    <ol class="punti grandi">
+      <li>Il modello gira <strong>in locale</strong>, in LM Studio.</li>
+      <li>Il modello <strong>propone</strong>, il programma <strong>esegue</strong>.</li>
+      <li>Il grafo ha <strong>tre nodi</strong> e al massimo <strong>3 giri</strong> di strumento.</li>
+      <li>La configurazione sta nel <strong>.env</strong>, mai nel codice.</li>
+      <li>Il modello finto prova <strong>il codice</strong>, non il modello.</li>
+    </ol>
+    <aside class="note">
+      <p>Queste cinque frasi restano vere fino alla fine del progetto. Le lezioni successive spostano l'orologio in un server, aggiungono strumenti, un router e una chat nel browser, ma il cuore è ancora questo grafo.</p>
+    </aside>
+    <p class="fonte">Prossima presentazione: Lezione 5 · Gli strumenti via MCP</p>
+  </section>
+
+</body>
+</html>

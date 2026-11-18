@@ -57,12 +57,12 @@ flowchart LR
 | Cosa | Valore | Dove |
 |---|---|---|
 | Limite di giri per turno | `MAX_GIRI_STRUMENTO = 3` | `assistente/grafo.py:26` |
-| Campi dello stato | `messages` (con `add_messages`), `fuso_utente`, `giri_strumento`, `categoria` (lezione 6) | `assistente/grafo.py:36-40` |
-| Instradamento dopo il modello | `END`, `"limite"` o `"strumenti"` | `assistente/grafo.py:140-146` |
-| Instradamento dopo il router | `"modello"` o `"rifiuto"` | `assistente/grafo.py:149-150` |
-| Costruzione | con router: 5 nodi, 2 archi condizionali; senza: 3 nodi; `compile()` senza checkpointer | `assistente/grafo.py:229-244` |
-| Contatore azzerato a ogni turno | `"giri_strumento": 0` | `assistente/grafo.py:253` |
-| Logger | `assistente.strumenti` (chiamate), `assistente.grafo` (nodi), `assistente.router`, tutti in `logs/assistente.log` | `assistente/grafo.py:32-33`, `assistente/router.py` |
+| Campi dello stato | `messages` (con `add_messages`), `fuso_utente`, `giri_strumento`, `categoria` e `istruzioni` (lezione 6) | `assistente/grafo.py:43-48` |
+| Instradamento dopo il modello | `END`, `"limite"` o `"strumenti"` | `assistente/grafo.py:172-178` |
+| Instradamento dopo il router | `"modello"` o `"rifiuto"` | `assistente/grafo.py:181-182` |
+| Costruzione | con router: 5 nodi, 2 archi condizionali; senza: 3 nodi; `compile()` senza checkpointer | `assistente/grafo.py:263-278` |
+| Contatore azzerato a ogni turno | `"giri_strumento": 0` | `assistente/grafo.py:289` |
+| Logger | `assistente.strumenti` (chiamate), `assistente.grafo` (nodi), `assistente.router`, tutti in `logs/assistente.log` | `assistente/grafo.py:39-40`, `assistente/router.py` |
 | Ambito e rifiuto | `risorse/ambito.json` | `assistente/ambito.py` |
 
 **Se te lo chiedono all'orale**
@@ -136,7 +136,7 @@ modello finto (`tests/finti.py`) al posto di LM Studio.
 | Test automatici | `tests/test_grafo.py` | `crea_grafo(ModelloFinto([...]), [orologio_finto(ISTANTE), ...])` |
 
 Lo **stesso** elenco `strumenti` viene passato due volte: a `crea_modello`, che lo lega al modello con
-`bind_tools` (così il modello riceve nomi, descrizioni e schemi, `assistente/modello.py:87`), e a
+`bind_tools` (così il modello riceve nomi, descrizioni e schemi, `assistente/modello.py:21`), e a
 `crea_grafo`, che lo usa per eseguire davvero le chiamate. Se i due elenchi fossero diversi, il modello
 potrebbe chiedere uno strumento che il grafo non conosce (caso gestito comunque: vedi
 [`strumento_sconosciuto`](#13-esito-e-status-del-toolmessage)).
@@ -154,13 +154,13 @@ Versioni fissate in `requirements.txt`: `langgraph==1.2.19`, `langchain-core==1.
 
 | Concetto | Che cos'è | Nel progetto |
 |---|---|---|
-| **Stato** | Un dizionario tipizzato che passa da un nodo all'altro | `StatoConversazione` (`grafo.py:29`) |
+| **Stato** | Un dizionario tipizzato che passa da un nodo all'altro | `StatoConversazione` (`grafo.py:43`) |
 | **Nodo** | Una funzione `stato -> aggiornamento parziale` | `nodo_modello`, `nodo_strumenti`, `nodo_limite` |
 | **Arco fisso** | "Dopo A vai sempre a B" | `START→modello`, `strumenti→modello`, `limite→END` |
 | **Arco condizionale** | Una funzione decide il prossimo nodo | `instrada_dopo_modello` dopo `modello` |
 | **Reducer** | Regola per fondere l'aggiornamento con il valore precedente | `add_messages` sul campo `messages` |
-| **`compile()`** | Trasforma la descrizione in un oggetto eseguibile | `costruttore.compile()` (`grafo.py:211`) |
-| **`invoke(input)`** | Esegue il grafo da `START` a `END` e restituisce lo stato finale | in `esegui_turno` (`grafo.py:216`) |
+| **`compile()`** | Trasforma la descrizione in un oggetto eseguibile | `costruttore.compile()` (`grafo.py:278`) |
+| **`invoke(input)`** | Esegue il grafo da `START` a `END` e restituisce lo stato finale | in `esegui_turno` (`grafo.py:285`) |
 | **Checkpointer** | Memoria persistente dello stato tra invocazioni | **non usato**: la cronologia la tiene il terminale |
 
 Un nodo **non** restituisce lo stato intero: restituisce solo i campi che cambia. LangGraph li fonde
@@ -184,7 +184,7 @@ li abbiamo scritti noi, uguali per ogni variante.
 
 ## 3. Il diagramma del grafo
 
-La docstring del file (`grafo.py:1-6`) lo disegna così:
+La docstring del file (`grafo.py:1-10`) lo disegna così:
 
 ```text
 START -> modello -> (instrada_dopo_modello) -> strumenti -> modello
@@ -242,7 +242,7 @@ che chiude le richieste rimaste aperte (vedi [sezione 12](#12-il-limite-di-3-gir
 ## 4. Lo stato: `StatoConversazione`
 
 ```python
-class StatoConversazione(TypedDict):                          # grafo.py:29-32
+class StatoConversazione(TypedDict):                          # grafo.py:43-48
     messages: Annotated[list[AnyMessage], add_messages]
     fuso_utente: str
     giri_strumento: int  # giri di strumento nel turno corrente
@@ -282,7 +282,7 @@ e passato a ogni turno da `esegui_turno`.
 Un giro può contenere **più** chiamate in parallelo (un `AIMessage` con tre `tool_calls` produce tre
 `ToolMessage`), e la cronologia contiene anche i giri dei turni precedenti. Il contatore misura
 esattamente ciò che serve: quante volte, **in questo turno**, si è passati dal nodo `strumenti`. Ripartendo
-da 0 a ogni turno (`grafo.py:220`) il limite vale per messaggio dell'utente, come chiede la specifica.
+da 0 a ogni turno (`grafo.py:289`) il limite vale per messaggio dell'utente, come chiede la specifica.
 
 ---
 
@@ -310,11 +310,11 @@ Due osservazioni:
 ## 6. `crea_grafo`: la costruzione
 
 ```python
-def crea_grafo(modello, strumenti: list[BaseTool]):          # grafo.py:141
+def crea_grafo(modello, strumenti: list[BaseTool]):          # grafo.py:185
     """`modello` ha `.invoke(messaggi) -> AIMessage` ed è già collegato agli strumenti."""
     per_nome = {strumento.name: strumento for strumento in strumenti}
     ...
-    costruttore = StateGraph(StatoConversazione)              # grafo.py:203-211
+    costruttore = StateGraph(StatoConversazione)              # grafo.py:263-278
     costruttore.add_node("modello", nodo_modello)
     costruttore.add_node("strumenti", nodo_strumenti)
     costruttore.add_node("limite", nodo_limite)
@@ -343,7 +343,7 @@ Punti chiave:
 ## 7. Il nodo `modello`
 
 ```python
-def nodo_modello(stato: StatoConversazione) -> dict:          # grafo.py:145-147
+def nodo_modello(stato: StatoConversazione) -> dict:          # grafo.py:202-207
     risposta = modello.invoke([messaggio_sistema(stato["fuso_utente"]), *stato["messages"]])
     return {"messages": [risposta]}
 ```
@@ -368,7 +368,7 @@ La `risposta` è un `AIMessage` che può contenere:
   [sezione 11](#11-le-chiamate-malformate-invalid_tool_calls)).
 
 **Se il modello solleva un'eccezione** (LM Studio chiuso, timeout di 120 secondi con un solo nuovo
-tentativo, `timeout=120, max_retries=1` in `assistente/modello.py:84-85`), il nodo non la intercetta: l'eccezione esce da `grafo.invoke`, quindi da
+tentativo, `timeout=120, max_retries=1` in `assistente/modello.py:18-19`), il nodo non la intercetta: l'eccezione esce da `grafo.invoke`, quindi da
 `esegui_turno`, e la gestisce il terminale (vedi [sezione 16](#16-esegui_turno-e-la-cronologia)).
 
 ---
@@ -376,7 +376,7 @@ tentativo, `timeout=120, max_retries=1` in `assistente/modello.py:84-85`), il no
 ## 8. L'instradamento: `instrada_dopo_modello`
 
 ```python
-def instrada_dopo_modello(stato) -> Literal["strumenti", "limite", "__end__"]:   # grafo.py:132-138
+def instrada_dopo_modello(stato) -> Literal["strumenti", "limite", "__end__"]:   # grafo.py:172-178
     ultimo = stato["messages"][-1]
     if not getattr(ultimo, "tool_calls", None) and not _malformate(ultimo):
         return END
@@ -419,7 +419,7 @@ AIMessage con sola chiamata malformata, giri 0 → strumenti
 
 ## 9. Il nodo `strumenti`
 
-È il nodo più lungo (`grafo.py:149-189`). Per **ogni** chiamata dell'ultimo `AIMessage` produce
+È il nodo più lungo (`grafo.py:209-249`). Per **ogni** chiamata dell'ultimo `AIMessage` produce
 **esattamente un** `ToolMessage` con lo stesso `tool_call_id`, poi chiude anche le chiamate
 malformate, poi incrementa il contatore.
 
@@ -446,7 +446,7 @@ flowchart TD
 Il codice, passo per passo:
 
 ```python
-for chiamata in stato["messages"][-1].tool_calls:                 # grafo.py:151
+for chiamata in stato["messages"][-1].tool_calls:                 # grafo.py:211
     strumento = per_nome.get(chiamata["name"])
     if strumento is None:
         origine, esito = "sconosciuta", "strumento_sconosciuto"
@@ -505,8 +505,8 @@ inventati) sono stati aggiunti i controlli della [sezione 10](#10-i-controlli-de
 ### Alla fine del ciclo
 
 ```python
-risultati += _malformate_chiuse(stato["messages"][-1], TESTO_NON_JSON, "errore_tool")   # grafo.py:188
-return {"messages": risultati, "giri_strumento": stato["giri_strumento"] + 1}          # grafo.py:189
+risultati += _malformate_chiuse(stato["messages"][-1], TESTO_NON_JSON, "errore_tool")   # grafo.py:248
+return {"messages": risultati, "giri_strumento": stato["giri_strumento"] + 1}          # grafo.py:249
 ```
 
 - I `ToolMessage` sono nello **stesso ordine** delle richieste (`test_strumento_sconosciuto_e_argomenti_errati`
@@ -539,7 +539,7 @@ che vede tutti e sei i risultati insieme.
 
 ## 10. I controlli dell'host prima dell'esecuzione
 
-Il commento a `grafo.py:158` dice «Controllo dell'host prima dell'esecuzione (slide 5), uguale per
+Il commento a `grafo.py:218` dice «Controllo dell'host prima dell'esecuzione (slide 5), uguale per
 ogni variante». **Host** è il termine MCP per l'applicazione che ospita il modello e decide che cosa
 eseguire: qui, l'agente. Prima di eseguire una chiamata l'host confronta gli argomenti con lo schema
 dello strumento.
@@ -547,7 +547,7 @@ dello strumento.
 ### Leggere lo schema: `_schema`
 
 ```python
-def _schema(strumento: BaseTool) -> dict:                      # grafo.py:77-79
+def _schema(strumento: BaseTool) -> dict:                      # grafo.py:117-119
     schema = strumento.tool_call_schema
     return schema if isinstance(schema, dict) else schema.model_json_schema()
 ```
@@ -565,7 +565,7 @@ stesso modo per tutte le varianti.
 ### Argomenti mancanti
 
 ```python
-def _argomenti_mancanti(strumento, argomenti) -> list[str]:    # grafo.py:82-85
+def _argomenti_mancanti(strumento, argomenti) -> list[str]:    # grafo.py:122-125
     presenti = argomenti if isinstance(argomenti, dict) else {}
     return [nome for nome in _schema(strumento).get("required", []) if nome not in presenti]
 ```
@@ -575,7 +575,7 @@ Messaggio: `Argomenti mancanti per calcola: espressione. Riprova indicando tutti
 ### Argomenti non previsti
 
 ```python
-def _argomenti_in_piu(strumento, argomenti) -> tuple[list[str], list[str]]:   # grafo.py:88-99
+def _argomenti_in_piu(strumento, argomenti) -> tuple[list[str], list[str]]:   # grafo.py:128-139
     schema = _schema(strumento)
     previsti = list(schema.get("properties", {}))
     if schema.get("additionalProperties") is True:
@@ -641,7 +641,7 @@ Con i controlli nell'host:
 Ordine dei controlli: prima i mancanti, poi quelli in più (`elif`). Se una chiamata ha entrambi i
 difetti, il modello riceve solo il messaggio sui mancanti.
 
-Il contenuto usa `_errore_argomenti` (`grafo.py:102`), che aggiunge `"tipo": "strumento"`: lo stesso
+Il contenuto usa `_errore_argomenti` (`grafo.py:142-143`), che aggiunge `"tipo": "strumento"`: lo stesso
 formato `{"errore", "tipo"}` usato dal ponte MCP e dagli strumenti locali.
 
 **Che cosa i controlli non fanno:** non controllano i **tipi** né i valori (`enum`, formati di data).
@@ -671,7 +671,7 @@ chiamata malformata senza risposta renderebbe la cronologia invalida, e il turno
 La docstring lo dice in una riga:
 
 ```python
-def _malformate(messaggio) -> list[dict]:                      # grafo.py:61-63
+def _malformate(messaggio) -> list[dict]:                      # grafo.py:101-103
     """Chiamate con argomenti non JSON: vanno chiuse anche loro, o la cronologia resta invalida."""
     return list(getattr(messaggio, "invalid_tool_calls", None) or [])
 ```
@@ -679,7 +679,7 @@ def _malformate(messaggio) -> list[dict]:                      # grafo.py:61-63
 ### Come vengono chiuse
 
 ```python
-def _malformate_chiuse(messaggio, testo: str, esito: str) -> list[ToolMessage]:   # grafo.py:122-129
+def _malformate_chiuse(messaggio, testo: str, esito: str) -> list[ToolMessage]:   # grafo.py:162-169
     chiusi = []
     for c in _malformate(messaggio):
         contenuto = _errore(testo)
@@ -753,7 +753,7 @@ Quindi, per ogni messaggio dell'utente:
 ### Il nodo `limite`
 
 ```python
-def nodo_limite(stato: StatoConversazione) -> dict:            # grafo.py:191-201
+def nodo_limite(stato: StatoConversazione) -> dict:            # grafo.py:251-261
     in_sospeso = []
     for c in stato["messages"][-1].tool_calls:
         # status="error": la chiamata non è stata eseguita.
@@ -834,7 +834,7 @@ Ogni chiamata riceve un **esito**, scritto nel log, e il suo `ToolMessage` ricev
 ### `_esito`: come si legge il risultato
 
 ```python
-def _esito(contenuto: object) -> str:                          # grafo.py:66-74
+def _esito(contenuto: object) -> str:                          # grafo.py:106-114
     try:
         dati = json.loads(contenuto) if isinstance(contenuto, str) else None
     except ValueError:
@@ -867,8 +867,8 @@ come `ok`: è il prezzo della semplicità, accettabile perché tutti gli strumen
 
 | Funzione | Produce | Usata per |
 |---|---|---|
-| `_errore(testo)` (`grafo.py:57`) | `{"errore": testo}` | strumento sconosciuto, eccezione, malformate, limite |
-| `_errore_argomenti(testo)` (`grafo.py:102`) | `{"errore": testo, "tipo": "strumento"}` | argomenti mancanti o in più |
+| `_errore(testo)` (`grafo.py:97-98`) | `{"errore": testo}` | strumento sconosciuto, eccezione, malformate, limite |
+| `_errore_argomenti(testo)` (`grafo.py:142-143`) | `{"errore": testo, "tipo": "strumento"}` | argomenti mancanti o in più |
 
 Entrambe usano `ensure_ascii=False`, così le lettere accentate restano leggibili (anche nel log).
 
@@ -876,7 +876,7 @@ Entrambe usano `ensure_ascii=False`, così le lettere accentate restano leggibil
 
 ```python
 messaggio = ToolMessage(contenuto, tool_call_id=chiamata["id"], name=chiamata["name"],
-                        status="success" if esito == "ok" else "error")          # grafo.py:180-185
+                        status="success" if esito == "ok" else "error")          # grafo.py:240-245
 ```
 
 Lo `status` è arrivato in tre tempi: `5c5f4d7` (nascita del terminale) lo mette a `"error"` nel nodo
@@ -898,7 +898,7 @@ Lo `status` serve al **nostro programma**:
 ## 14. La registrazione nel log
 
 ```python
-def _registra(origine, chiamata, esito, contenuto, messaggio: ToolMessage) -> None:   # grafo.py:106-119
+def _registra(origine, chiamata, esito, contenuto, messaggio: ToolMessage) -> None:   # grafo.py:146-159
     registro.info(formatta({
         "origine": origine,
         "tool": chiamata.get("name") or "",
@@ -969,7 +969,7 @@ confrontano per strumento, argomenti e ora. Approfondimento in
 ## 15. Il messaggio di sistema, riga per riga
 
 ```python
-def messaggio_sistema(fuso_utente: str) -> SystemMessage:      # grafo.py:35-54
+def messaggio_sistema(fuso_utente: str, istruzioni: str = "") -> SystemMessage:   # grafo.py:51-73
 ```
 
 È una sola stringa con nove regole separate da `\n`. Viene **ricostruita a ogni chiamata del modello**
@@ -980,15 +980,15 @@ se le regole cambiano, non restano copie vecchie.
 
 | # | Righe | Regola (testo nel codice) | Perché esiste | Introdotta in |
 |---|---|---|---|---|
-| 1 | 37 | «Sei un assistente utile. Rispondi nella lingua in cui scrive l'utente.» | È una chat libera su qualsiasi argomento (specifica 5.2): ruolo generico e lingua dell'utente, non sempre l'italiano | `699cbe9` |
-| 2 | 38-39 | «Per conoscere la data o l'ora usa sempre lo strumento `ora_corrente`: non inventarle e non dedurle dai messaggi precedenti.» | Il modello non ha un orologio: se risponde da solo, inventa. «Non dedurle dai messaggi precedenti» perché la cronologia contiene ore già lette che diventano vecchie: a ogni domanda va richiamato lo strumento. È la regola che rende reale il tool calling | `699cbe9` |
-| 3 | 40 | «Il fuso orario dell'utente è `{fuso_utente}`: usalo quando l'utente non indica un altro luogo o fuso.» | Per «che ore sono?» il modello deve sapere quale fuso passare. È l'unica parte variabile del messaggio | `699cbe9` |
-| 4 | 41-42 | «Se l'utente indica un luogo, passa allo strumento il nome IANA del fuso corrispondente (per esempio Asia/Tokyo per Tokyo).» | Lo strumento accetta solo nomi IANA (`Mars/Olympus` dà «Fuso orario sconosciuto»). La traduzione luogo → fuso la fa il modello; l'esempio gli mostra il formato | `699cbe9` |
-| 5 | 43-44 | «Per conversioni di unità e altri calcoli usa sempre lo strumento adatto tra quelli disponibili: non farli a mente.» | Con il convertitore (e poi calcolatrice e scadenze) il rischio è che il modello calcoli da solo, sbagliando. Regola volutamente generica: non nomina gli strumenti, perché nome e schema arrivano già dal catalogo (specifica del convertitore, 5.5). Nelle prove reali è comunque capitato che il modello rispondesse «14» a mente (checkpoint delle note) | `88281c7` |
-| 6 | 45-46 | «Non dire mai di aver salvato, eliminato, calcolato o cercato qualcosa senza aver chiamato lo strumento in questo turno: se non hai chiamato lo strumento, non l'hai fatto.» | Nelle prove reali con `google/gemma-4-e2b` il modello rispondeva «Ho salvato la nota» senza chiamare `add_note`, e dopo il riavvio l'archivio era vuoto (checkpoint conclusivo). La regola nomina le quattro azioni tipiche degli strumenti | `fe2048d` |
-| 7 | 47-48 | «Per domande sui corsi dell'ITS usa gli strumenti del catalogo e non inventare corsi che non compaiono nei risultati.» | Un modello tende a "riempire" con corsi plausibili. Prova reale: «Astrofisica», nessun risultato e nessun corso inventato (checkpoint del catalogo) | `a5528a5` |
-| 8 | 49-51 | «Per le note: aggiungi una nota solo se l'utente chiede di ricordare o annotare qualcosa; elimina le note solo per ID; se l'utente non indica l'ID, prima elencale e chiedigli quale eliminare; prima di eliminare, anche se una sola nota corrisponde, mostra ID e testo e chiedi conferma all'utente.» | Le note sono **persistenti** (SQLite): un'aggiunta o un'eliminazione sbagliata resta. L'eliminazione solo per ID evita ambiguità (specifica della lezione 5, 5.6). L'ultima frase («prima di eliminare, anche se una sola nota corrisponde, … chiedi conferma») è arrivata con `2c067fd`: nelle prove reali, prima della correzione, il modello aveva eliminato l'unica nota corrispondente senza chiedere (checkpoint delle note) | `75c0a73`, `2c067fd` |
-| 9 | 52-53 | «Se lo strumento del meteo dichiara di aver scelto una città tra più corrispondenze, dillo all'utente nominando la città scelta; se il risultato del meteo contiene una nota, riferiscila all'utente.» | Applica l'anti-obiettivo «nessuna scelta silenziosa»: con «Paris» il server sceglie Parigi tra più omonimi, con «Pordenon» sceglie Pordenone e lo dichiara nel campo `nota` (checkpoint del meteo). L'utente deve saperlo | `0cb67f5`, `4c30798` |
+| 1 | 53 | «Sei un assistente utile. Rispondi nella lingua in cui scrive l'utente.» | È una chat libera su qualsiasi argomento (specifica 5.2): ruolo generico e lingua dell'utente, non sempre l'italiano | `699cbe9` |
+| 2 | 54-55 | «Per conoscere la data o l'ora usa sempre lo strumento `ora_corrente`: non inventarle e non dedurle dai messaggi precedenti.» | Il modello non ha un orologio: se risponde da solo, inventa. «Non dedurle dai messaggi precedenti» perché la cronologia contiene ore già lette che diventano vecchie: a ogni domanda va richiamato lo strumento. È la regola che rende reale il tool calling | `699cbe9` |
+| 3 | 56 | «Il fuso orario dell'utente è `{fuso_utente}`: usalo quando l'utente non indica un altro luogo o fuso.» | Per «che ore sono?» il modello deve sapere quale fuso passare. È l'unica parte variabile del messaggio | `699cbe9` |
+| 4 | 57-58 | «Se l'utente indica un luogo, passa allo strumento il nome IANA del fuso corrispondente (per esempio Asia/Tokyo per Tokyo).» | Lo strumento accetta solo nomi IANA (`Mars/Olympus` dà «Fuso orario sconosciuto»). La traduzione luogo → fuso la fa il modello; l'esempio gli mostra il formato | `699cbe9` |
+| 5 | 59-60 | «Per conversioni di unità e altri calcoli usa sempre lo strumento adatto tra quelli disponibili: non farli a mente.» | Con il convertitore (e poi calcolatrice e scadenze) il rischio è che il modello calcoli da solo, sbagliando. Regola volutamente generica: non nomina gli strumenti, perché nome e schema arrivano già dal catalogo (specifica del convertitore, 5.5). Nelle prove reali è comunque capitato che il modello rispondesse «14» a mente (checkpoint delle note) | `88281c7` |
+| 6 | 61-62 | «Non dire mai di aver salvato, eliminato, calcolato o cercato qualcosa senza aver chiamato lo strumento in questo turno: se non hai chiamato lo strumento, non l'hai fatto.» | Nelle prove reali con `google/gemma-4-e2b` il modello rispondeva «Ho salvato la nota» senza chiamare `add_note`, e dopo il riavvio l'archivio era vuoto (checkpoint conclusivo). La regola nomina le quattro azioni tipiche degli strumenti | `fe2048d` |
+| 7 | 63-64 | «Per domande sui corsi dell'ITS usa gli strumenti del catalogo e non inventare corsi che non compaiono nei risultati.» | Un modello tende a "riempire" con corsi plausibili. Prova reale: «Astrofisica», nessun risultato e nessun corso inventato (checkpoint del catalogo) | `a5528a5` |
+| 8 | 65-67 | «Per le note: aggiungi una nota solo se l'utente chiede di ricordare o annotare qualcosa; elimina le note solo per ID; se l'utente non indica l'ID, prima elencale e chiedigli quale eliminare; prima di eliminare, anche se una sola nota corrisponde, mostra ID e testo e chiedi conferma all'utente.» | Le note sono **persistenti** (SQLite): un'aggiunta o un'eliminazione sbagliata resta. L'eliminazione solo per ID evita ambiguità (specifica della lezione 5, 5.6). L'ultima frase («prima di eliminare, anche se una sola nota corrisponde, … chiedi conferma») è arrivata con `2c067fd`: nelle prove reali, prima della correzione, il modello aveva eliminato l'unica nota corrispondente senza chiedere (checkpoint delle note) | `75c0a73`, `2c067fd` |
+| 9 | 68-69 | «Se lo strumento del meteo dichiara di aver scelto una città tra più corrispondenze, dillo all'utente nominando la città scelta; se il risultato del meteo contiene una nota, riferiscila all'utente.» | Applica l'anti-obiettivo «nessuna scelta silenziosa»: con «Paris» il server sceglie Parigi tra più omonimi, con «Pordenon» sceglie Pordenone e lo dichiara nel campo `nota` (checkpoint del meteo). L'utente deve saperlo | `0cb67f5`, `4c30798` |
 
 ### Perché la conferma prima di eliminare è solo nel messaggio di sistema
 
@@ -1020,7 +1020,7 @@ def esegui_turno(grafo, cronologia: list[BaseMessage], fuso_utente: str, testo: 
             "giri_strumento": 0,
         }
     )
-    return list(stato["messages"])                              # grafo.py:214-223
+    return list(stato["messages"])                              # grafo.py:281-293
 ```
 
 Un **turno** è: un messaggio dell'utente → zero o più giri di strumenti → una risposta finale.
@@ -1176,7 +1176,7 @@ messaggio di sistema. La storia completa del progetto è in
   del progetto non dovrebbe scattare, ma è una rete di sicurezza, non un messaggio curato.
 - **Piccola asimmetria sull'origine**: per uno strumento esistente ma senza `metadata`, il nodo
   `strumenti` scrive `locale` mentre il nodo `limite` scrive `sconosciuta`
-  (`grafo.py:157` contro `grafo.py:197`). Nel progetto non succede, perché tutti gli strumenti hanno
+  (`grafo.py:217` contro `grafo.py:257`). Nel progetto non succede, perché tutti gli strumenti hanno
   `metadata["origine"]`.
 - **Turno fallito**: sparisce dalla cronologia, ma gli effetti degli strumenti già eseguiti restano
   ([sezione 16](#16-esegui_turno-e-la-cronologia)).
@@ -1400,22 +1400,37 @@ pezzi), `tests/test_reale_streaming.py` (48 pezzi nella prova del 9 novembre).
 
 Lezione 6, step 7 (specifica `docs/superpowers/specs/2026-11-10-backend-chat-design.md`). Un progetto del
 back-end può avere delle istruzioni valide per tutte le sue chat. L'agente le riceve come campo
-facoltativo `istruzioni` e le aggiunge **in fondo al messaggio di sistema**.
+facoltativo `istruzioni`, le aggiunge **in fondo al messaggio di sistema** e le ripete in un **promemoria**
+in fondo all'ultima domanda dell'utente, in una copia usata solo per la chiamata al modello.
 
 | Pezzo | Dove | Che cosa fa |
 |---|---|---|
-| Stato | `assistente/grafo.py:44` | `istruzioni: NotRequired[str]`, usato solo dal nodo `modello` |
+| Stato | `assistente/grafo.py:48` | `istruzioni: NotRequired[str]`, usato solo dal nodo `modello` |
 | Intestazione | `assistente/grafo.py:30` | «Istruzioni del progetto per questa conversazione (si aggiungono alle regole precedenti e non le sostituiscono):» |
-| Messaggio di sistema | `messaggio_sistema(fuso_utente, istruzioni="")`, `assistente/grafo.py:47-69` | se `istruzioni.strip()` non è vuoto, in fondo `"\n" + intestazione + "\n" + istruzioni.strip()`; altrimenti il messaggio è identico a prima |
-| Nodo modello | `assistente/grafo.py:177-181` | passa `stato.get("istruzioni", "")` a `messaggio_sistema` |
-| Turni | `esegui_turno` (`:256`) ed `esegui_turno_in_streaming` (`:271`) | argomento facoltativo `istruzioni`; la CLI non lo passa e non cambia |
+| Messaggio di sistema | `messaggio_sistema(fuso_utente, istruzioni="")`, `assistente/grafo.py:51-73` | se `istruzioni.strip()` non è vuoto, in fondo `"\n" + intestazione + "\n" + istruzioni.strip()`; altrimenti il messaggio è identico a prima |
+| Promemoria | `messaggi_per_il_modello(fuso_utente, messaggi, istruzioni="")`, `assistente/grafo.py:86-94`, e `_con_promemoria`, `:76-84`; intestazione a `:36` | con istruzioni non vuote, sostituisce l'ultimo `HumanMessage` con una **copia** (`model_copy`) che ha in fondo `"\n\n(" + intestazione + " " + istruzioni + ")"` («Promemoria delle istruzioni del progetto, da rispettare in questa risposta:»); con un contenuto a blocchi aggiunge un blocco di testo. Lo stato e la cronologia non cambiano; senza istruzioni i messaggi sono identici a prima |
+| Nodo modello | `assistente/grafo.py:202-207` | passa a `modello.invoke` il risultato di `messaggi_per_il_modello` |
+| Turni | `esegui_turno` (`:281`) ed `esegui_turno_in_streaming` (`:296`) | argomento facoltativo `istruzioni`; la CLI non lo passa e non cambia |
 
-**Il router non le vede.** `nodo_router` (`assistente/grafo.py:170`) non legge `istruzioni`: l'ambito resta
+**Il router non le vede.** `nodo_router` (`assistente/grafo.py:195`) non legge `istruzioni`: l'ambito resta
 deciso da `risorse/ambito.json` e il rifiuto resta il testo fisso. Le istruzioni di un progetto non possono
 allargare l'ambito dell'agente né cambiare il rifiuto: è un anti-obiettivo della specifica.
 
+**Perché il promemoria (18 novembre 2026).** Con gli strumenti nella richiesta, `google/gemma-4-e2b` ignorava le
+istruzioni in fondo al lungo messaggio di sistema: con «parla solo in francese» rispondeva in italiano 5 volte su 5
+(senza strumenti, in francese 3 volte su 3). Riscrivere l'intestazione o spostare le istruzioni in cima non bastava;
+ripeterle vicino all'ultima domanda sì. La prima versione le metteva in un **secondo messaggio di sistema** subito
+prima dell'ultima domanda; la revisione finale l'ha cambiata: i template di chat di alcune famiglie di modelli
+(Gemma 2 e 3, Mistral) rifiutano un messaggio `system` dopo il primo posto, e LM Studio risponderebbe `400` a ogni
+turno con le istruzioni. Ora il promemoria sta **dentro l'ultima domanda** (una copia), e la richiesta ha un solo
+messaggio di sistema, in testa. Prova dal vivo dopo la correzione, con l'agente in Docker e `/chat`: «ciao» con
+«parla solo in francese» → in francese 3 volte su 3 («Bonjour ! Comment puis-je vous aider aujourd'hui ?»); «che
+ore sono?» → in francese 2 volte su 2, con lo strumento dell'ora; «ciao» senza istruzioni → in italiano. **Limite che
+resta:** dopo una chiamata a uno strumento la risposta finale può tornare nella lingua dell'utente (con la prima
+versione 1 volta su 2 per «che ore sono?»); poche prove non bastano a escluderlo.
+
 **Limite.** Il servizio dell'agente accetta fino a 4000 caratteri (`servizio_agente/app.py:37`). Il
-messaggio di sistema è rigenerato a ogni chiamata al modello e non entra nella cronologia salvata.
+messaggio di sistema e il promemoria sono rigenerati a ogni chiamata al modello e non entrano nella cronologia salvata.
 
 ---
 
@@ -1449,14 +1464,14 @@ Una presentazione di circa 12 slide su questo capitolo. Ogni slide: titolo, tre 
 - `fuso_utente`: serve a costruire il messaggio di sistema
 - `giri_strumento`: un contatore che riparte da zero a ogni turno
 
-*Da mostrare:* il codice di `assistente/grafo.py:29-32` e la tabella della sezione 4.
+*Da mostrare:* il codice di `assistente/grafo.py:43-48` e la tabella della sezione 4.
 
 ### Slide 5 · Nodo modello e instradamento
 - Messaggio di sistema in testa, mai salvato nella cronologia
 - Il modello riceve ogni volta tutta la conversazione
 - `instrada_dopo_modello` è pura: legge lo stato, non lo cambia
 
-*Da mostrare:* il codice di `assistente/grafo.py:132-147` e la tabella della sezione 8.
+*Da mostrare:* il codice di `assistente/grafo.py:172-182` e la tabella della sezione 8.
 
 ### Slide 6 · Il nodo strumenti
 - Un `ToolMessage` per ogni richiesta, con lo stesso id
@@ -1508,7 +1523,7 @@ Una presentazione di circa 12 slide su questo capitolo. Ogni slide: titolo, tre 
 *Da mostrare:* la tabella della sezione 22.
 
 ### Slide 13 · Le istruzioni del progetto
-- Campo `istruzioni` in fondo al messaggio di sistema
+- Campo `istruzioni` in fondo al messaggio di sistema, ripetuto in fondo a una copia dell'ultima domanda
 - Non sostituiscono le regole e il router non le vede
 - Senza istruzioni il messaggio è identico a prima
 

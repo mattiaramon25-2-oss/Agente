@@ -294,10 +294,10 @@ Le due correzioni finali di questa fase sono ancora nel codice:
 
 - **`7a366f5` fix(grafo): argomenti non JSON.**
   - *Che cosa succedeva:* se il modello produceva argomenti che non sono JSON, LangChain metteva la chiamata in `invalid_tool_calls` invece che in `tool_calls`, e il nodo strumenti la ignorava. La cronologia restava con una richiesta senza risposta, cioè non valida per la chiamata successiva al modello.
-  - *Come è stato corretto:* anche quelle chiamate vengono chiuse con un `ToolMessage` di errore (`assistente/grafo.py:61-63` e `:122-129`), e l'instradamento ne tiene conto (`:132-138`).
+  - *Come è stato corretto:* anche quelle chiamate vengono chiuse con un `ToolMessage` di errore (`assistente/grafo.py:101-103` e `:162-169`), e l'instradamento ne tiene conto (`:172-178`).
 - **`edac61f` fix(modello): indirizzi scritti male.**
   - *Che cosa succedeva:* un `LMSTUDIO_BASE_URL` come `http://localhost:1234v1` produceva un traceback.
-  - *Come è stato corretto:* ora viene rifiutato prima della richiesta, con un esempio corretto (`assistente/modello.py:27-39`).
+  - *Come è stato corretto:* ora viene rifiutato prima della richiesta, con un esempio corretto (`assistente/lmstudio.py:23-35`).
 
 ### 3.3 L'importazione nel repository `Agente`
 
@@ -538,7 +538,7 @@ Esempio reale, eseguendo la versione precedente a `ae100c8` (estratta con `git s
 | Difetto | Che cosa succedeva | Perché | Correzione |
 |---|---|---|---|
 | Festività incompleta | le scadenze lavorative di ottobre 2027 e 2028 erano sbagliate | mancava San Francesco, il 4 ottobre, festa nazionale dal 2026 (legge 151/2025) | aggiunto a `risorse/festivita_italia.json` per il 2026, il 2027 e il 2028 |
-| Argomento obbligatorio mancante | il modello riceveva un errore pydantic in inglese | FastMCP valida prima di chiamare la funzione | **controllo dell'host** nel nodo strumenti, prima di eseguire e uguale per ogni variante (`assistente/grafo.py:82-85` e `:159-166`) |
+| Argomento obbligatorio mancante | il modello riceveva un errore pydantic in inglese | FastMCP valida prima di chiamare la funzione | **controllo dell'host** nel nodo strumenti, prima di eseguire e uguale per ogni variante (`assistente/grafo.py:122-125` e `:221-226`) |
 
 Esempi reali con il codice attuale:
 
@@ -623,7 +623,7 @@ cerca(catalogo, "Python base")       → totale 1: PY-01 «Programmazione in Pyt
 | ID enorme | errore in inglese al modello, senza riga di log | SQLite non accetta interi oltre `2**63 - 1`, e l'eccezione sfuggiva alla traduzione | `ID_MASSIMO` dà «nessuna nota» (`logica/note.py:23` e `:107-108`); in più `esegui_registrato` intercetta **qualsiasi** errore imprevisto, per ogni strumento, con un messaggio italiano e una riga di log (`server_mcp/server.py:98-109`) |
 | Prove reali sull'archivio vero | le prove degli altri strumenti usavano `archivio/note.sqlite3`, con `delete_note` disponibile al modello | il server partiva con il percorso predefinito | le prove reali avviano il server con `--note` su un archivio temporaneo (`tests/reale.py`) |
 | Falsa conferma di eliminazione | se un altro processo aveva già eliminato la nota, l'eliminazione veniva comunque confermata | si controllava solo la `SELECT` iniziale | si verifica `rowcount` del `DELETE` (`logica/note.py:114-116`) |
-| Eliminazione senza conferma | il modello eliminava subito l'unica nota corrispondente | il messaggio di sistema non lo vietava | messaggio di sistema e descrizione chiedono di mostrare ID e testo e di aspettare la conferma (`assistente/grafo.py:49-51`, `server_mcp/server.py:81-84`) |
+| Eliminazione senza conferma | il modello eliminava subito l'unica nota corrispondente | il messaggio di sistema non lo vietava | messaggio di sistema e descrizione chiedono di mostrare ID e testo e di aspettare la conferma (`assistente/grafo.py:65-67`, `server_mcp/server.py:81-84`) |
 
 Esempio reale con il codice attuale, su un archivio temporaneo:
 
@@ -693,7 +693,7 @@ servizio lento, tempo_totale=2 → Servizio meteo: nessuna risposta entro 2 seco
 
 | Commit | Contenuto |
 |---|---|
-| `fe2048d` | prova Docker con le varianti `fastapi` e `locale`, volume delle note verificato in modo deterministico, meteo senza rete nel container; README con tabella strumenti/varianti/log e diagnosi per livelli; nel messaggio di sistema la regola **«se non hai chiamato lo strumento, non l'hai fatto»** (`assistente/grafo.py:45-46`) |
+| `fe2048d` | prova Docker con le varianti `fastapi` e `locale`, volume delle note verificato in modo deterministico, meteo senza rete nel container; README con tabella strumenti/varianti/log e diagnosi per livelli; nel messaggio di sistema la regola **«se non hai chiamato lo strumento, non l'hai fatto»** (`assistente/grafo.py:61-62`) |
 | `d92d7bb` | spostamento sicuro di `logs/` e `archivio/` durante la prova Docker (`tests/cartelle_da_parte.py`, con 6 test), comando del README eseguito nella sua forma esatta |
 
 **Esiti:**
@@ -788,7 +788,7 @@ precisione
     For further information visit https://errors.pydantic.dev/2.14/v/unexpected_keyword_argument
 ```
 
-**Come è stato corretto.** Il nodo strumenti confronta gli argomenti con lo schema **prima di eseguire**, per ogni variante (`assistente/grafo.py:88-99` e `:167-172`). L'unica eccezione sono gli schemi con `additionalProperties: true`, che nel progetto usa solo lo strumento finto dei test (`tests/finti.py:46`). Esempio reale con il grafo vero e il modello finto:
+**Come è stato corretto.** Il nodo strumenti confronta gli argomenti con lo schema **prima di eseguire**, per ogni variante (`assistente/grafo.py:128-139` e `:227-232`). L'unica eccezione sono gli schemi con `additionalProperties: true`, che nel progetto usa solo lo strumento finto dei test (`tests/finti.py:46`). Esempio reale con il grafo vero e il modello finto:
 
 ```text
 AIMessage   [{'name': 'calcola', 'args': {'espressione': '(3+4)*2', 'precisione': 2}, ...}]
@@ -851,7 +851,7 @@ Esempio reale: il wrapper vero chiama l'app FastAPI vera tramite `TestClient`, n
 ("x\ud800", 3, true)     → {"errore": "Argomenti non validi per calcola_scadenza: valore troppo lungo o con caratteri non validi.", "tipo": "strumento"}
 ```
 
-Il campo `tipo` conta: decide l'esito nel log (`errore_tool` o `errore_collegamento`, `assistente/grafo.py:66-74`), cioè se la colpa è dell'input o della rete. È l'anti-obiettivo «rete e dominio confusi».
+Il campo `tipo` conta: decide l'esito nel log (`errore_tool` o `errore_collegamento`, `assistente/grafo.py:106-114`), cioè se la colpa è dell'input o della rete. È l'anti-obiettivo «rete e dominio confusi».
 
 ### 7.7 `7eabf37` — Dipendenze fissate e niente residui
 
@@ -923,7 +923,7 @@ Gli esiti vengono dai checkpoint di `docs/superpowers/checkpoint/` (`2026-11-09-
 
 ### 8.1 Step 1 — Il router dell'ambito (`bd8b891`)
 
-**Che cosa.** Un nodo `router` prima dell'agente decide se la domanda è «conversazione» o «fuori ambito». Nel secondo caso il nodo `rifiuto` risponde con un testo fisso, senza chiamare il modello dell'agente. L'ambito (che cosa è in ambito, che cosa no, il testo del rifiuto) sta in `risorse/ambito.json`, non nel codice. Nel grafo: `instrada_dopo_router` (`assistente/grafo.py:156`) e gli archi dei due nodi (`assistente/grafo.py:245-249`). Capitolo 04, sezione 21.
+**Che cosa.** Un nodo `router` prima dell'agente decide se la domanda è «conversazione» o «fuori ambito». Nel secondo caso il nodo `rifiuto` risponde con un testo fisso, senza chiamare il modello dell'agente. L'ambito (che cosa è in ambito, che cosa no, il testo del rifiuto) sta in `risorse/ambito.json`, non nel codice. Nel grafo: `instrada_dopo_router` (`assistente/grafo.py:181`) e gli archi dei due nodi (`assistente/grafo.py:270-274`). Capitolo 04, sezione 21.
 
 **La decisione principale.** Il router usa lo stesso modello di LM Studio, senza strumenti, con un output strutturato (`with_structured_output(method="json_schema")`). Se l'output non è valido, il router non blocca nulla: la domanda passa all'agente e il log registra `esito=errore`. Un file `ambito.json` assente o malformato ferma l'avvio con `ErroreAvvio`.
 
@@ -931,7 +931,7 @@ Gli esiti vengono dai checkpoint di `docs/superpowers/checkpoint/` (`2026-11-09-
 
 ### 8.2 Streaming e nuovo rifiuto (`711f421`)
 
-**Che cosa.** La risposta finale arriva a pezzi (`esegui_turno_in_streaming`, `assistente/grafo.py:271`) e il rifiuto cambia testo. **Decisioni dell'utente:** il nuovo messaggio sostituisce il vecchio e rimanda a un altro provider; in streaming va solo la risposta finale, non i passaggi intermedi.
+**Che cosa.** La risposta finale arriva a pezzi (`esegui_turno_in_streaming`, `assistente/grafo.py:296`) e il rifiuto cambia testo. **Decisioni dell'utente:** il nuovo messaggio sostituisce il vecchio e rimanda a un altro provider; in streaming va solo la risposta finale, non i passaggi intermedi.
 
 **Due correzioni.** La prima è su codice già in `main`: dopo il router, `tests/test_avvio_unico.py` chiamava davvero LM Studio con il router reale, e passava solo perché LM Studio era acceso. Ora usa un router finto e un indirizzo dove non ascolta nessuno (`3a6a9ac`). La seconda è emersa dalla prova di avvio: con lo streaming il router faceva stampare a pydantic un avviso a ogni turno; ora ha `disable_streaming=True` e il tag `nostream` (`3add62f`).
 
@@ -972,7 +972,7 @@ Gli esiti vengono dai checkpoint di `docs/superpowers/checkpoint/` (`2026-11-09-
 **Che cosa.** La cartella `frontend/`: una chat in Svelte 5 che parla solo con il back-end, tramite nginx in un container (`frontend`, `127.0.0.1:8780`). Capitolo 15.
 
 **Le decisioni.** L'utente voleva all'inizio un'app installata, non web. Ha scelto una **PWA**, una pagina con manifest e service worker minimo che Edge installa come app, sapendo che altrimenti cambiavano `CLAUDE.md` e lo step 9. La tecnologia, approvata nella specifica: **Svelte 5 con Vite e TypeScript** (6.0.3, perché `svelte-check` non supporta TypeScript 7), pochi pacchetti a versioni esatte. Durante l'esecuzione:
-- **nginx con `max_fails=0`** (`frontend/nginx/default.conf.template:1-3`): con l'impostazione predefinita rispondeva `502` per 10 secondi dopo il ritorno del back-end. In più `proxy_buffering off` (riga 23), altrimenti lo streaming non è più uno streaming;
+- **nginx con `max_fails=0`** (allora nelle righe 1-3 di `frontend/nginx/default.conf.template`): con l'impostazione predefinita rispondeva `502` per 10 secondi dopo il ritorno del back-end. In più `proxy_buffering off` (oggi riga 24), altrimenti lo streaming non è più uno streaming. Con lo step 9 il blocco `upstream` non c'è più: nginx risolve il nome del back-end a ogni richiesta ([08, sezione 7.11](08-configurazione-avvio-docker.md#711-il-servizio-frontend-la-chat-nel-browser));
 - ogni turno porta il suo `chatId` e non compare in un'altra chat;
 - le attese delle prove con LM Studio salgono a 300 secondi, perché il modello ora ragiona prima di rispondere e un turno dura 1–2 minuti.
 
@@ -997,11 +997,11 @@ Legenda: **U** = decisione dell'utente; **E** = scelta dell'esecutore (*«scelta
 
 | Decisione | Chi | Dove | Motivazione |
 |---|---|---|---|
-| Grafo esplicito, senza `create_react_agent` né `ToolNode` | U (CLAUDE.md) + piano base | `assistente/grafo.py:203-211` | stato, nodi e instradamento devono essere riconoscibili nel codice |
+| Grafo esplicito, senza `create_react_agent` né `ToolNode` | U (CLAUDE.md) + piano base | `assistente/grafo.py:263-278` | stato, nodi e instradamento devono essere riconoscibili nel codice |
 | Fuso rilevato una volta sola all'avvio | U | spec. base §5.3; `assistente/fuso.py` | semplicità; cambi di fuso a programma aperto non visti, e lo si dichiara |
 | `ASSISTENTE_IN_DOCKER` per saltare `tzlocal` nel container; UTC solo con avviso | E | `assistente/fuso.py:28-40` | in Docker `tzlocal` darebbe il fuso del container (UTC): mai UTC in silenzio |
-| Limite di 3 giri di strumento per turno, con cronologia valida | E | `assistente/grafo.py:20` e `:191-201` | evitare cicli; ogni richiesta deve avere il suo `ToolMessage` |
-| Messaggio di sistema ricostruito a ogni chiamata, non salvato in cronologia | E | `assistente/grafo.py:146` | contiene sempre il fuso attuale |
+| Limite di 3 giri di strumento per turno, con cronologia valida | E | `assistente/grafo.py:26` e `:251-261` | evitare cicli; ogni richiesta deve avere il suo `ToolMessage` |
+| Messaggio di sistema ricostruito a ogni chiamata, non salvato in cronologia | E | `assistente/grafo.py:204-206` | contiene sempre il fuso attuale |
 | Un errore del modello non lascia in cronologia il messaggio che l'ha causato | E | `assistente/terminale.py:75-78` | la sessione continua pulita |
 | Un solo server MCP con tutti gli strumenti, orologio compreso | **U** (8 nov.) | spec. L5 §1 | ribalta la spec. del convertitore («orologio locale») |
 | Tre varianti; una sola versione per nome, scelta nel `.env` | **U** | spec. L5 §1 e §6; `assistente/varianti.py` | confronto didattico a parità di contratto |
@@ -1044,13 +1044,13 @@ Legenda: **U** = decisione dell'utente; **E** = scelta dell'esecutore (*«scelta
 |---|---|---|---|
 | Il router usa lo stesso modello, senza strumenti, con output strutturato; se l'output non è valido, la domanda passa all'agente | E, approvata con la specifica | `assistente/router.py`; spec. router | un errore del router non deve bloccare la conversazione; resta visibile nel log (`esito=errore`) |
 | Un servizio dell'agente **senza stato** | E, approvata con la specifica | `servizio_agente/app.py`; spec. agente-servizio | la cronologia la tiene chi chiama; il back-end la potrà salvare senza cambiare l'agente |
-| Porta solo su `127.0.0.1` (anche per PostgreSQL, back-end e `frontend`); in Docker pubblicata solo su `127.0.0.1` | E, approvata con le specifiche | `compose.yaml:43`, `:59`, `:78` | nessuna autenticazione: nessun altro computer deve raggiungere i servizi |
+| Porta solo su `127.0.0.1` (anche per PostgreSQL, back-end e `frontend`); in Docker pubblicata solo su `127.0.0.1` | E, approvata con le specifiche | `compose.yaml:49`, `:73`, `:123` | nessuna autenticazione: nessun altro computer deve raggiungere i servizi |
 | Servizio dell'agente in Docker come secondo servizio Compose, con il suo server MCP | **U** | spec. docker-agente | la CLI in Docker non cambia; i quattro container sono lo step 9 |
 | Un turno si salva **solo a risposta completa**, in una transazione, anche se il browser si scollega | E, approvata con la specifica | `servizio_backend/turni.py:115-121`, `servizio_backend/archivio.py:218` | niente domande senza risposta; il turno ormai eseguito può aver avuto effetti |
 | PostgreSQL, `psycopg` 3 con SQL a mano, SSE, ricerca nel database | **U** | spec. backend | nessun ORM da spiegare; SSE basta per un flusso in una sola direzione |
 | Una **PWA** al posto di un'app nativa | **U** | spec. frontend; `frontend/public/sw.js` | finestra e icona da app senza cambiare `CLAUDE.md` e lo step 9 |
 | **Svelte 5 e TypeScript**, pacchetti npm a versioni esatte | **U**, nella specifica | `frontend/package.json:12-25` | pochi pacchetti, rune per lo stato; TypeScript 6.0.3 perché `svelte-check` non supporta il 7 |
-| nginx con `max_fails=0` e `proxy_buffering off` | E, durante l'esecuzione | `frontend/nginx/default.conf.template:3`, `:23` | senza `max_fails=0`, `502` per 10 secondi dopo il ritorno del back-end; senza buffering lo streaming arriverebbe tutto insieme |
+| nginx con `max_fails=0` e `proxy_buffering off` | E, durante l'esecuzione | `frontend/nginx/default.conf.template:24` (`max_fails=0` tolto con lo step 9, insieme all'`upstream`) | senza `max_fails=0`, `502` per 10 secondi dopo il ritorno del back-end; senza buffering lo streaming arriverebbe tutto insieme |
 | Il testo del modello passa solo da `rendiMarkdown`, con un **elenco chiuso** di tag e attributi (DOMPurify) | R (revisione finale dello step 8) | `frontend/src/lib/markdown.ts:38-42` | i divieti lasciavano passare tag che caricano risorse esterne |
 | **Content-Security-Policy**, `nosniff` e `Referrer-Policy` su ogni risposta di nginx | R (revisione finale dello step 8) | `frontend/nginx/sicurezza.conf:8-10` | anche se qualcosa sfugge al filtro, il browser non carica risorse da altri siti |
 | Un turno fallito non perde la domanda | R (revisione finale dello step 8) | `frontend/src/lib/stato.svelte.ts` | l'errore resta nella chat del turno e la domanda torna nella casella |
@@ -1084,7 +1084,7 @@ Con la lezione 6 le prove reali crescono: oltre alle prove con LM Studio ci sono
 Che cosa insegna questa tabella:
 
 1. **Più strumenti, meno affidabilità con un modello da 2B.** Da nove strumenti in su sono comparsi i primi fallimenti: risposte a mente, nessun nuovo tentativo dopo un errore, azioni dichiarate e non eseguite.
-2. **Il codice non può impedire che il modello menta, ma può renderlo visibile.** Se il terminale non mostra la riga `[add_note · mcp: …]` e `server_mcp.log` non contiene `modifica note operazione=aggiunta`, la nota non esiste. La regola «se non hai chiamato lo strumento, non l'hai fatto» (`assistente/grafo.py:45-46`) riduce il problema ma non lo elimina.
+2. **Il codice non può impedire che il modello menta, ma può renderlo visibile.** Se il terminale non mostra la riga `[add_note · mcp: …]` e `server_mcp.log` non contiene `modifica note operazione=aggiunta`, la nota non esiste. La regola «se non hai chiamato lo strumento, non l'hai fatto» (`assistente/grafo.py:61-62`) riduce il problema ma non lo elimina.
 3. **I test con il modello finto non dimostrano niente sul modello vero.** Per questo le prove reali sono separate, attivate esplicitamente e riportate con i loro numeri, compresi i fallimenti.
 4. **Ritocchi limitati, poi decide l'utente.** Le specifiche ammettono «al massimo un paio di ritocchi» a descrizioni e messaggio di sistema. Poi si riporta l'esito con le evidenze: la scelta del modello resta all'utente.
 5. **Nella lezione 6 i fallimenti sono del modello o della rete, non del codice.** Ogni prova fallita (catalogo, meteo, convertitore, note) passa alla seconda esecuzione. Lo si dice con i numeri, senza nasconderli.
@@ -1149,8 +1149,8 @@ Elementi ancora aperti, ricontrollati sul codice e sulla repository del 12 novem
     L'ha deciso l'utente. Voleva un'app, ma una chat nel browser installabile dà finestra e icona da app e lascia validi `CLAUDE.md` e lo step 9.
 16. **Che difetto ha trovato la revisione finale dello step 8?**
     DOMPurify vietava immagini, moduli e stili, ma lasciava passare tag come `<video>`, `<audio>` e SVG che caricano risorse esterne. Ora c'è un elenco chiuso di tag ammessi e nginx manda una Content-Security-Policy.
-17. **Perché nginx ha `max_fails=0`?**
-    Con l'impostazione predefinita nginx metteva da parte il back-end dopo un errore e rispondeva `502` per 10 secondi anche dopo il suo ritorno.
+17. **Perché nello step 8 nginx aveva `max_fails=0`?**
+    Con l'impostazione predefinita nginx metteva da parte il back-end dopo un errore e rispondeva `502` per 10 secondi anche dopo il suo ritorno. Con lo step 9 l'`upstream` non c'è più: nginx risolve il nome del back-end a ogni richiesta, e `max_fails=0` è stato tolto.
 
 ---
 

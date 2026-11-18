@@ -6,11 +6,13 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 
 from assistente.grafo import (
     INTESTAZIONE_ISTRUZIONI,
+    INTESTAZIONE_PROMEMORIA,
     MAX_GIRI_STRUMENTO,
     TESTO_LIMITE,
     crea_grafo,
     esegui_turno,
     instrada_dopo_modello,
+    messaggi_per_il_modello,
     messaggio_sistema,
 )
 import pytest
@@ -297,3 +299,65 @@ def test_esegui_turno_passa_le_istruzioni_al_modello():
     modello = ModelloFinto([AIMessage("ok")])
     esegui_turno(crea_grafo(modello, []), [], "Europe/Rome", "ciao", istruzioni="Sii breve.")
     assert modello.chiamate[0][0].content.endswith("Sii breve.")
+
+
+# --- Promemoria delle istruzioni del progetto ---
+# Con gli strumenti nella richiesta, gemma-4-e2b ignora le istruzioni in fondo al messaggio di sistema
+# (prova del 18 novembre 2026): il nodo modello le ripete in fondo a una copia dell'ultima domanda.
+# Nessun messaggio di sistema dopo il primo: i template di Gemma e Mistral lo rifiutano (HTTP 400).
+
+PROMEMORIA_FRANCESE = f"\n\n({INTESTAZIONE_PROMEMORIA} Parla solo in francese.)"
+
+
+def _sistema_solo_in_testa(messaggi) -> bool:
+    return isinstance(messaggi[0], SystemMessage) and not any(isinstance(m, SystemMessage) for m in messaggi[1:])
+
+
+def test_promemoria_in_fondo_all_ultima_domanda():
+    modello = ModelloFinto([AIMessage("Bonjour")])
+    cronologia = [HumanMessage("ciao"), AIMessage("Ciao!")]
+    esegui_turno(crea_grafo(modello, []), cronologia, FUSO, "come stai?", istruzioni="  Parla solo in francese.  ")
+    messaggi = modello.chiamate[0]
+    assert _sistema_solo_in_testa(messaggi)
+    assert len(messaggi) == 4
+    assert messaggi[1].content == "ciao"  # le domande precedenti restano com'erano
+    assert isinstance(messaggi[3], HumanMessage) and messaggi[3].content == "come stai?" + PROMEMORIA_FRANCESE
+    assert messaggi[0].content.endswith("Parla solo in francese.")  # restano anche nel messaggio di sistema
+
+
+def test_promemoria_anche_dopo_uno_strumento():
+    modello = ModelloFinto([chiamata_orologio(FUSO), AIMessage("Il est midi.")])
+    orologio = orologio_finto(datetime(2026, 11, 18, 11, 0, tzinfo=timezone.utc))
+    esegui_turno(crea_grafo(modello, [orologio]), [], FUSO, "che ore sono?", istruzioni="Parla solo in francese.")
+    secondo = modello.chiamate[1]
+    assert _sistema_solo_in_testa(secondo)
+    assert isinstance(secondo[1], HumanMessage) and secondo[1].content == "che ore sono?" + PROMEMORIA_FRANCESE
+    assert isinstance(secondo[-1], ToolMessage)
+
+
+def test_promemoria_non_entra_nella_cronologia():
+    modello = ModelloFinto([AIMessage("Bonjour")])
+    cronologia = [HumanMessage("ciao"), AIMessage("Ciao!")]
+    nuova = esegui_turno(crea_grafo(modello, []), cronologia, FUSO, "come stai?", istruzioni="Parla solo in francese.")
+    assert not any(isinstance(m, SystemMessage) for m in nuova)
+    assert [m.content for m in nuova if isinstance(m, HumanMessage)] == ["ciao", "come stai?"]
+    assert cronologia[0].content == "ciao" and len(cronologia) == 2
+
+
+def test_senza_istruzioni_nessun_promemoria():
+    modello = ModelloFinto([AIMessage("ok")])
+    cronologia = [HumanMessage("ciao"), AIMessage("Ciao!")]
+    esegui_turno(crea_grafo(modello, []), cronologia, FUSO, "come stai?", istruzioni="   ")
+    messaggi = modello.chiamate[0]
+    assert [type(m) for m in messaggi] == [SystemMessage, HumanMessage, AIMessage, HumanMessage]
+    assert [m.content for m in messaggi[1:]] == ["ciao", "Ciao!", "come stai?"]
+    assert messaggi[0].content == messaggio_sistema(FUSO).content
+
+
+def test_promemoria_con_contenuto_a_blocchi():
+    """Una domanda a blocchi riceve il promemoria come blocco di testo in più; l'originale non cambia."""
+    domanda = HumanMessage([{"type": "text", "text": "ciao"}])
+    messaggi = messaggi_per_il_modello(FUSO, [domanda], "Parla solo in francese.")
+    assert _sistema_solo_in_testa(messaggi)
+    assert messaggi[1].content[-1] == {"type": "text", "text": PROMEMORIA_FRANCESE.strip()}
+    assert domanda.content == [{"type": "text", "text": "ciao"}]

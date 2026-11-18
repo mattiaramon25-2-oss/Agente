@@ -96,19 +96,24 @@ def leggi_porta_agente(env: Mapping[str, str], config: Configurazione) -> int:
 HOST_AGENTE_PREDEFINITO = "127.0.0.1"
 
 
+def leggi_indirizzo_ip(nome: str, env: Mapping[str, str], predefinito: str = "127.0.0.1") -> str:
+    """Variabile facoltativa con un indirizzo IP; vuota o con soli spazi vale il predefinito."""
+    testo = (env.get(nome) or "").strip()
+    if not testo:
+        return predefinito
+    try:
+        ipaddress.ip_address(testo)
+    except ValueError:
+        raise ErroreConfigurazione(
+            f"{nome} non valida: '{testo}'. Usa un indirizzo IP, per esempio 127.0.0.1 (predefinito) o 0.0.0.0."
+        ) from None
+    return testo
+
+
 def leggi_host_agente(env: Mapping[str, str]) -> str:
     """AGENTE_HOST, facoltativa: indirizzo IP su cui ascolta il servizio dell'agente.
 
     Fuori da Docker resta 127.0.0.1; Docker Compose la imposta a 0.0.0.0, perché nel container la
     porta pubblicata arriva dall'interfaccia di rete del container, non da 127.0.0.1.
     """
-    testo = (env.get("AGENTE_HOST") or "").strip()
-    if not testo:
-        return HOST_AGENTE_PREDEFINITO
-    try:
-        ipaddress.ip_address(testo)
-    except ValueError:
-        raise ErroreConfigurazione(
-            f"AGENTE_HOST non valida: '{testo}'. Usa un indirizzo IP, per esempio 127.0.0.1 (predefinito) o 0.0.0.0."
-        ) from None
-    return testo
+    return leggi_indirizzo_ip("AGENTE_HOST", env)

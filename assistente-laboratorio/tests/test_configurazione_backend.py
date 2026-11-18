@@ -1,7 +1,7 @@
 import pytest
 
 from assistente.configurazione import ErroreConfigurazione
-from servizio_backend.configurazione import ConfigurazioneBackend, carica_configurazione_backend
+from servizio_backend.configurazione import ConfigurazioneBackend, carica_configurazione_backend, leggi_valori_backend
 
 BASE = {
     "BACKEND_PORTA": "8768",
@@ -54,3 +54,55 @@ def test_porta_postgres_facoltativa_e_letta():
 def test_porta_postgres_non_valida():
     with pytest.raises(ErroreConfigurazione):
         carica_configurazione_backend({**BASE, "POSTGRES_PORTA": "abc"})
+
+
+def test_indirizzi_predefiniti():
+    config = carica_configurazione_backend(BASE)
+    assert config.host == "127.0.0.1"
+    assert config.url_agente == "http://127.0.0.1:8767"
+    assert "host=127.0.0.1" in config.dsn
+
+
+def test_indirizzi_di_docker():
+    env = {**BASE, "BACKEND_HOST": "0.0.0.0", "POSTGRES_HOST": "database", "AGENTE_INDIRIZZO": "agente"}
+    config = carica_configurazione_backend(env)
+    assert config.host == "0.0.0.0"
+    assert config.url_agente == "http://agente:8767"
+    assert "host=database" in config.dsn
+    assert config.host_postgres == "database"
+
+
+def test_backend_host_non_ip():
+    with pytest.raises(ErroreConfigurazione) as errore:
+        carica_configurazione_backend({**BASE, "BACKEND_HOST": "localhost"})
+    assert "BACKEND_HOST" in str(errore.value)
+
+
+@pytest.mark.parametrize("nome", ["AGENTE_INDIRIZZO", "POSTGRES_HOST"])
+@pytest.mark.parametrize("valore", ["http://agente", "agente/", "age nte"])
+def test_indirizzo_con_schema_barre_o_spazi(nome, valore):
+    with pytest.raises(ErroreConfigurazione) as errore:
+        leggi_valori_backend({**BASE, nome: valore})
+    assert nome in str(errore.value)
+
+
+def test_spazi_contano_come_vuoti():
+    config = carica_configurazione_backend({**BASE, "POSTGRES_HOST": "  "})
+    assert config.host_postgres == "127.0.0.1"
+
+
+def test_valori_senza_psycopg():
+    import subprocess
+    import sys
+
+    risultato = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import sys; from servizio_backend.configurazione import leggi_valori_backend; print('psycopg' in sys.modules)",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert risultato.stdout.strip() == "False"

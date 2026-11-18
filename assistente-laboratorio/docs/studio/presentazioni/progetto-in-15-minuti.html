@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tutto il progetto in 15 minuti · Assistente del laboratorio</title>
+  <link rel="stylesheet" href="stile.css">
+  <script src="slide.js"></script>
+  <script src="schemi.js"></script>
+</head>
+<body class="mazzo">
+
+  <section class="slide titolo">
+    <p class="occhiello">Tutto il progetto in 15 minuti</p>
+    <h1>L'assistente del laboratorio</h1>
+    <p class="sottotitolo">Che cos'è, com'è fatto e come si dimostra che funziona.</p>
+    <p class="fonte">Corso «Deep Learning e LLM: costruire chatbot e agenti» · stato del progetto: 12 novembre 2026</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">In una frase</p>
+    <h2>Una chat con un modello locale che usa strumenti veri</h2>
+    <div class="schede">
+      <div class="scheda llm">
+        <span class="numero">1</span>
+        <h3>modello locale</h3>
+        <p>Gira in LM Studio, sul tuo computer. Niente cloud, niente chiave segreta.</p>
+      </div>
+      <div class="scheda">
+        <span class="numero">10</span>
+        <h3>strumenti</h3>
+        <p>Ora, conversioni, calcoli, scadenze, catalogo dei corsi, note e meteo.</p>
+      </div>
+      <div class="scheda dati">
+        <span class="numero">3</span>
+        <h3>ingressi</h3>
+        <p>Il terminale, un servizio HTTP e una chat nel browser.</p>
+      </div>
+    </div>
+    <p style="margin-top: 26px">Costruito in tre lezioni, dal 2 al 12 novembre 2026, con Python, LangGraph, MCP, FastAPI, PostgreSQL e Svelte.</p>
+    <aside class="note">
+      <p>L'assistente del laboratorio conversa con un modello che gira sul computer, servito da LM Studio. Il modello può usare dieci strumenti. Oggi ci si arriva da tre parti: il terminale, un servizio HTTP e una chat nel browser che si installa come app.</p>
+    </aside>
+    <p class="fonte">Capitolo 00 · Capitolo 01, sezione 1</p>
+  </section>
+
+  <section class="slide grande">
+    <p class="occhiello">La mappa</p>
+    <h2>Ogni pezzo parla solo con il vicino</h2>
+    <figure class="schema" data-schema="sistema"></figure>
+    <aside class="note">
+      <p>Seguite le frecce da sinistra. Il browser parla solo con nginx. nginx inoltra al back-end. Il back-end ha due vicini: il database, che ricorda, e l'agente, che ragiona. L'agente parla con il modello e con il server degli strumenti. Il terminale è un altro programma con lo stesso agente: stesso codice, un suo server degli strumenti. I due non si usano insieme, perché la porta è la stessa.</p>
+    </aside>
+    <p class="fonte">Capitolo 02, sezione 1.5 ter · le porte sono quelle di .env.example</p>
+  </section>
+
+  <section class="slide grande">
+    <p class="occhiello">Concetto 1 · tool calling</p>
+    <h2>Il modello propone, il programma esegue</h2>
+    <figure class="schema" data-schema="tool-calling"></figure>
+    <aside class="note">
+      <p>Il modello non esegue niente. Al passo 3 scrive solo una richiesta: nome dello strumento e argomenti. Il programma la controlla e la esegue, poi rimanda il risultato con lo stesso identificativo. Solo al passo 8 il modello scrive la risposta. Questo meccanismo si chiama tool calling.</p>
+    </aside>
+    <p class="fonte">Capitolo 01, sezioni 4 e 5</p>
+  </section>
+
+  <section class="slide grande">
+    <p class="occhiello">Concetto 2 · il grafo</p>
+    <h2>Il turno è un grafo che si vede</h2>
+    <figure class="schema" data-schema="grafo"></figure>
+    <aside class="note">
+      <p>Cinque nodi. Il router decide se la domanda è in ambito. Il nodo modello chiama LM Studio. Se il modello chiede strumenti, il nodo strumenti li esegue e si torna al modello. I giri sono al massimo tre: alla quarta richiesta scatta il limite, così il modello non può chiedere strumenti all'infinito.</p>
+    </aside>
+    <p class="fonte">assistente/grafo.py · Capitolo 04</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">Concetto 3 · MCP</p>
+    <h2>Gli strumenti stanno in un server a parte</h2>
+    <div class="colonne stretto-largo">
+      <ul class="punti">
+        <li>L'assistente <strong>avvia</strong> il server MCP, gli chiede l'elenco degli strumenti e all'uscita lo <strong>spegne</strong></li>
+        <li>L'elenco arriva dal server: è la <strong>discovery</strong>. Nell'assistente il contratto non è riscritto</li>
+        <li>La logica è scritta <strong>una volta sola</strong>, in <code>logica/</code></li>
+      </ul>
+      <table class="tabella fitta">
+        <thead>
+          <tr><th>Strumento</th><th>Una domanda che lo fa usare</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>ora_corrente</code></td><td>«Che ore sono a Tokyo?»</td></tr>
+          <tr><td><code>converti_unita</code></td><td>«Quanti metri sono 2,5 km?»</td></tr>
+          <tr><td><code>calcola</code></td><td>«Quanto fa (3+4)*2?»</td></tr>
+          <tr><td><code>calcola_scadenza</code></td><td>«Quando scadono 3 giorni lavorativi?»</td></tr>
+          <tr><td><code>search_catalog</code>, <code>get_item</code></td><td>«Quali corsi ci sono a Udine?»</td></tr>
+          <tr><td><code>add_note</code>, <code>list_notes</code>, <code>delete_note</code></td><td>«Ricordami di consegnare il report»</td></tr>
+          <tr><td><code>get_weather</code></td><td>«Che tempo fa a Udine?»</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <aside class="note">
+      <p>MCP è uno standard per offrire strumenti a un programma. Il nostro server ne offre dieci, in sette famiglie. L'assistente non conosce in anticipo nome, descrizione e argomenti degli strumenti: li scopre chiedendoli al server. Il calcolo vero sta in una cartella a parte, che non sa nulla di MCP.</p>
+    </aside>
+    <p class="fonte">Capitolo 05 · Capitolo 07</p>
+  </section>
+
+  <section class="slide grande">
+    <p class="occhiello">Concetto 4 · le varianti</p>
+    <h2>Tre strade verso la stessa logica</h2>
+    <figure class="schema" data-schema="varianti"></figure>
+    <p style="margin: 10px 0 0; font-size: 21px">Si sceglie nel <code>.env</code>: <code>VARIANTE_CALCOLATRICE</code> vale <code>mcp</code> o <code>locale</code>, <code>VARIANTE_SCADENZE</code> vale <code>mcp</code> o <code>fastapi</code>.</p>
+    <aside class="note">
+      <p>Lo stesso strumento si può collegare in tre modi. Via MCP, come tutti. Come funzione locale, per la calcolatrice. Via servizio FastAPI con un wrapper scritto a mano, per le scadenze. Il modello non vede differenze: cambia solo la strada, e la strada si legge nei log.</p>
+    </aside>
+    <p class="fonte">Capitolo 06</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">Lezione 6 · step 1</p>
+    <h2>Il router tiene l'agente nel suo ambito</h2>
+    <div class="colonne">
+      <ul class="punti">
+        <li>Stesso modello, <strong>senza strumenti</strong>: risponde solo <code>conversazione</code> o <code>fuori_ambito</code></li>
+        <li>Ambito e testo del rifiuto stanno in <code>risorse/ambito.json</code>: si cambiano <strong>senza toccare il codice</strong></li>
+        <li>Fuori ambito l'agente <strong>non parte</strong>: risponde il nodo <code>rifiuto</code></li>
+      </ul>
+      <div>
+        <pre class="codice"><b>Tu:</b> scrivimi una poesia sul mare
+<b>Assistente:</b> Questo agente è costruito per
+compiti specifici: data e ora, conversioni,
+calcoli, scadenze, corsi dell'ITS, note,
+meteo e domande sui temi del corso. […]</pre>
+        <pre class="codice"><i>logs/assistente.log</i>
+nodo=router categoria=fuori_ambito
+nodo=rifiuto</pre>
+      </div>
+    </div>
+    <aside class="note">
+      <p>Prima dell'agente c'è un filtro. Se chiedo una poesia, il router la classifica fuori ambito e l'agente non viene nemmeno chiamato: nel log non c'è nessuna riga del nodo modello. Se il router risponde in un formato non valido, la domanda passa comunque all'agente e il log lo registra.</p>
+    </aside>
+    <p class="fonte">Capitolo 04, sezione 21 · README «Ambito e router»</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">Lezione 6 · step 6 e 7</p>
+    <h2>L'agente ragiona, il database ricorda, il back-end li tiene insieme</h2>
+    <div class="schede">
+      <div class="scheda llm">
+        <h3>Servizio dell'agente</h3>
+        <p>Lo stesso agente del terminale, via HTTP. È <strong>senza stato</strong>: la cronologia gliela manda chi chiama.</p>
+      </div>
+      <div class="scheda">
+        <h3>Back-end delle chat</h3>
+        <p>Progetti, chat e ricerca. Chiama l'agente e manda la risposta al browser <strong>a pezzi</strong>, con eventi SSE.</p>
+      </div>
+      <div class="scheda dati">
+        <h3>PostgreSQL</h3>
+        <p>Tre tabelle: <code>progetti</code>, <code>chat</code>, <code>messaggi</code>. Le chat ci sono ancora <strong>dopo il riavvio</strong>.</p>
+      </div>
+    </div>
+    <p class="avviso buono" style="margin-top: 24px">Il turno si salva in una sola transazione, e solo a risposta completa.</p>
+    <aside class="note">
+      <p>Tre servizi, ognuno con un compito. L'agente non conserva niente: così si può riavviare senza perdere nulla. Il back-end legge la cronologia dal database, la passa all'agente e salva solo quando la risposta è completa. Un turno fallito non lascia una domanda senza risposta.</p>
+    </aside>
+    <p class="fonte">Capitolo 13 · Capitolo 14</p>
+  </section>
+
+  <section class="slide grande">
+    <p class="occhiello">Lezione 6 · step 7</p>
+    <h2>Un turno della chat, dal clic al salvataggio</h2>
+    <figure class="schema" data-schema="turno-chat"></figure>
+    <aside class="note">
+      <p>Guardate il passo 8: il salvataggio è uno solo e arriva dopo la fine della risposta. Il passo 9, l'evento fine verso il browser, parte solo dopo il salvataggio. Se chiudo il browser a metà, il back-end va avanti e salva lo stesso: lo strumento ormai è stato eseguito.</p>
+    </aside>
+    <p class="fonte">Capitolo 14, sezioni 3–6</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">Lezione 6 · step 8</p>
+    <h2>La chat nel browser è una pagina che si installa come app</h2>
+    <ul class="punti fitti">
+      <li><strong>Svelte 5</strong> e Vite. nginx serve i file e inoltra <code>/api</code> al back-end: stessa origine, niente CORS</li>
+      <li>È una <strong>PWA</strong>: Edge la installa con la sua finestra e la sua icona</li>
+      <li>Il testo del modello è <strong>non fidato</strong>: prima di entrare nella pagina viene ripulito</li>
+    </ul>
+    <figure class="schema" data-schema="markdown-sicuro"></figure>
+    <aside class="note">
+      <p>Il front-end parla solo con il back-end, passando da nginx. Il punto delicato è il testo del modello: potrebbe contenere HTML o immagini remote, che sarebbero un modo per far uscire dati. Per questo passa sempre da due filtri, e in più nginx vieta al browser di caricare qualcosa da altri siti.</p>
+    </aside>
+    <p class="fonte">Capitolo 15</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">Come si dimostra</p>
+    <h2>Test automatici sempre, prove reali solo su richiesta</h2>
+    <figure class="schema" data-schema="test"></figure>
+    <div class="schede" style="margin-top: 14px">
+      <div class="scheda"><span class="numero">625</span><p>test automatici passati; 74 saltati, che sono le prove reali</p></div>
+      <div class="scheda"><span class="numero">108</span><p>test del front-end, con <code>npm test</code></p></div>
+      <div class="scheda"><span class="numero">9</span><p>prove nel browser vero e di Compose</p></div>
+    </div>
+    <aside class="note">
+      <p>I test automatici usano un modello finto, che recita un copione. Provano che il codice fa la cosa giusta, dato un certo comportamento del modello. Non provano che il modello vero sappia usare gli strumenti: per quello servono le prove reali, che partono solo se le chiedo.</p>
+    </aside>
+    <p class="fonte">Capitolo 09 · esiti del 12 novembre 2026</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">Come si controlla</p>
+    <h2>Una risposta giusta non prova che lo strumento sia stato usato</h2>
+    <div class="colonne">
+      <ul class="punti">
+        <li>La prova è una <strong>riga di log</strong>: quale strumento, quali argomenti, quale esito</li>
+        <li>Ogni processo scrive <strong>il suo file</strong> nella cartella <code>logs/</code></li>
+        <li>I guasti si cercano <strong>dal basso</strong>: configurazione, LM Studio, server e, solo alla fine, il modello</li>
+      </ul>
+      <div>
+        <pre class="codice"><i>nel terminale</i>
+<b>[ora_corrente · mcp: Asia/Tokyo]</b>
+Assistente: A Tokyo sono le 20:56 …</pre>
+        <pre class="codice"><i>logs/assistente.log</i>
+<b>origine=mcp tool=ora_corrente</b>
+argomenti={"fuso":"Asia/Tokyo"}
+<b>esito=ok</b> risultato={…}</pre>
+      </div>
+    </div>
+    <aside class="note">
+      <p>Il modello può scrivere un'ora plausibile senza aver chiamato nessuno strumento. Per questo guardo sempre due cose: la riga tra parentesi quadre nel terminale e la riga nel log, con origine ed esito. Se mancano, lo strumento non è stato usato, qualunque cosa dica la risposta.</p>
+    </aside>
+    <p class="fonte">Capitolo 10 · riga di log del 12 novembre 2026, accorciata</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">Con onestà</p>
+    <h2>Che cosa il codice non può impedire, e che cosa manca</h2>
+    <div class="schede" style="--n: 2">
+      <div class="scheda attenzione">
+        <h3>Limiti noti</h3>
+        <ul class="punti fitti">
+          <li>Il modello piccolo a volte dice «Ho salvato la nota» <strong>senza chiamare</strong> <code>add_note</code>: nelle prove, circa una volta su tre</li>
+          <li>Il modello attuale ragiona prima di rispondere: un turno può durare <strong>1–2 minuti</strong></li>
+          <li>Nessuna autenticazione: per questo tutto ascolta solo su <code>127.0.0.1</code></li>
+        </ul>
+      </div>
+      <div class="scheda spenta">
+        <h3>Che cosa manca della lezione 6</h3>
+        <ul class="punti fitti">
+          <li>Step 2–5: revisore, riassunto della cronologia, resource, prompt</li>
+          <li>Step 9: quattro container con un solo comando, fatto il 18 novembre sul suo branch e non ancora unito</li>
+        </ul>
+      </div>
+    </div>
+    <aside class="note">
+      <p>Il limite più importante non è nel codice ma nel modello: a volte dichiara un'azione senza farla. Il codice non può impedirlo, ma lo rende visibile: manca la riga nel terminale e mancano le righe nei log. Della lezione 6 sono fatti cinque step su nove; il nono, i quattro container, non è ancora unito in main.</p>
+    </aside>
+    <p class="fonte">Capitolo 10, sezione 7 · Capitolo 00</p>
+  </section>
+
+  <section class="slide">
+    <p class="occhiello">Da ricordare</p>
+    <h2>Cinque frasi per l'orale</h2>
+    <ol class="punti grandi">
+      <li>Il modello <strong>propone</strong>, il programma <strong>esegue</strong>.</li>
+      <li>Il turno è un <strong>grafo</strong>: router, modello e strumenti, con un limite di 3 giri.</li>
+      <li>Gli strumenti stanno in un <strong>server MCP</strong>; la logica è scritta una volta sola.</li>
+      <li>L'agente è <strong>senza stato</strong>: le chat le ricorda il back-end, in PostgreSQL.</li>
+      <li>Una risposta plausibile <strong>non è una prova</strong>: contano i log e le prove reali.</li>
+    </ol>
+    <aside class="note">
+      <p>Se dovete ricordare una cosa sola: chi esegue lo strumento è il programma, non il modello. Tutto il resto del progetto serve a rendere questa esecuzione controllata, visibile e verificabile.</p>
+    </aside>
+    <p class="fonte">Per approfondire: docs/studio/00-indice.md</p>
+  </section>
+
+</body>
+</html>

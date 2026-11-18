@@ -1,6 +1,10 @@
+# Lezione 6, step 9: `docker compose up -d` accende database, agente, backend e frontend.
+# La CLI (assistente) e la suite (test) hanno un profilo: partono solo se chiamate per nome.
 services:
+  # La CLI: .\avvia.ps1 (docker compose run --rm assistente).
   assistente:
     build: .
+    profiles: ["cli"]
     env_file: .env
     environment:
       # Dentro il container LM Studio si raggiunge con un indirizzo diverso: lo si prende dal .env.
@@ -22,10 +26,12 @@ services:
     tty: true
 
   # L'agente come servizio HTTP (lezione 6, step 6): stessa immagine, un server MCP suo.
-  # Avvio: .\avvia-agente.ps1 (oppure docker compose up --build agente).
+  # Avvio: docker compose up -d (oppure .\avvia-agente.ps1, che passa il fuso di Windows).
   agente:
     build: .
     command: ["python", "-m", "servizio_agente"]
+    # Se cade durante la sessione Docker lo riavvia; dopo uno stop resta spento.
+    restart: on-failure
     env_file: .env
     environment:
       LMSTUDIO_BASE_URL: ${LMSTUDIO_BASE_URL_DOCKER:?Imposta LMSTUDIO_BASE_URL_DOCKER nel file .env}
@@ -46,6 +52,14 @@ services:
       - ./archivio:/app/archivio
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    healthcheck:
+      # L'immagine non ha curl: la porta si legge dall'ambiente del container.
+      test: ["CMD", "python", "-c", "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.environ['AGENTE_PORTA'] + '/salute', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 6
+      # All'avvio l'agente accende il suo server MCP e ne scopre gli strumenti.
+      start_period: 60s
 
   # Lezione 6, step 7: il database delle chat. Avvio: docker compose up -d database
   database:
@@ -66,19 +80,64 @@ services:
       timeout: 3s
       retries: 30
 
-  # Lezione 6, step 8: la chat nel browser. nginx serve i file compilati e inoltra /api al back-end sull'host.
-  # Avvio: docker compose up -d --build frontend (poi http://127.0.0.1:8780).
+  # Lezione 6, step 7 e 9: il back-end delle chat, stessa immagine. Avvio: docker compose up -d
+  backend:
+    build: .
+    command: ["python", "-m", "servizio_backend"]
+    env_file: .env
+    environment:
+      # Nel container nginx arriva dall'interfaccia di rete, non da 127.0.0.1.
+      BACKEND_HOST: 0.0.0.0
+      # Database e agente si raggiungono per nome nella rete di Compose.
+      POSTGRES_HOST: database
+      # La porta dentro la rete di Compose, non quella pubblicata sull'host.
+      POSTGRES_PORTA: "5432"
+      AGENTE_INDIRIZZO: agente
+    # Nessuna porta pubblicata: ci arriva solo nginx.
+    volumes:
+      - ./logs:/app/logs
+    depends_on:
+      database:
+        condition: service_healthy
+      agente:
+        condition: service_started
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.environ['BACKEND_PORTA'] + '/salute', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+  # Lezione 6, step 8: la chat nel browser. nginx serve i file compilati e inoltra /api al back-end.
+  # Avvio: docker compose up -d (poi http://127.0.0.1:8780).
   frontend:
     build: ./frontend
     environment:
       # Senza :? perché Compose controlla tutto il file: gli altri avvii non devono fermarsi.
       BACKEND_PORTA: ${BACKEND_PORTA:-8768}
+      # Il nome del back-end nella rete di Compose; le prove del browser usano host.docker.internal.
+      BACKEND_INDIRIZZO: ${BACKEND_INDIRIZZO:-backend}
     ports:
       # Solo sull'host locale: il servizio non ha autenticazione.
       - "127.0.0.1:${FRONTEND_PORTA:-8780}:8080"
+    depends_on:
+      - backend
     extra_hosts:
-      # Il back-end ascolta su 127.0.0.1 dell'host: dal container si raggiunge con questo nome.
+      # Il resolver di nginx (127.0.0.11) non legge /etc/hosts: per le prove del browser
+      # host.docker.internal lo risolve il DNS di Docker Desktop. Questa riga serve agli altri
+      # strumenti del container (curl, wget, getent), che invece leggono /etc/hosts.
       - "host.docker.internal:host-gateway"
+
+  # Lezione 6, step 9: la suite automatica in un container Linux (sull'host psycopg non si carica).
+  # Avvio: docker compose run --rm test
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    profiles: ["test"]
+    volumes:
+      - ".:/app"
 
 volumes:
   dati_postgres:

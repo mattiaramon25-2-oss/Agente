@@ -51,14 +51,14 @@ flowchart LR
 | Arresto in ordine inverso | `ExitStack` | `assistente/avvio.py:33` |
 | Porte ammesse | 1024–65535, `API_PORTA` diversa da `MCP_PORTA` | `assistente/configurazione.py:28-34`, `:65-66` |
 | Ponte sincrono | `asyncio.run`, 10 s per chiamata | `assistente/client_mcp.py:57-77` |
-| Servizi della lezione 6 | agente su `AGENTE_PORTA`, back-end su `BACKEND_PORTA`, PostgreSQL su `POSTGRES_PORTA` (5432), nginx su `FRONTEND_PORTA` (8780): tutti solo su `127.0.0.1` | `servizio_agente/__main__.py:69`, `servizio_backend/__main__.py:69`, `compose.yaml:59`, `:78` |
+| Servizi della lezione 6 | agente su `AGENTE_PORTA`, back-end su `BACKEND_PORTA`, PostgreSQL su `POSTGRES_PORTA` (5432), nginx su `FRONTEND_PORTA` (8780): tutti solo su `127.0.0.1`; in Docker (step 9) il back-end non è pubblicato | `servizio_agente/__main__.py:69`, `servizio_backend/__main__.py:76`, `compose.yaml:73`, `:123` |
 
 **Se te lo chiedono all'orale**
 
 - *Quanti processi girano durante la chat?* Due con la variante `mcp` delle scadenze: assistente e server MCP. Tre con `fastapi`. LM Studio è un'applicazione a parte, non un figlio.
 - *Che cosa succede se il server MCP cade durante la chat?* Il ponte restituisce un errore di tipo `collegamento` e il grafo lo registra. La chat continua, ma il server non viene riavviato.
-- *Perché in Docker non si pubblicano porte?* I tre processi Python stanno nello stesso container e si parlano sul suo `127.0.0.1`. LM Studio si raggiunge sull'host con `host.docker.internal`. (Fa eccezione la lezione 6: i servizi `agente`, `database` e `frontend` pubblicano una porta, ma solo su `127.0.0.1` dell'host.)
-- *Quali processi servono per la chat nel browser?* Il database e il `frontend` (container Compose), più l'agente e il back-end, che oggi si avviano a mano sull'host. Lo step 9 li metterà tutti in container con un solo comando.
+- *Perché in Docker non si pubblicano porte?* I tre processi Python stanno nello stesso container e si parlano sul suo `127.0.0.1`. LM Studio si raggiunge sull'host con `host.docker.internal`. (Fa eccezione la lezione 6: i servizi `agente`, `database` e `frontend` pubblicano una porta, ma solo su `127.0.0.1` dell'host; il `backend` no, ci arriva solo nginx.)
+- *Quali processi servono per la chat nel browser?* Quattro container Compose, `database`, `agente`, `backend` e `frontend`, accesi con un solo comando: `docker compose up -d` (step 9). Più LM Studio sull'host. Il server MCP gira dentro il container dell'agente.
 
 Per i dettagli continua con il resto del capitolo: le idee rimandano alle sezioni con «→ sezione N».
 
@@ -198,42 +198,42 @@ Dettagli in [13 — L'agente come servizio HTTP](13-agente-come-servizio.md).
 
 ### 1.5 ter I servizi della lezione 6: back-end, database e chat nel browser
 
-Con gli step 6, 7 e 8 della lezione 6 il programma non ha più solo il terminale come ingresso. Oggi i processi possibili sono cinque, oltre a LM Studio e al server MCP:
+Con gli step 6, 7 e 8 della lezione 6 il programma non ha più solo il terminale come ingresso. Oggi i processi possibili sono cinque, oltre a LM Studio e al server MCP. Con lo step 9 (16–18 novembre) agente, back-end, database e pagina sono quattro container che `docker compose up -d` accende insieme:
 
 | Processo | Che cos'è | Chi lo avvia | Dove gira | Indirizzo | Log |
 |---|---|---|---|---|---|
 | **CLI** (assistente) | il terminale di sempre | l'utente: `python -m assistente`, `.\avvia.ps1` | host o container `assistente` | nessuna porta | `logs/assistente.log` |
-| **Servizio dell'agente** | FastAPI con `/salute`, `/chat`, `/chat/stream`; senza stato; avvia e spegne un suo server MCP | l'utente: `python -m servizio_agente`, `.\avvia-agente.ps1` | host o container `agente` | `127.0.0.1:AGENTE_PORTA` | `logs/assistente.log` |
-| **Back-end delle chat** | FastAPI con progetti, chat, ricerca e turno in streaming SSE; salva in PostgreSQL | l'utente: `python -m servizio_backend` | host | `127.0.0.1:BACKEND_PORTA` | `logs/servizio_backend.log` |
-| **Database** | PostgreSQL 18 con il volume `dati_postgres` | `docker compose up -d database` | container `database` | `127.0.0.1:POSTGRES_PORTA` | – |
-| **nginx** (servizio `frontend`) | serve i file compilati della chat e inoltra `/api` al back-end | `docker compose up -d --build frontend` | container `frontend` | `127.0.0.1:FRONTEND_PORTA` (8780) | – |
+| **Servizio dell'agente** | FastAPI con `/salute`, `/chat`, `/chat/stream`; senza stato; avvia e spegne un suo server MCP | `docker compose up -d`, `avvia-chat.cmd`, `.\avvia-agente.ps1`; fuori da Docker `python -m servizio_agente` | container `agente` (o host) | `127.0.0.1:AGENTE_PORTA` | `logs/assistente.log` |
+| **Back-end delle chat** | FastAPI con progetti, chat, ricerca e turno in streaming SSE; salva in PostgreSQL | `docker compose up -d`, `avvia-chat.cmd`; fuori da Docker `python -m servizio_backend` | container `backend` (o host) | in Docker nessuna porta pubblicata (nginx lo chiama `backend:BACKEND_PORTA`); sull'host `127.0.0.1:BACKEND_PORTA` | `logs/servizio_backend.log` |
+| **Database** | PostgreSQL 18 con il volume `dati_postgres` | `docker compose up -d` | container `database` | `127.0.0.1:POSTGRES_PORTA` | – |
+| **nginx** (servizio `frontend`) | serve i file compilati della chat e inoltra `/api` al back-end | `docker compose up -d` | container `frontend` | `127.0.0.1:FRONTEND_PORTA` (8780) | – |
 
 ```mermaid
 flowchart LR
     BR(["Browser<br/>(chat installata come app)"]) -->|"http://127.0.0.1:8780"| NG["nginx<br/>container frontend"]
-    NG -->|"/api, senza buffering"| BE["servizio_backend<br/>sull'host"]
+    NG -->|"/api, senza buffering"| BE["servizio_backend<br/>container backend"]
     BE -->|"SQL (psycopg)"| PG[("PostgreSQL<br/>container database")]
-    BE -->|"POST /chat/stream (SSE)"| AG["servizio_agente"]
-    AG -->|"API OpenAI"| LM["LM Studio (host)"]
-    AG -->|"MCP"| MCP["server MCP"]
+    BE -->|"POST /chat/stream (SSE)"| AG["servizio_agente<br/>container agente"]
+    AG -->|"API OpenAI<br/>host.docker.internal"| LM["LM Studio (host)"]
+    AG -->|"MCP"| MCP["server MCP<br/>nel container agente"]
     CLI["CLI: python -m assistente"] -->|"API OpenAI"| LM
     CLI -->|"MCP"| MCP
 ```
 
 Che cosa fa ogni pezzo e perché sta lì:
 
-- **Il browser parla solo con nginx.** Pagina e API hanno la stessa origine, quindi non serve configurare CORS nel back-end, e il back-end resta su `127.0.0.1`.
+- **Il browser parla solo con nginx.** Pagina e API hanno la stessa origine, quindi non serve configurare CORS nel back-end; in Docker il back-end non pubblica nessuna porta, e nginx ne risolve il nome a ogni richiesta (parte anche con il back-end spento).
 - **Il back-end tiene insieme database e agente.** L'agente resta senza stato e riceve la cronologia a ogni turno; il back-end la legge dal database e la salva solo a risposta completa.
 - **Il database è un container.** I dati sopravvivono nel volume `dati_postgres`.
-- **Per ora due pezzi sono sull'host.** L'agente e il back-end si avviano a mano (`python -m ...`); il `frontend` e il `database` con Compose. Lo step 9 della lezione 6 metterà tutti e quattro in container con un solo comando.
+- **Tutti e quattro in container (step 9).** Fino allo step 8 agente e back-end si avviavano a mano sull'host (`python -m ...`). Da metà novembre Smart App Control di Windows blocca le DLL di `psycopg` sull'host, e lo step 9 li ha messi in container: nel `backend` le variabili `POSTGRES_HOST=database` e `AGENTE_INDIRIZZO=agente` raggiungono gli altri per nome. Il doppio clic su `avvia-chat.cmd` accende i container e, alla chiusura, ferma l'agente e il back-end che ha acceso.
 
-Le cartelle nuove sono `servizio_agente/` (`app.py`, `__main__.py`), `servizio_backend/` (`app.py`, `archivio.py`, `client_agente.py`, `turni.py`, `configurazione.py`, `testi.py`, `schema.sql`) e `frontend/` (progetto Svelte 5 con `src/`, `public/`, `nginx/`, `Dockerfile`). Per i dettagli: [13 L'agente come servizio HTTP](13-agente-come-servizio.md), [14 Il back-end delle chat](14-backend-delle-chat.md), [15 La chat nel browser](15-chat-nel-browser.md); i container in [08, sezioni 7.9–7.11](08-configurazione-avvio-docker.md).
+Le cartelle nuove sono `servizio_agente/` (`app.py`, `__main__.py`), `servizio_backend/` (`app.py`, `archivio.py`, `client_agente.py`, `turni.py`, `configurazione.py`, `testi.py`, `schema.sql`) e `frontend/` (progetto Svelte 5 con `src/`, `public/`, `nginx/`, `Dockerfile`). Per i dettagli: [13 L'agente come servizio HTTP](13-agente-come-servizio.md), [14 Il back-end delle chat](14-backend-delle-chat.md), [15 La chat nel browser](15-chat-nel-browser.md); i container in [08, sezioni 7.9–7.12](08-configurazione-avvio-docker.md).
 
 ### 1.6 LM Studio
 
 - **Sta sempre sull'host**, anche quando l'assistente gira in Docker (regola del `CLAUDE.md`: «LM Studio non va containerizzato»).
-- **Controllo all'avvio.** `assistente/modello.py:42-76` chiama `GET {LMSTUDIO_BASE_URL}/models` con `urllib`, timeout 5 secondi. Controlla che `LMSTUDIO_MODEL` sia tra gli `id` restituiti. L'identificativo non viene mai inventato: lo dà il server.
-- **Il client di chat.** `assistente/modello.py:79-87` crea un `ChatOpenAI` con:
+- **Controllo all'avvio.** `assistente/lmstudio.py:38-72` chiama `GET {LMSTUDIO_BASE_URL}/models` con `urllib`, timeout 5 secondi. Controlla che `LMSTUDIO_MODEL` sia tra gli `id` restituiti. L'identificativo non viene mai inventato: lo dà il server.
+- **Il client di chat.** `assistente/modello.py:13-21` crea un `ChatOpenAI` con:
   - `base_url` preso dalla configurazione;
   - `api_key="lm-studio"`, un segnaposto e non una credenziale: LM Studio non la controlla, ma la libreria ne vuole una (riga 15);
   - `timeout=120` e `max_retries=1`.
@@ -359,8 +359,8 @@ Il messaggio d'errore dice quale variabile cambiare: `Porta 8765 già in uso: ch
 | `TIMEOUT_CHIAMATA` | 10 s | `assistente/client_mcp.py:16` | ogni chiamata a uno strumento MCP (ponte) |
 | `TIMEOUT_HTTP` | 5 s | `assistente/wrapper_scadenze.py:19` | ogni chiamata del wrapper al servizio FastAPI |
 | `TIMEOUT_METEO` / `TEMPO_TOTALE` | 4 s / 8 s | `logica/meteo.py:17-20` | richieste a Open-Meteo (per fase / totale) |
-| verifica di LM Studio | 5 s | `assistente/modello.py:46` | `GET /models` all'avvio |
-| chat con il modello | 120 s, 1 nuovo tentativo | `assistente/modello.py:84-85` | ogni invocazione del modello |
+| verifica di LM Studio | 5 s | `assistente/lmstudio.py:42` | `GET /models` all'avvio |
+| chat con il modello | 120 s, 1 nuovo tentativo | `assistente/modello.py:18-19` | ogni invocazione del modello |
 
 ---
 
@@ -368,8 +368,8 @@ Il messaggio d'errore dice quale variabile cambiare: `Porta 8765 già in uso: ch
 
 | Collegamento | Da → a | Indirizzo | Protocollo | Libreria lato client | Codice |
 |---|---|---|---|---|---|
-| Controllo del modello | assistente → LM Studio | `{LMSTUDIO_BASE_URL}/models` | HTTP GET, JSON | `urllib.request` (libreria standard) | `assistente/modello.py:22-24, 42-76` |
-| Chat e tool calling | assistente → LM Studio | `LMSTUDIO_BASE_URL` | HTTP, API compatibile con OpenAI | `langchain-openai` (`ChatOpenAI`) | `assistente/modello.py:79-87` |
+| Controllo del modello | assistente → LM Studio | `{LMSTUDIO_BASE_URL}/models` | HTTP GET, JSON | `urllib.request` (libreria standard) | `assistente/lmstudio.py:18-20, 38-72` |
+| Chat e tool calling | assistente → LM Studio | `LMSTUDIO_BASE_URL` | HTTP, API compatibile con OpenAI | `langchain-openai` (`ChatOpenAI`) | `assistente/modello.py:13-21` |
 | Strumenti MCP | assistente → server MCP | `http://127.0.0.1:<MCP_PORTA>/mcp` | MCP (JSON-RPC) su **Streamable HTTP**, senza stato, risposte JSON | `langchain-mcp-adapters` (`MultiServerMCPClient`, trasporto `"streamable_http"`) | `assistente/client_mcp.py:80-87`, `assistente/avvio_server.py:142-143` |
 | Variante FastAPI | assistente (wrapper) → servizio | `http://127.0.0.1:<API_PORTA>/scadenza` | HTTP GET con query string, JSON | `httpx` | `assistente/wrapper_scadenze.py:35-79` |
 | Prontezza FastAPI | assistente → servizio | `http://127.0.0.1:<API_PORTA>/openapi.json` | HTTP GET | `httpx` | `assistente/avvio_server.py:191-194` |
@@ -423,8 +423,8 @@ flowchart LR
 
 | File | Ruolo architetturale |
 |---|---|
-| `Dockerfile` | immagine `python:3.14-slim`; `ENV ASSISTENTE_IN_DOCKER=1` (il fuso del container, UTC, non va usato) e `PYTHONUNBUFFERED=1`; copia **solo** `assistente/`, `logica/`, `server_mcp/`, `servizio_api/`, `risorse/`; `CMD ["python", "-m", "assistente"]` |
-| `compose.yaml` | nella lezione 5 **un solo servizio** (`assistente`); dalla lezione 6 ce ne sono altri tre (`agente`, `database`, `frontend`, vedi sotto). Il servizio `assistente`: `env_file: .env`; sostituisce `LMSTUDIO_BASE_URL` con `LMSTUDIO_BASE_URL_DOCKER`; richiede con `:?` `MCP_PORTA` e le due varianti; monta `./logs` e `./archivio`; `extra_hosts: host.docker.internal:host-gateway`; `stdin_open` e `tty` per la chat |
+| `Dockerfile` | immagine `python:3.14-slim`; `ENV ASSISTENTE_IN_DOCKER=1` (il fuso del container, UTC, non va usato) e `PYTHONUNBUFFERED=1`; copia **solo** `assistente/`, `logica/`, `server_mcp/`, `servizio_api/`, `risorse/` (dalla lezione 6 anche `servizio_agente/` e, con lo step 9, `servizio_backend/`); `CMD ["python", "-m", "assistente"]` |
+| `compose.yaml` | nella lezione 5 **un solo servizio** (`assistente`); dalla lezione 6 ce ne sono altri cinque (`agente`, `database`, `backend`, `frontend` e `test`, vedi sotto); dallo step 9 `assistente` ha il profilo `cli` e `test` il profilo `test`. Il servizio `assistente`: `env_file: .env`; sostituisce `LMSTUDIO_BASE_URL` con `LMSTUDIO_BASE_URL_DOCKER`; richiede con `:?` `MCP_PORTA` e le due varianti; monta `./logs` e `./archivio`; `extra_hosts: host.docker.internal:host-gateway`; `stdin_open` e `tty` per la chat |
 | `avvia.ps1` | legge il fuso di Windows e lancia `docker compose run --rm -e FUSO_HOST_WINDOWS=<fuso> assistente` (con `-SenzaTty` aggiunge `-T`, per le prove con la pipe) |
 | `.dockerignore` | esclude `.env`, `.venv`, `tests`, `docs`, `logs`, `archivio`, cache e cartelle di riserva delle prove |
 
@@ -438,7 +438,7 @@ Conseguenze da saper spiegare:
 
 I dettagli (fuso, comandi, prove) sono nel [documento 08](08-configurazione-avvio-docker.md).
 
-**Dopo la lezione 6.** `compose.yaml` ha quattro servizi: `assistente` (la CLI, come sopra), `agente` (il servizio HTTP, con un suo server MCP nel container), `database` (PostgreSQL con il volume `dati_postgres`) e `frontend` (nginx con la chat). Gli ultimi tre pubblicano una porta, ma solo su `127.0.0.1` dell'host. Il back-end delle chat non è ancora in un container: si avvia sull'host (sarà lo step 9). Vedi la sezione 1.5 ter e [08, sezioni 7.9–7.11](08-configurazione-avvio-docker.md).
+**Dopo la lezione 6.** `compose.yaml` ha sei servizi. Quattro partono con `docker compose up -d`: `agente` (il servizio HTTP, con un suo server MCP nel container), `database` (PostgreSQL con il volume `dati_postgres`), `backend` (il back-end delle chat, nessuna porta pubblicata) e `frontend` (nginx con la chat). `agente`, `database` e `frontend` pubblicano una porta, ma solo su `127.0.0.1` dell'host. Gli altri due hanno un profilo e partono solo se chiamati per nome: `assistente` (la CLI, come sopra, profilo `cli`: si costruisce con `docker compose build assistente`) e `test` (la suite automatica, profilo `test`: `docker compose run --rm test`). Vedi la sezione 1.5 ter e [08, sezioni 7.9–7.12](08-configurazione-avvio-docker.md).
 
 ---
 
@@ -452,6 +452,7 @@ assistente-laboratorio/
 ├── servizio_api/        ← servizio FastAPI di calcola_scadenza + punto di avvio
 ├── servizio_agente/     ← l'agente come servizio HTTP (/salute, /chat, /chat/stream), senza stato
 ├── servizio_backend/    ← il back-end delle chat: progetti, chat, ricerca, turno in streaming; SQL scritto a mano con psycopg
+├── avvio_chat/          ← il doppio clic (avvia-chat.cmd): accende i quattro container e apre il browser; solo libreria standard
 ├── frontend/            ← la chat nel browser: Svelte 5 + Vite, PWA, nginx (Dockerfile e configurazione)
 ├── risorse/             ← dati versionati: catalogo_corsi.json, festivita_italia.json
 ├── archivio/            ← note.sqlite3 (creato alla prima nota; fuori da Git)
@@ -463,7 +464,7 @@ assistente-laboratorio/
 ├── requirements.txt     ← dipendenze dell'applicazione, versioni fissate
 ├── requirements-dev.txt ← -r requirements.txt + pytest
 ├── pytest.ini           ← testpaths, pythonpath, marcatori lmstudio/docker
-├── Dockerfile, compose.yaml, avvia.ps1, .dockerignore, .gitignore
+├── Dockerfile, Dockerfile.test, compose.yaml, avvia.ps1, avvia-agente.ps1, avvia-chat.cmd, .dockerignore, .gitignore
 └── README.md
 ```
 
@@ -702,7 +703,7 @@ Alcune cose si notano subito:
 
 **Perché sincrono.** Il `CLAUDE.md` chiede «codice sincrono e moduli piccoli». Grafo, terminale, configurazione, avvio dei processi, wrapper HTTP (`httpx` sincrono) e logica sono tutti sincroni.
 
-**Il problema.** Gli strumenti prodotti da `langchain-mcp-adapters` sono **solo asincroni**: invocati in modo sincrono, sollevano `NotImplementedError`. Il grafo invece li chiama con `strumento.invoke(...)`, che è sincrono (`assistente/grafo.py:175`).
+**Il problema.** Gli strumenti prodotti da `langchain-mcp-adapters` sono **solo asincroni**: invocati in modo sincrono, sollevano `NotImplementedError`. Il grafo invece li chiama con `strumento.invoke(...)`, che è sincrono (`assistente/grafo.py:235`).
 
 **La soluzione: il ponte** (`assistente/client_mcp.py:57-77`). Ogni strumento scoperto viene avvolto in uno `StructuredTool` sincrono, con lo stesso nome, la stessa descrizione e lo stesso `args_schema`:
 
@@ -961,6 +962,7 @@ Una presentazione di circa 11 slide su questo capitolo. Ogni slide: titolo, tre 
 - Terminale, servizio dell'agente, back-end con PostgreSQL e chat nel browser
 - Il browser parla con nginx, nginx con il back-end, il back-end con agente e database
 - Tutto solo su `127.0.0.1`; l'agente resta senza stato
+- Step 9: quattro container con `docker compose up -d`; il back-end non ha porte sull'host
 
 *Da mostrare:* il diagramma della sezione 1.5 ter e i capitoli 13, 14 e 15.
 

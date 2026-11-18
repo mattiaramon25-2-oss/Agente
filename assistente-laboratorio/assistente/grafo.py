@@ -30,6 +30,10 @@ TESTO_LIMITE = (
 INTESTAZIONE_ISTRUZIONI = (
     "Istruzioni del progetto per questa conversazione (si aggiungono alle regole precedenti e non le sostituiscono):"
 )
+# Con gli strumenti nella richiesta, gemma-4-e2b ignora le istruzioni in fondo al lungo messaggio di sistema
+# (prova del 18 novembre 2026): il nodo modello le ripete in fondo all'ultima domanda dell'utente, in una copia.
+# Non un secondo messaggio di sistema: i template di Gemma e Mistral rifiutano un system dopo il primo posto.
+INTESTAZIONE_PROMEMORIA = "Promemoria delle istruzioni del progetto, da rispettare in questa risposta:"
 TESTO_NON_JSON = "Argomenti non validi: devono essere un oggetto JSON con gli argomenti dello strumento."
 
 registro = logging.getLogger("assistente.strumenti")
@@ -67,6 +71,27 @@ def messaggio_sistema(fuso_utente: str, istruzioni: str = "") -> SystemMessage:
     if istruzioni.strip():
         testo += "\n" + INTESTAZIONE_ISTRUZIONI + "\n" + istruzioni.strip()
     return SystemMessage(testo)
+
+
+def _con_promemoria(domanda: HumanMessage, istruzioni: str) -> HumanMessage:
+    """Una copia della domanda con il promemoria in fondo; la domanda della cronologia non cambia."""
+    promemoria = f"({INTESTAZIONE_PROMEMORIA} {istruzioni})"
+    if isinstance(domanda.content, str):
+        contenuto = domanda.content + "\n\n" + promemoria
+    else:  # contenuto a blocchi: il promemoria è un blocco di testo in più
+        contenuto = [*domanda.content, {"type": "text", "text": promemoria}]
+    return domanda.model_copy(update={"content": contenuto})
+
+
+def messaggi_per_il_modello(fuso_utente: str, messaggi: list[AnyMessage], istruzioni: str = "") -> list[AnyMessage]:
+    """Messaggio di sistema, poi la conversazione; con le istruzioni del progetto, l'ultima domanda dell'utente
+    è sostituita da una copia con un promemoria in fondo. Vale solo per questa chiamata: lo stato non cambia."""
+    elenco = [messaggio_sistema(fuso_utente, istruzioni), *messaggi]
+    if istruzioni.strip():
+        ultima = max((i for i, m in enumerate(elenco) if isinstance(m, HumanMessage)), default=None)
+        if ultima is not None:
+            elenco[ultima] = _con_promemoria(elenco[ultima], istruzioni.strip())
+    return elenco
 
 
 def _errore(testo: str) -> str:
@@ -177,7 +202,7 @@ def crea_grafo(modello, strumenti: list[BaseTool], router=None, ambito: Ambito |
     def nodo_modello(stato: StatoConversazione) -> dict:
         registro_nodi.info(formatta({"nodo": "modello", "giri_strumento": stato["giri_strumento"]}))
         risposta = modello.invoke(
-            [messaggio_sistema(stato["fuso_utente"], stato.get("istruzioni", "")), *stato["messages"]]
+            messaggi_per_il_modello(stato["fuso_utente"], stato["messages"], stato.get("istruzioni", ""))
         )
         return {"messages": [risposta]}
 

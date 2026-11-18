@@ -69,7 +69,7 @@ Ogni capitolo ha tre livelli. Non serve leggerli tutti e tre ogni volta.
 | [10 Log e diagnosi](10-log-e-diagnosi.md) | tutto |
 | [11 Storia del progetto](11-storia-del-progetto.md) | sezioni 4–7 |
 
-### Lezione 6 · Evolvere l'agente (in corso: step 1, 6, 7 e 8 uniti in `main`)
+### Lezione 6 · Evolvere l'agente (in corso: step 1, 6, 7 e 8 uniti in `main`, step 9 fatto sul suo branch)
 
 Le slide del docente (`LLM_Lez_6.pdf`, 19 slide, fuori dal repository) dividono la lezione in nove step. Ognuno parte dal precedente funzionante e va verificato con un'evidenza.
 
@@ -83,9 +83,9 @@ Le slide del docente (`LLM_Lez_6.pdf`, 19 slide, fuori dal repository) dividono 
 | 6 · Agente come servizio (fatto, in `main` dal 10 novembre: [13](13-agente-come-servizio.md)) | l'agente risponde anche via HTTP | stessa risposta dalla CLI e dall'API |
 | 7 · Back-end (fatto, in `main` dall'11 novembre: [14](14-backend-delle-chat.md)) | API per le chat, salvate in PostgreSQL | chat ancora presenti dopo il riavvio |
 | 8 · Front-end (fatto, in `main` dal 12 novembre: [15](15-chat-nel-browser.md)) | interfaccia di chat nel browser, installabile come app | conversazione completa dal browser, errori mostrati |
-| 9 · Docker Compose | quattro container: front-end, back-end, agente, database | quattro container avviati con un comando |
+| 9 · Docker Compose (fatto il 18 novembre sul branch `dev-quattro-container`, non ancora unito: [08, sezioni 7.11 e 7.12](08-configurazione-avvio-docker.md#711-il-servizio-frontend-la-chat-nel-browser)) | quattro container: front-end, back-end, agente, database | quattro container avviati con un comando |
 
-**Stato.** Gli step 1, 6, 7 e 8 sono fatti e **uniti in `main`** (12 novembre 2026, ultima unione `f00512f`): il router con in più lo streaming della risposta (9 novembre); l'agente come servizio HTTP, che dal 10 novembre gira anche in Docker come servizio Compose `agente` ([08, sezione 7.9](08-configurazione-avvio-docker.md#79-il-servizio-dellagente-in-docker)); il back-end delle chat con PostgreSQL (database in [08, sezione 7.10](08-configurazione-avvio-docker.md#710-il-database-delle-chat)); la chat nel browser, installabile come app (servizio `frontend` in [08, sezione 7.11](08-configurazione-avvio-docker.md#711-il-servizio-frontend-la-chat-nel-browser)). La storia di questi giorni è nel [capitolo 11, fase 5](11-storia-del-progetto.md#8-fase-5--la-lezione-6-dallagente-alla-chat-nel-browser-912-novembre). Restano lo step 9 (quattro container con un solo comando) e gli step 2–5 (revisore, riassunto, resource, prompt). Quando uno step è fatto, i capitoli interessati ricevono la loro parte.
+**Stato.** Gli step 1, 6, 7 e 8 sono fatti e **uniti in `main`** (12 novembre 2026, ultima unione `f00512f`): il router con in più lo streaming della risposta (9 novembre); l'agente come servizio HTTP, che dal 10 novembre gira anche in Docker come servizio Compose `agente` ([08, sezione 7.9](08-configurazione-avvio-docker.md#79-il-servizio-dellagente-in-docker)); il back-end delle chat con PostgreSQL (database in [08, sezione 7.10](08-configurazione-avvio-docker.md#710-il-database-delle-chat)); la chat nel browser, installabile come app (servizio `frontend` in [08, sezione 7.11](08-configurazione-avvio-docker.md#711-il-servizio-frontend-la-chat-nel-browser)). La storia di questi giorni è nel [capitolo 11, fase 5](11-storia-del-progetto.md#8-fase-5--la-lezione-6-dallagente-alla-chat-nel-browser-912-novembre). Lo step 9 (quattro container con un solo comando) è fatto sul branch `dev-quattro-container` (16–18 novembre), non ancora unito in `main`: `docker compose up -d` accende database, agente, back-end e pagina, e il doppio clic su `avvia-chat.cmd` accende i container invece di avviare agente e back-end sull'host. È nato da un blocco: da metà novembre Smart App Control di Windows blocca le DLL di `psycopg-binary`, quindi il back-end e la suite di test non partono più sull'host; la suite gira in un container (`docker compose run --rm test`, [09](09-test-e-verifiche.md)). Restano gli step 2–5 (revisore, riassunto, resource, prompt). Quando uno step è fatto, i capitoli interessati ricevono la loro parte.
 
 ---
 
@@ -101,7 +101,7 @@ Le slide del docente (`LLM_Lez_6.pdf`, 19 slide, fuori dal repository) dividono 
 | 05 | [MCP in pratica](05-mcp-in-pratica.md) | server FastMCP, client, ponte sincrono, avvio e arresto dei processi |
 | 06 | [Le tre varianti di collegamento](06-tre-varianti.md) | MCP, `@tool` locale e FastAPI con wrapper: stesso contratto, percorso diverso |
 | 07 | [I dieci strumenti uno per uno](07-gli-strumenti.md) | che cosa fa ogni strumento, i suoi errori e i suoi esempi |
-| 08 | [Configurazione, avvio e Docker](08-configurazione-avvio-docker.md) | il file `.env`, `python -m assistente`, `compose.yaml`, `avvia.ps1` e il fuso orario |
+| 08 | [Configurazione, avvio e Docker](08-configurazione-avvio-docker.md) | il file `.env`, `python -m assistente`, `compose.yaml` (dallo step 9 quattro container con un comando), `avvia.ps1`, `avvia-chat.cmd` e il fuso orario |
 | 09 | [Test e verifiche](09-test-e-verifiche.md) | test automatici con modello finto, prove reali separate (`--lmstudio`, `--docker`) |
 | 10 | [Log, diagnosi e limiti noti](10-log-e-diagnosi.md) | i file di log (tre, più `servizio_backend.log`), la diagnosi per livelli, che cosa il codice non può impedire |
 | 11 | [Storia del progetto e decisioni](11-storia-del-progetto.md) | dalla base del 2 novembre alla chat nel browser del 12 novembre, con le decisioni prese |
@@ -127,7 +127,7 @@ flowchart LR
 **Approfondimento (3–4 ore).** Riprendi i capitoli uno alla volta, con il codice aperto accanto.
 - Quando il testo cita `percorso:riga`, apri il file e leggi la funzione intera.
 - Dopo il 03, avvia una volta `python -m assistente` (servono il `.env` e LM Studio acceso, vedi 08). Chiedi l'ora a Tokyo e guarda nel terminale la riga `[ora_corrente · mcp: Asia/Tokyo]`, prodotta da `assistente/terminale.py:37`.
-- Dopo il 09, lancia `python -m pytest`: le prove reali risultano `skipped`.
+- Dopo il 09, lancia `docker compose run --rm test` (su questo computer `python -m pytest` sull'host si ferma per Smart App Control): le prove reali risultano `skipped`.
 
 **Ripasso veloce (30–45 minuti).**
 1. La tabella «Cosa sapere a memoria» qui sotto.
@@ -145,25 +145,25 @@ flowchart LR
 
 | Tema | Valore | Dove |
 |---|---|---|
-| Nodi del grafo | `modello`, `strumenti`, `limite`, più `router` e `rifiuto` quando c'è il router (sempre, con `crea_agente`); dopo `router` decide `instrada_dopo_router`, dopo `modello` `instrada_dopo_modello` | `assistente/grafo.py:239-252`, `:156`, `:147` |
-| Stato | `messages` (con `add_messages`), `fuso_utente`, `giri_strumento`, più `categoria` e `istruzioni` (facoltativi) | `assistente/grafo.py:39-44` |
-| Limite di giri | `MAX_GIRI_STRUMENTO = 3` per turno, poi un testo fisso di scuse | `assistente/grafo.py:24-27` |
+| Nodi del grafo | `modello`, `strumenti`, `limite`, più `router` e `rifiuto` quando c'è il router (sempre, con `crea_agente`); dopo `router` decide `instrada_dopo_router`, dopo `modello` `instrada_dopo_modello` | `assistente/grafo.py:263-278`, `:181`, `:172` |
+| Stato | `messages` (con `add_messages`), `fuso_utente`, `giri_strumento`, più `categoria` e `istruzioni` (facoltativi) | `assistente/grafo.py:43-48` |
+| Limite di giri | `MAX_GIRI_STRUMENTO = 3` per turno, poi un testo fisso di scuse | `assistente/grafo.py:26-29` |
 | Server MCP | FastMCP, trasporto HTTP (Streamable HTTP), `http://127.0.0.1:<MCP_PORTA>/mcp` | `server_mcp/__main__.py:39-44`, `assistente/avvio_server.py:143` |
 | Dieci strumenti | `ora_corrente`, `converti_unita`, `calcola`, `calcola_scadenza`, `search_catalog`, `get_item`, `add_note`, `list_notes`, `delete_note`, `get_weather` | `server_mcp/server.py:128-193` |
 | Varianti | `VARIANTE_CALCOLATRICE` = `mcp`/`locale`; `VARIANTE_SCADENZE` = `mcp`/`fastapi`; una sola versione per nome | `assistente/configurazione.py:7-8`, `assistente/varianti.py:17-43` |
 | Server pronto | solo quando la discovery (`tools/list`) riesce, non un semplice HTTP 200; attesa massima 10 s | `assistente/avvio_server.py:25`, `:154-169` |
-| Tempi massimi | MCP 10 s, FastAPI 5 s, meteo 4 s per fase e 8 s in tutto, LM Studio 120 s | `client_mcp.py:16`, `wrapper_scadenze.py:19`, `logica/meteo.py:17-20`, `modello.py:84` |
-| Esiti nel log | `ok`, `errore_tool`, `errore_collegamento`, `strumento_sconosciuto`, `limite` | `assistente/grafo.py:81-89` (primi tre), `:189` (`strumento_sconosciuto`), `:233` (`limite`); README «Log» |
+| Tempi massimi | MCP 10 s, FastAPI 5 s, meteo 4 s per fase e 8 s in tutto, LM Studio 120 s | `client_mcp.py:16`, `wrapper_scadenze.py:19`, `logica/meteo.py:17-20`, `modello.py:18` |
+| Esiti nel log | `ok`, `errore_tool`, `errore_collegamento`, `strumento_sconosciuto`, `limite` | `assistente/grafo.py:106-114` (primi tre), `:214` (`strumento_sconosciuto`), `:258` (`limite`); README «Log» |
 | Log | `logs/assistente.log` (scritto anche dal servizio dell'agente), `logs/server_mcp.log`, `logs/servizio_api.log` (solo con `fastapi`), `logs/servizio_backend.log` (solo con il back-end) | `assistente/registro.py:9-13` |
-| Persistenza | nel terminale la cronologia è solo in memoria e le note stanno in `archivio/note.sqlite3`; nella chat nel browser progetti, chat e messaggi stanno in PostgreSQL (volume Docker `dati_postgres`) | `logica/note.py:19`, `servizio_backend/schema.sql:3-27`, `compose.yaml:62` |
+| Persistenza | nel terminale la cronologia è solo in memoria e le note stanno in `archivio/note.sqlite3`; nella chat nel browser progetti, chat e messaggi stanno in PostgreSQL (volume Docker `dati_postgres`) | `logica/note.py:19`, `servizio_backend/schema.sql:3-27`, `compose.yaml:76` |
 | Fuso, in ordine | `FUSO_HOST_WINDOWS` (da `avvia.ps1`), poi il fuso del computer (solo fuori da Docker), poi `FUSO_ORARIO`, poi `UTC` con avviso | `assistente/fuso.py:36-53` |
-| Chiave API | `"lm-studio"`: è un segnaposto, non una credenziale | `assistente/modello.py:15` |
+| Chiave API | `"lm-studio"`: è un segnaposto, non una credenziale | `assistente/modello.py:10` |
 | Risposte di prova | `(3+4)*2` dà 14; 23/12/2026 più 3 giorni lavorativi dà 29/12/2026; `DLL-01` dura 120 ore | README «Test» |
-| Back-end delle chat | tre tabelle (`progetti`, `chat`, `messaggi`); turno salvato in una transazione solo dopo `fine`; `409` se la chat ha già un turno; tutto su `127.0.0.1` | `servizio_backend/schema.sql:3-27`, `archivio.py:218-234`, `turni.py:20-122` |
-| Chat nel browser | cartella `frontend/` (Svelte 5, Vite); nginx nel container `frontend` su `127.0.0.1:8780` (`FRONTEND_PORTA`) inoltra `/api` al back-end; il testo del modello passa solo da `rendiMarkdown` | `compose.yaml:71-81`, `frontend/nginx/default.conf.template:14-22`, `frontend/src/lib/markdown.ts:38` |
-| Test | suite predefinita il 12/11/2026: 625 passati e 74 saltati (prove reali, saltate se non le chiedi); front-end `npm test` 108 passati; prove nel browser e di Compose (`--docker`) 9 passati; vedi capitolo 09 §10.5 | `python -m pytest`, `npm test` |
+| Back-end delle chat | tre tabelle (`progetti`, `chat`, `messaggi`); turno salvato in una transazione solo dopo `fine`; `409` se la chat ha già un turno; fuori da Docker tutto su `127.0.0.1`, in Docker (step 9) nessuna porta pubblicata: ci arriva solo nginx | `servizio_backend/schema.sql:3-27`, `archivio.py:218-234`, `turni.py:20-122` |
+| Chat nel browser | cartella `frontend/` (Svelte 5, Vite); nginx nel container `frontend` su `127.0.0.1:8780` (`FRONTEND_PORTA`) inoltra `/api` al container `backend`, risolvendone il nome a ogni richiesta; il testo del modello passa solo da `rendiMarkdown` | `compose.yaml:114-130`, `frontend/nginx/default.conf.template:16-27`, `frontend/src/lib/markdown.ts:38` |
+| Test | suite nel container il 18/11/2026: 717 passati e 98 saltati (prove reali e test solo per Windows); sull'host i test del doppio clic, di `avvia.ps1` e di nginx 104 passati e 1 saltato, quelli di Compose (`--docker`) 7 passati; front-end `npm test` 108 passati (12/11); vedi capitolo 09 §10.6 | `docker compose run --rm test`, `npm test` |
 
-**Prova lampo.** Eseguita davvero con il modello finto di `tests/finti.py`, senza LM Studio. Lo script costruisce il grafo con `crea_grafo` (`assistente/grafo.py:141`), passando `ModelloFinto` con due risposte preparate e `orologio_finto` fermo al 2026-11-08 20:13 UTC. Poi esegue un turno con `esegui_turno` (`assistente/grafo.py:214`). Questa è la cronologia restituita:
+**Prova lampo.** Eseguita davvero con il modello finto di `tests/finti.py`, senza LM Studio. Lo script costruisce il grafo con `crea_grafo` (`assistente/grafo.py:185`), passando `ModelloFinto` con due risposte preparate e `orologio_finto` fermo al 2026-11-08 20:13 UTC. Poi esegue un turno con `esegui_turno` (`assistente/grafo.py:281`). Questa è la cronologia restituita:
 
 ```
 HumanMessage | che ore sono a Tokyo?
@@ -176,12 +176,25 @@ Attenzione: è una risposta simulata. Mostra come funziona il grafo, ma non dimo
 
 ---
 
-## Come preparare una presentazione
+## Presentazioni e schemi pronti
 
-1. **Scegli l'argomento.** Per un argomento solo, usa la scaletta in fondo al suo capitolo. Per una lezione intera, prendi i capitoli elencati in «Il progetto lezione per lezione» e unisci le loro scalette, togliendo le slide ripetute.
-2. **Controlla i «Da mostrare».** Ogni slide indica un diagramma, una tabella o un pezzo di codice che esiste già nel capitolo o nel progetto. Copialo da lì, non ridisegnarlo a memoria.
-3. **Con Claude.** Chiedi di creare una presentazione partendo dalla scaletta del capitolo N: titoli, punti e materiali da mostrare sono già scritti.
-4. **Regola d'oro.** Ogni numero e ogni nome nelle slide deve venire dal capitolo, che a sua volta viene dal codice. Se una slide dice qualcosa che il capitolo non dice, va controllata nel codice.
+Le presentazioni esistono già: sono pagine HTML nella cartella [`presentazioni/`](presentazioni/index.html). Si aprono con doppio clic su `index.html` e funzionano senza Internet.
+
+| Pagina | Che cosa contiene |
+|---|---|
+| [`progetto-in-15-minuti.html`](presentazioni/progetto-in-15-minuti.html) | tutto il progetto, 15 slide |
+| [`lezione-4.html`](presentazioni/lezione-4.html) | l'assistente di base, 16 slide |
+| [`lezione-5.html`](presentazioni/lezione-5.html) | gli strumenti via MCP, 20 slide |
+| [`lezione-6.html`](presentazioni/lezione-6.html) | evolvere l'agente, 21 slide |
+| [`atlante.html`](presentazioni/atlante.html) | 18 schemi su una pagina, ognuno con che cosa guardare e il capitolo dove approfondire |
+
+**Tasti.** `→` e `←` per muoversi, `N` per le note «Da dire a voce», `E` per vedere tutte le slide in elenco, `F` per lo schermo intero, `T` per il tema chiaro o scuro. Con `Ctrl+P` il browser stampa una slide per pagina.
+
+**Come sono fatte.** Tre file comuni: `stile.css` (aspetto), `slide.js` (navigazione) e `schemi.js` (gli schemi, descritti una volta sola e disegnati nel browser). Nessuna libreria e nessuna richiesta di rete. Per correggere uno schema si cambia la sua descrizione in `schemi.js`: atlante e presentazioni si aggiornano insieme.
+
+**Per farne una nuova.** Copia una presentazione, tieni lo scheletro e parti dalla «Scaletta per le slide» in fondo al capitolo: titoli, punti e materiali da mostrare sono già scritti.
+
+**Regola d'oro.** Ogni numero e ogni nome nelle slide deve venire dal capitolo, che a sua volta viene dal codice. Se una slide dice qualcosa che il capitolo non dice, va controllata nel codice. Quando cambia il codice, insieme ai capitoli si aggiornano anche le slide e gli schemi che ne parlano.
 
 ---
 
@@ -190,6 +203,7 @@ Attenzione: è una risposta simulata. Mostra come funziona il grafo, ma non dimo
 | Fonte | Che cosa contiene | Quando usarla |
 |---|---|---|
 | `README.md` | comandi verificati, variabili del `.env`, log, diagnosi | per eseguire davvero qualcosa |
+| `AVVIO-RAPIDO.md` | la guida di una pagina: tre modi di avvio, che cosa si deve vedere, gli errori più comuni | per far partire il progetto senza cercare nel README |
 | `../CLAUDE.md` | obiettivo, confini, scelte tecniche, regole Git e di metodo | per spiegare *perché* il progetto è fatto così e che cosa non fa |
 | [`docs/superpowers/`](../superpowers/README.md) | specifiche, piani e checkpoint, con un indice per lezione | per i contratti degli strumenti, l'ordine di costruzione e gli esiti reali delle prove |
 | `git log` | 172 commit in `main` al 12/11/2026, in Conventional Commits italiani; 16 sono unioni `chore: unisci …` (passi 1–7, revisione e lezione 6) | per ricostruire la storia (11); `git show <hash>` per vedere una singola modifica |

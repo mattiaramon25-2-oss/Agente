@@ -1,0 +1,2 @@
+# I file .cmd di Windows vogliono la fine riga CRLF, qualunque sia la configurazione di Git.
+*.cmd text eol=crlf

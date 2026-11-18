@@ -6,6 +6,8 @@ il nodo `strumenti` esegue lo strumento che il modello chiede, il nodo `limite` 
 dopo 3 giri di strumento. La cronologia resta in memoria per la sessione e si perde alla chiusura;
 le uniche informazioni che restano tra una sessione e l'altra sono le note (vedi sotto).
 
+> **Vuoi solo farlo partire?** La guida di una pagina è [AVVIO-RAPIDO.md](AVVIO-RAPIDO.md).
+
 Gli strumenti stanno in un **server MCP** («Strumenti laboratorio», scritto con FastMCP) che
 l'assistente avvia da solo, interroga con la discovery (`tools/list`) e spegne all'uscita:
 
@@ -39,7 +41,7 @@ Ogni chiamata eseguita con successo compare nel terminale con la sua origine, pe
 Struttura: `logica/` contiene la logica pura degli strumenti, scritta una volta sola e riusata da
 tutte le varianti; `server_mcp/` la registrazione MCP; `servizio_api/` il servizio FastAPI delle
 scadenze; `servizio_agente/` l'agente come servizio HTTP; `servizio_backend/` il back-end delle chat
-(progetti, chat e ricerca in PostgreSQL); `assistente/` l'agente (grafo, collegamento al modello, client MCP, varianti, avvio dei
+(progetti, chat e ricerca in PostgreSQL); `avvio_chat/` l'avvio di tutti i pezzi della chat con un doppio clic; `assistente/` l'agente (grafo, collegamento al modello, client MCP, varianti, avvio dei
 processi, terminale); `risorse/` i dati versionati (catalogo, festività); `archivio/` le note e
 `logs/` i log, entrambi fuori da Git.
 
@@ -85,10 +87,10 @@ chiamata non arriva né al server né al servizio, e compare solo in `logs/assis
 - Python 3.14
 - LM Studio sullo stesso computer, con il server attivo (porta predefinita 1234) e un modello
   scaricato. Provato con `google/gemma-4-e2b`.
-- Docker Desktop, solo per il database del back-end delle chat, per la chat nel browser (container `frontend`) e per le prove con `--docker`.
+- Docker Desktop, per la chat nel browser (quattro container: database, agente, back-end e pagina), per
+  la CLI in Docker, per la suite di test in un container e per le prove con `--docker`.
 - Node 24 con npm, solo per sviluppare o provare il front-end (`frontend/`). Per usare la chat non serve:
-  la pagina la serve Docker (container `frontend`), mentre il back-end e l'agente girano comunque con
-  Python (`python -m servizio_backend`, `python -m servizio_agente`).
+  la pagina la serve Docker (container `frontend`), come l'agente e il back-end.
 - Edge (o Chrome) per la chat nel browser; per le prove automatiche del browser, Chromium di Playwright (vedi «Test»).
 
 ## Configurazione
@@ -119,7 +121,9 @@ Poi aprire `.env` e controllare i valori:
 | `POSTGRES_PASSWORD` | solo per il back-end delle chat | password del database, scelta da te: in `.env.example` è vuota e resta solo nel tuo `.env` |
 | `POSTGRES_PORTA` | no | porta di PostgreSQL sull'host, solo su `127.0.0.1`; predefinita `5432` |
 | `FRONTEND_PORTA` | no | porta della chat nel browser sull'host, solo su `127.0.0.1`; predefinita `8780` |
-| `FUSO_ORARIO` | no | fuso IANA di riserva se il rilevamento automatico non riesce |
+| `FUSO_ORARIO` | no | fuso IANA di riserva se il rilevamento automatico non riesce; è il fuso dell'agente acceso con `docker compose up -d` o con `avvia-chat.cmd` |
+| `BACKEND_HOST`, `POSTGRES_HOST`, `AGENTE_INDIRIZZO` | no | indirizzo di ascolto del back-end, host del database e host dell'agente visti dal back-end; predefiniti `127.0.0.1`. Nel container `backend` li imposta Compose (`0.0.0.0`, `database`, `agente`): nel `.env` non servono |
+| `BACKEND_INDIRIZZO` | no | il nome del back-end per nginx (container `frontend`); predefinito `backend`, il servizio di Compose. Le prove del browser lo puntano a `host.docker.internal` |
 
 Per vedere gli identificativi disponibili:
 
@@ -254,8 +258,11 @@ con Docker è montata sull'host):
   `modifica note operazione=aggiunta|eliminazione id=…`;
 - `logs/servizio_api.log` (solo con `VARIANTE_SCADENZE=fastapi`): avvio e arresto del servizio e
   ogni richiesta a `/scadenza` con argomenti ed esito;
-- `logs/servizio_backend.log` (solo con `python -m servizio_backend`): avvio e arresto, una riga per ogni
+- `logs/servizio_backend.log` (con il container `backend` o con `python -m servizio_backend`): avvio e arresto, una riga per ogni
   richiesta (metodo, percorso senza query string, esito, stato, durata) e una per ogni turno con `chat_id`, strumenti usati, `esito` e se il browser si è scollegato; mai il testo dei messaggi.
+
+I container `agente` e `backend` montano `./logs`: i loro log finiscono negli stessi file sull'host.
+Ciò che scrivono sul terminale si legge con `docker compose logs --tail 30 agente` (o `backend`).
 
 Il `call_id` del modello non arriva al server (l'identificativo del protocollo è un altro): le due
 tracce si confrontano per strumento, argomenti e ora. Una risposta plausibile senza la riga
@@ -270,9 +277,18 @@ Serve Docker Desktop acceso. LM Studio resta sull'host: il container lo raggiung
 servito attivare in LM Studio l'opzione per servire sulla rete locale.
 
 ```powershell
-docker compose build
+docker compose build assistente
 .\avvia.ps1
 ```
+
+Il servizio `assistente` (la CLI) sta nel profilo `cli`: `docker compose up -d` non lo accende e
+`docker compose build` (o `up --build`) non ne ricostruisce l'immagine; per questo il comando lo nomina.
+`.\avvia.ps1` usa `docker compose run --rm assistente`, che costruisce l'immagine solo se manca.
+
+Se il container `agente` della chat nel browser è acceso, `.\avvia.ps1` lo dice prima di aprire la CLI:
+le note in `archivio/note.sqlite3` sono usate anche dall'agente, e scriverle da due parti insieme rischia
+di rovinarle. Chiede «Aprire comunque la CLI? (S/N)»: con una risposta diversa da `S` esce senza aprirla
+(provato con la risposta `N` da una pipe; da tastiera non ancora). Con `-SenzaTty` non chiede.
 
 Il server MCP (e, con `VARIANTE_SCADENZE=fastapi`, il servizio FastAPI) gira nello stesso container
 dell'assistente: le porte non vengono pubblicate. `compose.yaml` richiede `MCP_PORTA`,
@@ -319,7 +335,14 @@ Quando compare la riga `Servizio dell'agente in ascolto su 0.0.0.0:8767 …`, il
 su `http://127.0.0.1:8767` con gli stessi comandi `Invoke-RestMethod` dell'avvio diretto. `Ctrl+C`
 ferma il container: Docker manda `SIGTERM`, il servizio si chiude in modo ordinato e spegne il
 server MCP (codice di uscita 0, `arresto servizio agente` nel log). Senza lo script
-(`docker compose up agente`) il fuso viene da `FUSO_ORARIO`.
+(`docker compose up agente`, `docker compose up -d` o `avvia-chat.cmd`) il fuso viene da `FUSO_ORARIO`:
+il file del doppio clic non passa il fuso di Windows, perché un `environment` diverso farebbe ricreare il
+container a ogni alternanza. Per lo stesso motivo `.\avvia-agente.ps1` ricrea l'agente se era acceso
+con `docker compose up -d`.
+
+Dallo step 9 l'agente ha `restart: on-failure` (se cade durante la sessione Docker lo riavvia; dopo uno
+`stop` resta spento) e un controllo di salute su `/salute`: `docker compose ps` lo mostra `healthy`
+quando ha scoperto gli strumenti MCP.
 
 ## Il back-end delle chat
 
@@ -328,8 +351,26 @@ userà: salva progetti, chat e messaggi in PostgreSQL e chiama l'agente via HTTP
 mai direttamente con l'agente. L'agente resta senza stato: la cronologia gliela passa il back-end a
 ogni turno.
 
-Servono tre pezzi, in tre terminali PowerShell, dalla cartella `assistente-laboratorio/` (con
-l'ambiente attivato):
+**In Docker (step 9).** Il back-end è il servizio Compose `backend`, costruito dalla stessa immagine
+dell'agente. Un solo comando accende database, agente, back-end e pagina:
+
+```powershell
+docker compose up -d
+```
+
+Con `--wait` il comando torna solo quando i controlli di salute sono superati: è quello che usa il file del
+doppio clic (sezione «La chat nel browser»). Nel container il back-end ascolta su `0.0.0.0` e raggiunge il database e l'agente per nome
+(`POSTGRES_HOST=database`, porta `5432` della rete di Compose, `AGENTE_INDIRIZZO=agente`): li imposta
+`compose.yaml`. **Non pubblica nessuna porta sull'host**: ci arriva solo nginx, quindi dall'host si
+interroga attraverso la pagina, con il prefisso `/api`, per esempio
+`Invoke-RestMethod http://127.0.0.1:8780/api/salute` (provato il 18 novembre 2026: `stato`, `database` e
+`agente` tutti `ok`). Parte quando il database è sano e l'agente è avviato; ha `restart: on-failure` e un
+controllo di salute su `/salute`. Per leggerne l'uscita: `docker compose logs --tail 30 backend`.
+
+**Fuori da Docker (step 7).** Servono tre pezzi, in tre terminali PowerShell, dalla cartella
+`assistente-laboratorio/` (con l'ambiente attivato). Su questo computer, finché Smart App Control di
+Windows è attivo, `python -m servizio_backend` non parte: blocca le DLL del pacchetto `psycopg-binary`.
+Gli esempi qui sotto, con la porta `8768`, valgono per questo avvio.
 
 ```powershell
 docker compose up -d database
@@ -424,31 +465,41 @@ Invoke-RestMethod http://127.0.0.1:8768/chat/1
 **Le chat ci sono ancora dopo il riavvio.** Verificato a mano: dopo `docker compose stop database`,
 `docker compose up -d database` e un nuovo `python -m servizio_backend`, `GET /progetti`, `GET /chat` e
 `GET /chat/1` restituiscono il progetto «Prova manuale» con una chat e i suoi due messaggi (la domanda e
-la risposta «14» con `calcola`).
+la risposta «14» con `calcola`). Con il back-end in Docker, il 18 novembre 2026 una chat salvata
+attraverso la pagina c'era ancora, con i suoi due messaggi, dopo `docker compose restart backend`.
 
-Né il back-end né l'agente hanno un'autenticazione: per questo ascoltano solo su `127.0.0.1`, e anche
-PostgreSQL è pubblicato solo lì. Per fermare il database senza perdere le chat basta
+Né il back-end né l'agente hanno un'autenticazione: per questo fuori da Docker ascoltano solo su
+`127.0.0.1`, e in Docker l'agente, la pagina e PostgreSQL sono pubblicati solo lì (il back-end non è
+pubblicato). Per fermare il database senza perdere le chat basta
 `docker compose stop database`; `docker compose down -v` invece **cancella il volume e quindi tutte le
 chat**.
 
 ## La chat nel browser
 
 Lezione 6, step 8. La chat è una pagina web (Svelte 5, cartella `frontend/`) servita da nginx in un
-container. Parla solo con il back-end: nginx inoltra le richieste `/api/...` al back-end (che gira
-sull'host, solo su `127.0.0.1`) togliendo il prefisso, senza buffering, così la risposta compare a pezzi.
-Il programma da terminale resta com'è.
+container. Parla solo con il back-end: nginx inoltra le richieste `/api/...` al container `backend`
+(il nome viene da `BACKEND_INDIRIZZO`) togliendo il prefisso, senza buffering, così la risposta compare a
+pezzi. nginx risolve il nome a ogni richiesta con il DNS di Docker (`resolver 127.0.0.11 valid=10s`):
+parte anche con il back-end spento e, finché il back-end non risponde, `/api/` dà `502` e la chat mostra
+la sua striscia d'errore. Il nome resta in memoria fino a 10 secondi: subito dopo un riavvio del back-end
+può esserci qualche secondo di `502`. Il programma da terminale resta com'è.
 
-Servono quattro pezzi, in quattro terminali PowerShell, dalla cartella `assistente-laboratorio/` (con
-l'ambiente attivato; `.env` completo come per il back-end):
+**Con un doppio clic.** Il file `avvia-chat.cmd` accende da solo ciò che manca e apre il browser. Lancia `python -m avvio_chat`, che in quattro passi: [1/4] controlla Docker (`docker info`) e, se è spento, lo accende con `docker desktop start` e aspetta fino a 180 secondi; [2/4] controlla il server di LM Studio e, se è spento, lo accende con `lms server start` (fino a 60 secondi), poi controlla che il modello di `LMSTUDIO_MODEL` ci sia; guarda con `docker compose ps` se agente e back-end sono già accesi; [3/4] accende i quattro container con `docker compose up -d --wait` (fino a 10 minuti: la prima volta le immagini vanno costruite); [4/4] aspetta, fino a 90 secondi, che `http://127.0.0.1:8780/api/salute`, cioè attraverso nginx, dica `stato`, `database` e `agente` tutti `ok`; infine apre `http://127.0.0.1:8780`. Poi la finestra resta aperta: scrivendo `esci`, con `Ctrl+C`, a fine input oppure **chiudendo la finestra con la X**, ferma con `docker compose stop` solo l'agente e il back-end che ha acceso lui; database e pagina restano accesi. Se agente e back-end erano già accesi tutti e due, il file apre il browser ed esce subito con codice 0, senza spegnere niente. Alla chiusura con la X Windows concede pochi secondi: il file lancia `docker compose stop` in un processo staccato dalla finestra, che finisce anche dopo che la finestra è sparita. Anche dopo un errore (per esempio un `docker compose up` fallito a metà) ferma ciò che ha acceso. Il browser, Docker Desktop e LM Studio restano accesi.
+
+Opzioni: `python -m avvio_chat --senza-browser` non apre il browser; `--ricostruisci` aggiunge `--build` a `docker compose up`, da usare dopo un aggiornamento del codice (anche `avvia-chat.cmd --ricostruisci`; provata solo dai test automatici, con comandi finti). Attenzione: `--ricostruisci`, come un ambiente cambiato dopo un `.\avvia-agente.ps1` (per esempio `FUSO_HOST_WINDOWS`), fa ricreare a `docker compose up` il container `agente` anche se non l'ha acceso il file; se dopo un aggiornamento `/api/salute` risponde `502`, il messaggio d'errore suggerisce proprio `avvia-chat.cmd --ricostruisci`. Il modello resta quello di `LMSTUDIO_MODEL`; il fuso dell'agente è `FUSO_ORARIO` del `.env`. Il `.env` viene letto senza copiarlo nell'ambiente: la password del database non passa ai programmi che il file lascia accesi. Il programma usa solo la libreria standard di Python e `python-dotenv` (un test lo controlla): niente `psycopg`, le cui DLL Smart App Control di Windows può bloccare. Agente e back-end non girano più come processi Python sull'host, e i loro log sono quelli dei container (`docker compose logs`).
+
+Provato il 18 novembre 2026 con `--senza-browser`: con agente e back-end spenti, i quattro passi in 14,8 secondi, `/api/salute` tutto `ok`, quattro servizi accesi; `esci` con codice 0, «Fermo ciò che ho acceso (backend, agente)» e poi accesi solo `database` e `frontend`; con tutto acceso, «Agente e back-end erano già accesi…», codice 0 e nessun container fermato; un turno vero con LM Studio attraverso nginx (risposta in streaming, con lo strumento dell'ora). Docker spento e LM Studio spento sono provati solo dai test automatici, con comandi finti. La chiusura con la X è provata da un test automatico su una console vera, da una prova con un progetto Compose separato (container fermo dopo 4 secondi) e, il 18 novembre 2026, da **un clic vero sulla X** dell'utente: agente e back-end, accesi dal file, sono passati a `Exited (0)` (alle 09:55:13–16 UTC) dopo la chiusura, mentre `database` e `frontend` sono rimasti accesi (tipo di console non indicato: la chiusura da una scheda di Windows Terminal non è verificata separatamente). Il doppio clic subito dopo l'accensione del PC è ancora da provare.
+
+A mano basta un comando, dalla cartella `assistente-laboratorio/` (`.env` completo come per il back-end):
 
 ```powershell
-docker compose up -d database
-python -m servizio_agente
-python -m servizio_backend
-docker compose up -d --build frontend
+docker compose up -d
 ```
 
-Poi si apre `http://127.0.0.1:8780` (o la porta di `FRONTEND_PORTA`). La pagina mostra le chat e i
+Per fermare solo la chat: `docker compose stop backend agente`; per fermare tutto: `docker compose stop`
+(le chat restano nel volume).
+
+Con i container accesi si apre `http://127.0.0.1:8780` (o la porta di `FRONTEND_PORTA`). La pagina mostra le chat e i
 progetti a sinistra, la conversazione a destra; le risposte arrivano a pezzi, con le righe degli strumenti
 usati; il tema è chiaro, scuro o automatico (segue Windows). Il modello attuale lavora in modalità
 «thinking»: un turno può durare 1–2 minuti. Le formule LaTeX compaiono come testo grezzo.
@@ -459,9 +510,10 @@ chat e non contatta altri siti. Le immagini nelle risposte del modello non vengo
 un'immagine remota sarebbe un modo per far uscire dati. Se un turno fallisce, la domanda non si perde:
 torna nella casella, oppure si rimette con «Rimetti nella casella» se nel frattempo hai scritto altro.
 
-**Dopo una modifica al codice del front-end l'immagine va ricostruita** con
-`docker compose up -d --build frontend`: il container serve la versione compilata nell'immagine.
-Per fermarlo: `docker compose stop frontend` (il database e le chat non cambiano).
+**Dopo una modifica al codice le immagini vanno ricostruite** con `docker compose up -d --build`: i container servono la versione copiata nell'immagine, e la pagina
+quella compilata. `docker compose up -d --build frontend` ricostruisce la pagina, ma con `depends_on`
+accende anche back-end, agente e database. Per fermare la pagina: `docker compose stop frontend` (il
+database e le chat non cambiano).
 
 **Installare la chat come app.** Con il container acceso, in Edge si apre `http://127.0.0.1:8780`, poi
 menu «…» › App › «Installa questo sito come app». Si apre in una finestra sua. Per disinstallarla:
@@ -484,11 +536,30 @@ se la variabile non è impostata nel terminale: se nel `.env` hai un'altra porta
 
 ## Test
 
-Test automatici (non servono né LM Studio né Docker; il modello è simulato):
+Test automatici (non serve LM Studio; il modello è simulato). Su questo computer Smart App Control di
+Windows blocca le DLL di `psycopg-binary`, e `python -m pytest` sull'host si interrompe alla raccolta:
+la suite gira quindi in un container Linux, il servizio Compose `test` (profilo `test`,
+`Dockerfile.test`, il codice montato in `/app`):
 
 ```powershell
-python -m pytest
+docker compose run --rm test
 ```
+
+La prima volta costruisce l'immagine con `requirements-dev.txt`; i test che valgono solo su Windows
+risultano `skipped`. Esito del 18 novembre 2026: 717 passati, 98 saltati, nessun fallimento (circa 2
+minuti). Dove Smart App Control non è attivo, `python -m pytest` sull'host funziona come prima.
+
+Alcuni test restano sull'host, perché usano la console di Windows, PowerShell o la CLI di Docker
+(con l'ambiente attivato):
+
+```powershell
+python -m pytest tests/test_avvio_chat.py tests/test_avvia_ps1.py tests/test_nginx.py -q
+python -m pytest --docker tests/test_compose_servizi.py tests/test_compose_frontend.py -q
+```
+
+(18 novembre 2026: 104 passati e 1 saltato; 7 passati.) `test_compose_servizi.py` legge `compose.yaml`
+con `docker compose config`: quattro servizi senza profilo, `assistente` nel profilo `cli`, `restart` di
+agente e back-end, porte solo su `127.0.0.1` e nessuna porta per `backend`.
 
 Alcuni test avviano il server MCP reale su una porta libera (senza modello): richiedono
 qualche secondo ciascuno.
@@ -574,7 +645,8 @@ alla fine cancellano solo quel container e quel volume. Il tuo database e le tue
 fermati né letti, anche se è acceso. L'evidenza dello step 7 (`tests/test_reale_docker_backend.py`, con
 `--docker`) crea un progetto e una chat con un agente finto, ferma back-end e database di prova, li
 riavvia e controlla che progetto, chat e messaggi siano identici. Le prove con `--docker` spostano da parte
-`logs/` come descritto sopra.
+`logs/` come descritto sopra. Queste prove, e quelle del browser qui sotto, avviano il back-end come
+processo Python sull'host: finché Smart App Control è attivo non si possono eseguire su questo computer.
 
 Prove del front-end. La logica si prova con Vitest, senza browser e senza rete:
 
@@ -598,14 +670,16 @@ python -m pytest --lmstudio --docker tests/test_reale_browser_lmstudio.py -v -s
 `test_reale_browser.py` (sette prove: conversazione completa, progetto con istruzioni, ricerca ed
 eliminazione, agente spento, back-end spento, app installabile, intestazioni di sicurezza; in tutte la
 console non deve mostrare violazioni della CSP) avvia un container nginx di prova in un
-progetto Compose a parte, con back-end vero, database di prova e agente finto: il tuo container
+progetto Compose a parte (con `--no-deps`, così non accende i servizi da cui dipende la pagina), con
+back-end vero sull'host (`BACKEND_INDIRIZZO=host.docker.internal`), database di prova e agente finto: il tuo container
 `frontend` e le tue chat non si toccano. `test_reale_browser_lmstudio.py` ha due marcatori, `lmstudio`
 **e** `docker`: con l'agente vero chiede «Quanto fa (3+4)*2?» e controlla la riga di `calcola` e la
 risposta a pezzi (attese di 300 secondi, per il modello in «thinking»). Con il modello può fallire se non
 chiama lo strumento: è un esito da riportare. Esiti del 12 novembre 2026, dopo le correzioni della revisione finale: `python -m pytest` 625 passati e
 74 saltati; `--docker tests/test_reale_browser.py tests/test_compose_frontend.py` 9 passati. Prima di
 quelle correzioni (non rieseguite dopo): `--docker -m docker` 31 passati;
-`--lmstudio --docker -m "lmstudio and docker"` 5 passati.
+`--lmstudio --docker -m "lmstudio and docker"` 5 passati. Con lo step 9 (`--no-deps` e
+`BACKEND_INDIRIZZO`) queste prove non sono state rieseguite, per Smart App Control.
 
 Il fuso dell'utente è rilevato una volta sola all'avvio, in quest'ordine:
 
@@ -669,10 +743,10 @@ infine il modello. Un errore di un livello basso non si risolve cambiando il mes
   |---|---|
   | `Variabili d'ambiente mancanti: … POSTGRES_PASSWORD` | la password non è nel `.env`: sceglila e scrivila; va impostata **prima** di creare il volume del database (vedi sotto) |
   | `docker compose up -d database` fallisce con `required variable … is missing a value` | Compose interpola tutto il file: nel `.env` servono anche `LMSTUDIO_BASE_URL_DOCKER`, `MCP_PORTA`, `VARIANTE_CALCOLATRICE`, `VARIANTE_SCADENZE` e `AGENTE_PORTA`, anche se il database non li usa |
-  | `Il database PostgreSQL non risponde su 127.0.0.1:… (motivo)` all'avvio | il motivo tra parentesi dice che cosa è andato storto (anche nel log). Se è il container spento: `docker compose up -d database` e `docker compose ps` (deve essere `healthy`); controllare `POSTGRES_PORTA`; se il container non parte, `docker compose logs database` ne dice il motivo, per esempio la password mancante (comportamento dell'immagine ufficiale, non provato nel progetto) |
+  | `Il database PostgreSQL non risponde su 127.0.0.1:… (motivo)` all'avvio (nel container `database:5432`, in `docker compose logs backend`) | il motivo tra parentesi dice che cosa è andato storto (anche nel log). Se è il container spento: `docker compose up -d database` e `docker compose ps` (deve essere `healthy`); controllare `POSTGRES_PORTA`; se il container non parte, `docker compose logs database` ne dice il motivo, per esempio la password mancante (comportamento dell'immagine ufficiale, non provato nel progetto) |
   | `503` «Il database non risponde: riprova tra poco.» durante l'uso | il container si è fermato: `docker compose up -d database`, il back-end non va riavviato |
-  | `password authentication failed` nel motivo dell'avvio, o nel messaggio | la password nel `.env` è diversa da quella con cui il volume è stato creato: PostgreSQL la legge solo alla prima creazione (comportamento generale, non provato nel progetto). Rimettere quella vecchia, oppure `docker compose down -v` (**cancella tutte le chat**) e ripartire |
-  | `GET /salute` con `"agente": "non raggiungibile"`, o `503` «L'agente non risponde su …» | avviare `python -m servizio_agente`; `AGENTE_PORTA` deve essere la stessa nei due programmi |
+  | `password authentication failed` nel motivo dell'avvio, o nel messaggio | la password nel `.env` è diversa da quella con cui il volume è stato creato: PostgreSQL la legge solo alla prima creazione (osservato il 15 novembre 2026: `.env` cambiato a database già creato). Rimettere quella vecchia; oppure, con il database acceso, dargli quella nuova senza perdere le chat: `docker compose exec -T database psql -U assistente -d assistente -c "ALTER USER assistente WITH PASSWORD 'la-password-nuova';"` (risposta `ALTER ROLE`, provato il 15 novembre 2026); oppure `docker compose down -v` (**cancella tutte le chat**) e ripartire |
+  | `GET /salute` con `"agente": "non raggiungibile"`, o `503` «L'agente non risponde su …» | in Docker: `docker compose ps` (l'agente deve essere `healthy`) e `docker compose logs --tail 30 agente`, poi `docker compose up -d`; fuori da Docker avviare `python -m servizio_agente`; `AGENTE_PORTA` deve essere la stessa nei due programmi |
   | `503` «L'agente sta già rispondendo a un'altra chat: riprova tra poco.» | l'agente fa un turno alla volta: aspettare la fine dell'altro |
   | `409` «C'è già una risposta in corso in questa chat.» | un turno è già in corso nella stessa chat |
   | `La porta … (BACKEND_PORTA) è occupata` | un altro programma usa la porta: chiuderlo o cambiare `BACKEND_PORTA` nel `.env` |
@@ -684,14 +758,31 @@ infine il modello. Un errore di un livello basso non si risolve cambiando il mes
 
   | Sintomo | Cosa controllare |
   |---|---|
-  | striscia rossa «Il back-end non risponde: avvialo con python -m servizio_backend.» | il back-end è spento o `BACKEND_PORTA` del `.env` è diversa da quella con cui è partito il container (`docker compose up -d --build frontend` dopo aver cambiato il `.env`). La striscia sparisce da sola, entro pochi secondi, quando il back-end risponde |
-  | `docker compose up -d --build frontend` fallisce perché la porta è già in uso | un altro programma usa la porta 8780: chiuderlo o impostare `FRONTEND_PORTA` nel `.env` |
-  | la pagina non cambia dopo una modifica al codice | l'immagine contiene la versione compilata: `docker compose up -d --build frontend` |
+  | striscia rossa «Il back-end non risponde: avvialo con python -m servizio_backend.» | il back-end è spento (nginx risponde `502`): `docker compose ps` e `docker compose logs --tail 30 backend`, poi `docker compose up -d`. Subito dopo un riavvio del back-end nginx può dare `502` ancora per una decina di secondi (tiene il nome in memoria fino a 10 secondi). Se hai cambiato `BACKEND_PORTA` nel `.env`: `docker compose up -d`, che ricrea i container. La striscia sparisce da sola, entro pochi secondi, quando il back-end risponde |
+  | `docker compose up -d` fallisce perché la porta è già in uso | un altro programma usa la porta 8780 (o `AGENTE_PORTA`, per esempio un `python -m servizio_agente` acceso fuori da Docker): chiuderlo o cambiare la porta nel `.env` |
+  | la pagina non cambia dopo una modifica al codice | l'immagine contiene la versione compilata: `docker compose up -d --build` |
   | `npm run dev` non parte o la pagina è di un altro programma | un altro programma usa la porta 5173: `npm run dev -- --port 5181` |
   | la risposta compare tutta insieme alla fine | qualcosa tra il browser e il back-end fa buffering: nginx deve avere `proxy_buffering off` (è nel file del progetto); verificare con `curl.exe -N` (sezione «Il back-end delle chat») |
   | messaggio rosso «La risposta si è interrotta: il messaggio non è stato salvato.» | il flusso è caduto prima di `fine`: il back-end non ha salvato il turno, la domanda è tornata nella casella e si può rimandare. Cercare la causa in `logs/servizio_backend.log` |
   | «Errore inatteso del back-end (stato N).» | la risposta non era un JSON con `errore`: `logs/servizio_backend.log` e, per i `413`, la dimensione del messaggio (nginx accetta fino a 1 MB) |
   | «Installa questo sito come app» non compare | si usa un browser senza service worker (il browser incorporato di Claude): aprire `http://127.0.0.1:8780` in Edge |
+
+- **L'avvio con un doppio clic** (`avvia-chat.cmd`): ogni errore è una riga `Errore: …` e la finestra aspetta un tasto.
+
+  | Sintomo | Cosa controllare |
+  |---|---|
+  | `Manca l'ambiente virtuale .venv` | non sono stati fatti i passi di «Configurazione»: `python -m venv .venv` e `pip install` |
+  | `Docker non è installato o non è nel PATH` | installare Docker Desktop |
+  | `Docker Desktop non risponde dopo 180 secondi` | aprire Docker Desktop a mano, aspettare che sia pronto e riprovare |
+  | `LM Studio non risponde su … e il comando lms non c'è` oppure `… dopo 60 secondi` | aprire LM Studio, attivare il server e riprovare |
+  | `Variabili d'ambiente mancanti` o un'altra variabile non valida | il messaggio è quello della configurazione: il launcher controlla le variabili dell'agente e del back-end prima di accendere i container |
+  | `docker compose up non è riuscito. Ultime righe: …` | le ultime righe di Compose sono nel messaggio: di solito una porta occupata o una variabile mancante nel `.env`. Con `La porta … (AGENTE_PORTA) è occupata` c'è probabilmente ancora un agente acceso fuori da Docker (`python -m servizio_agente`): chiuderlo e riprovare |
+  | `La chat non risponde del tutto dopo 90 secondi` | il messaggio dice che cosa manca (back-end non pronto, database o agente) e il comando per leggerne il log, per esempio `docker compose logs --tail 30 agente` |
+  | `Errore inatteso: …` | un errore non previsto, in una riga con il tipo dell'eccezione, senza traceback |
+  | `Inoltre non sono riuscito a fermare …` oppure `Lo spegnimento è stato interrotto` | i container accesi dal file possono essere ancora accesi: il messaggio dà il comando per fermarli a mano, per esempio `docker compose stop backend agente` |
+
+  Il file ferma solo ciò che ha acceso: se agente e back-end erano già accesi, restano accesi. Database e
+  pagina restano sempre accesi: `docker compose stop` li ferma.
 
 - **Il meteo**: richiede l'accesso a Internet dal computer o dal container in cui gira il server.
   `Servizio meteo non disponibile` o `nessuna risposta entro 4 secondi` (per una fase della richiesta)
@@ -707,7 +798,8 @@ infine il modello. Un errore di un livello basso non si risolve cambiando il mes
   piccolo può eliminarla direttamente). `Archivio delle note non accessibile`: il file è bloccato da
   un altro programma, è danneggiato o la cartella non è scrivibile. Non usare nello stesso momento
   l'assistente avviato direttamente e quello in Docker: condividono il file e su Windows i blocchi
-  di SQLite tra host e container non sono affidabili.
+  di SQLite tra host e container non sono affidabili. Lo stesso vale per la CLI e l'agente della chat
+  nel browser: con il container `agente` acceso, `.\avvia.ps1` avvisa e chiede conferma.
 - **Il catalogo**: il file `risorse/catalogo_corsi.json` (lista di corsi con `codice`, `titolo`,
   `sede`, `durata_ore`) si può modificare; il server lo legge solo all'avvio, quindi dopo una
   modifica va riavviato l'assistente. Con Docker il file è copiato nell'immagine: prima di
