@@ -124,7 +124,7 @@ Il glossario contiene 146 voci. Nella colonna «Dove» c'è il primo posto da ap
 | `ast` (albero sintattico) | Modulo Python che trasforma un testo in un albero di nodi. La calcolatrice lo usa con `mode="eval"` e poi visita solo i nodi ammessi, senza eseguire codice. | `logica/calcolatrice.py:91`, `:47-71` |
 | `asyncio.run` | Avvia un ciclo di eventi, esegue una coroutine e lo chiude. Il ponte lo usa a ogni chiamata, perché i tool MCP sono asincroni e il grafo è sincrono. | `assistente/client_mcp.py:62`, `:86` |
 | AUTOINCREMENT | Opzione SQLite della chiave primaria: l'ID di una nota eliminata non viene mai riusato. Così un ID vecchio non può indicare una nota nuova. | `logica/note.py:37-40` |
-| `avvia.ps1` | Script PowerShell che avvia il container con `docker compose run --rm` e passa il fuso di Windows in `FUSO_HOST_WINDOWS`. Con `-SenzaTty` aggiunge `-T`. | `avvia.ps1:8-15` |
+| `avvia.ps1` | Script PowerShell che avvia il container con `docker compose run --rm` e passa il fuso di Windows in `FUSO_HOST_WINDOWS`. Con `-SenzaTty` aggiunge `-T`. Se il container `agente` (la chat nel browser) è acceso, prima avvisa che le note sono condivise e chiede conferma. | `avvia.ps1:8-28`, `:30-38` |
 | `avvolgi` | Funzione del ponte. Trasforma un tool MCP asincrono in uno `StructuredTool` sincrono con stesso nome, descrizione e schema, e `metadata={"origine": "mcp"}`. | `assistente/client_mcp.py:57-77` |
 
 ### B
@@ -145,10 +145,10 @@ Il glossario contiene 146 voci. Nella colonna «Dove» c'è il primo posto da ap
 | `call_id` / `tool_call_id` | Identificativo che il modello dà a ogni richiesta di strumento. Il `ToolMessage` di risposta deve riportarlo uguale, altrimenti la cronologia non è valida. Non arriva al server MCP. | `assistente/grafo.py:215-220`, README «Log» |
 | Catalogo dei corsi | File JSON versionato con 12 corsi (`codice`, `titolo`, `sede`, `durata_ore`). Il server lo legge e lo valida all'avvio. | `risorse/catalogo_corsi.json`, `logica/catalogo.py:35-57` |
 | `closing` | Funzione di `contextlib` che chiude la connessione SQLite all'uscita dal `with`. Il `with connessione` di sqlite3 fa solo commit o rollback, non chiude. | `logica/note.py:62-63` |
-| `compose.yaml` | File di Docker Compose: quattro servizi: `assistente` (con `env_file: .env`, variabili obbligatorie, volumi `logs` e `archivio`, `extra_hosts`, `stdin_open` e `tty`, righe 2-22), `agente`, `database` e `frontend`. | `compose.yaml:1-22`, `:26`, `:51`, `:71` |
+| `compose.yaml` | File di Docker Compose: sei servizi. `docker compose up -d` accende `agente`, `database`, `backend` e `frontend`; `assistente` (la CLI, profilo `cli`: `env_file: .env`, variabili obbligatorie, volumi `logs` e `archivio`, `extra_hosts`, `stdin_open` e `tty`, righe 5-26) e `test` (la suite, profilo `test`) partono solo se chiamati per nome. | `compose.yaml:1-26`, `:30`, `:65`, `:84`, `:114`, `:134` |
 | `Configurazione` | Dataclass immutabile (`frozen=True`) con indirizzo, modello, porte e varianti, letti dalle variabili d'ambiente. | `assistente/configurazione.py:13-21` |
 | `configura_flussi` | Funzione che riconfigura in UTF-8 l'ingresso e l'uscita quando non sono un terminale (pipe o file). L'ingresso usa `utf-8-sig`, che toglie il BOM. | `assistente/console.py:13-19` |
-| CORS e stessa origine | Il browser di norma non lascia a una pagina leggere risposte di un'altra *origine* (schema, indirizzo e porta). Con il CORS il server può permetterlo. Qui pagina e `/api` hanno la stessa origine, perché nginx serve i file e inoltra `/api` al back-end: il CORS non serve. | `frontend/nginx/default.conf.template:18-24` |
+| CORS e stessa origine | Il browser di norma non lascia a una pagina leggere risposte di un'altra *origine* (schema, indirizzo e porta). Con il CORS il server può permetterlo. Qui pagina e `/api` hanno la stessa origine, perché nginx serve i file e inoltra `/api` al back-end: il CORS non serve. | `frontend/nginx/default.conf.template:16-27` |
 | Context manager | Oggetto usato con `with`, che garantisce la pulizia all'uscita. Qui servono a spegnere sempre i processi (`@contextmanager`, `ExitStack`). | `assistente/avvio.py:21-46` |
 | Conventional Commits | Convenzione per i messaggi di commit (`feat(grafo): …`, `fix(test): …`, `docs: …`). Qui è in italiano. | `../CLAUDE.md`, `git log` |
 | CSP (Content-Security-Policy) | Intestazione con cui il server dice al browser da dove la pagina può caricare script, immagini, stili e connessioni. Qui nginx la manda su ogni risposta (`default-src 'self'`, niente media): anche se qualcosa sfugge al filtro del markdown, il browser non carica risorse da altri siti. | `frontend/nginx/sicurezza.conf:8` |
@@ -182,7 +182,7 @@ Il glossario contiene 146 voci. Nella colonna «Dove» c'è il primo posto da ap
 | Esito | Classificazione di ogni chiamata nel log: `ok`, `errore_tool`, `errore_collegamento`, `strumento_sconosciuto`, `limite`. | `assistente/grafo.py:81-89`, `:189`, `:233` |
 | `eval` | Funzione Python che esegue codice arbitrario. Nella calcolatrice è **vietata** dalla specifica: al suo posto `ast` con una lista chiusa di nodi. | `logica/calcolatrice.py:1-4` |
 | `ExitStack` | Context manager che ne raccoglie altri. Se il servizio FastAPI non parte, spegne anche il server MCP già avviato. | `assistente/avvio.py:33` |
-| `extra_hosts` / `host.docker.internal` | Nome con cui il container raggiunge il computer host, e quindi LM Studio. `host-gateway` lo fa funzionare anche dove non è predefinito. | `compose.yaml:19-20`, `.env.example:3` |
+| `extra_hosts` / `host.docker.internal` | Nome con cui il container raggiunge il computer host, e quindi LM Studio. `host-gateway` lo fa funzionare anche dove non è predefinito. | `compose.yaml:23-24`, `.env.example:3` |
 
 ### F
 
@@ -282,12 +282,12 @@ Il glossario contiene 146 voci. Nella colonna «Dove» c'è il primo posto da ap
 | Termine | Definizione | Dove |
 |---|---|---|
 | Playwright | Libreria che pilota un browser vero. Qui Chromium contro il container nginx, con back-end vero e agente finto: sono le prove nel browser. | `requirements-dev.txt:3`, `tests/test_reale_browser.py` |
-| PostgreSQL | Database relazionale. Qui è il servizio Compose `database` (`postgres:18.6-alpine`) con il volume `dati_postgres`, solo su `127.0.0.1`; contiene progetti, chat e messaggi. | `compose.yaml:52`, `servizio_backend/schema.sql:3-27` |
+| PostgreSQL | Database relazionale. Qui è il servizio Compose `database` (`postgres:18.6-alpine`) con il volume `dati_postgres`, solo su `127.0.0.1`; contiene progetti, chat e messaggi. | `compose.yaml:65-81`, `servizio_backend/schema.sql:3-27` |
 | Ponte sincrono | Strato che rende sincroni i tool MCP asincroni. Non solleva mai eccezioni verso il grafo: restituisce sempre una stringa, con il risultato oppure con l'errore in JSON. | `assistente/client_mcp.py:57-77` |
 | `porta_libera` | Controllo della porta in due tempi: `bind` su 127.0.0.1, poi un tentativo di connessione. Su Windows il `bind` riesce anche se un altro programma ascolta su 0.0.0.0. | `assistente/avvio_server.py:35-47` |
 | `prepara_strumenti` | Context manager che avvia il server MCP (e, se serve, il servizio FastAPI), seleziona le varianti e spegne tutto all'uscita. | `assistente/avvio.py:21-46` |
 | `processo_in_attesa` | Ciclo comune ai due processi: porta libera, avvio con output nel log, prove ripetute fino al successo o alla scadenza, arresto garantito. | `assistente/avvio_server.py:85-139` |
-| proxy inverso (nginx) | Server che sta davanti a un altro e gli inoltra le richieste. Qui nginx serve i file della chat e inoltra `/api` al back-end sull'host, togliendo il prefisso, con `proxy_buffering off` perché gli eventi SSE arrivino uno alla volta e con `max_fails=0` perché non metta da parte il back-end dopo un errore. | `frontend/nginx/default.conf.template:1-3`, `:18-24` |
+| proxy inverso (nginx) | Server che sta davanti a un altro e gli inoltra le richieste. Qui nginx serve i file della chat e inoltra `/api` al container `backend`, togliendo il prefisso con una `rewrite`, con `proxy_buffering off` perché gli eventi SSE arrivino uno alla volta. Il nome del back-end lo risolve a ogni richiesta con il DNS di Docker (`resolver` e `proxy_pass` a una variabile): nginx parte anche a back-end spento e lo ritrova quando torna. | `frontend/nginx/default.conf.template:16-27` |
 | Prova reale | Test che usa LM Studio o Docker veri. Si attiva solo con `--lmstudio` o `--docker`, altrimenti risulta `skipped`. | `tests/test_reale_*.py` |
 | `psycopg` | Libreria Python per PostgreSQL (versione 3). Il back-end la usa con SQL scritto a mano, senza ORM. | `servizio_backend/archivio.py:7`, `requirements.txt:15` |
 | PWA (*progressive web app*) | Pagina web che il browser sa installare come app, con finestra e icona proprie. Qui bastano manifest, service worker e un indirizzo sicuro (`127.0.0.1`). | `frontend/public/manifest.webmanifest`, `frontend/public/sw.js` |
@@ -352,7 +352,7 @@ Il glossario contiene 146 voci. Nella colonna «Dove» c'è il primo posto da ap
 | Vitest | Strumento di prova del front-end (`npm test`): prove di logica come lettore SSE, markdown, stato e API; 108 passati il 12/11/2026. | `frontend/package.json:10`, `:24` |
 | Variante | Modo di collegare uno strumento: `mcp` (tutti), `locale` (solo `calcola`), `fastapi` (solo `calcola_scadenza`). Si sceglie nel `.env` e il modello ne vede una sola per nome. | `assistente/configurazione.py:7-8`, `assistente/varianti.py` |
 | `verifica_server` | Controllo all'avvio: `GET <base_url>/models`, poi verifica che `LMSTUDIO_MODEL` sia nell'elenco. | `assistente/lmstudio.py:38-72` |
-| Volume (bind mount) | Cartella dell'host montata nel container (`./logs:/app/logs`, `./archivio:/app/archivio`). Log e note sopravvivono a `--rm`. | `compose.yaml:14-18` |
+| Volume (bind mount) | Cartella dell'host montata nel container (`./logs:/app/logs`, `./archivio:/app/archivio`). Log e note sopravvivono a `--rm`. | `compose.yaml:18-22` |
 
 ### W
 
@@ -376,7 +376,7 @@ All'orale gli errori più frequenti nascono da due termini simili. Ecco le coppi
 | Cronologia / note | Nel terminale la cronologia è in memoria e muore con la sessione; nella chat nel browser sta in PostgreSQL. Le note sono su disco (SQLite) e sopravvivono. | `assistente/terminale.py:59`, `logica/note.py:19` |
 | `ToolError` / `ToolException` | `ToolError` lo solleva il **server** (FastMCP). `ToolException` arriva al **client**, sollevata dall'adattatore quando vede `isError`. | `server_mcp/server.py:104`, `assistente/client_mcp.py:63` |
 | Variante `locale` / origine `locale` predefinita | `locale` è una variante vera della calcolatrice. È anche il valore di ripiego quando un tool non ha `metadata["origine"]`. | `assistente/varianti.py:51-53` |
-| `LMSTUDIO_BASE_URL` / `LMSTUDIO_BASE_URL_DOCKER` | Il primo vale dall'host (`localhost`). Il secondo vale dal container (`host.docker.internal`): Compose lo passa all'app con il nome del primo. | `compose.yaml:7`, `.env.example:2-3` |
+| `LMSTUDIO_BASE_URL` / `LMSTUDIO_BASE_URL_DOCKER` | Il primo vale dall'host (`localhost`). Il secondo vale dal container (`host.docker.internal`): Compose lo passa all'app con il nome del primo. | `compose.yaml:11`, `.env.example:2-3` |
 | Risposta plausibile / strumento usato | Una frase giusta non prova niente. Lo provano la riga `[nome · origine: …]` nel terminale e la riga `origine=… tool=…` in `logs/assistente.log`. | `assistente/terminale.py:20-38`, README «Log» |
 
 ---
@@ -474,7 +474,7 @@ No. Il nodo `modello` lo ricrea a ogni chiamata e lo mette in testa ai messaggi:
 <summary><b>D5.</b> Che cosa significa che il modello «resta sull'host»?</summary>
 
 LM Studio gira sul computer dell'utente e non va mai containerizzato. L'assistente lo raggiunge via HTTP: da fuori Docker con `http://localhost:1234/v1`, dal container con `http://host.docker.internal:1234/v1`.
-→ `.env.example:2-3`, `compose.yaml:7`; [08](08-configurazione-avvio-docker.md)
+→ `.env.example:2-3`, `compose.yaml:11`; [08](08-configurazione-avvio-docker.md)
 </details>
 
 <details>
@@ -881,35 +881,35 @@ Contiene `python:3.14-slim`, le dipendenze di `requirements.txt`, `assistente/`,
 <summary><b>D50.</b> Perché le porte del server MCP e di FastAPI non sono pubblicate?</summary>
 
 Perché quei processi girano **nello stesso container** dell'assistente e ascoltano su 127.0.0.1: nessuno da fuori deve raggiungerli.
-→ `compose.yaml:8-13`, README «Avvio con Docker»
+→ `compose.yaml:12-17`, README «Avvio con Docker»
 </details>
 
 <details>
 <summary><b>D51.</b> A che cosa serve <code>avvia.ps1</code>?</summary>
 
 Dentro il container il fuso di sistema è UTC. Lo script legge `(Get-TimeZone).Id` e lo passa come `FUSO_HOST_WINDOWS`, così la riga di benvenuto mostra `Europe/Berlin (host Windows)`. Avviando senza lo script vale `FUSO_ORARIO`, oppure il ripiego UTC.
-→ `avvia.ps1:8-15`, `Dockerfile:3-5`, `assistente/fuso.py:41-46`
+→ `avvia.ps1:30-38`, `Dockerfile:3-5`, `assistente/fuso.py:41-46`
 </details>
 
 <details>
 <summary><b>D52.</b> Come sopravvivono log e note a <code>docker compose run --rm</code>?</summary>
 
 Con due volumi bind: `./logs:/app/logs` e `./archivio:/app/archivio`. Il container viene eliminato, ma i file restano sull'host.
-→ `compose.yaml:14-18`
+→ `compose.yaml:18-22`
 </details>
 
 <details>
 <summary><b>D53.</b> Che cosa significa la sintassi <code>${MCP_PORTA:?…}</code> in <code>compose.yaml</code>?</summary>
 
 Rende la variabile obbligatoria. Se manca nel `.env`, Compose si ferma subito con il messaggio indicato (`required variable … is missing a value`). `${API_PORTA:-}` invece vale una stringa vuota se manca.
-→ `compose.yaml:7-13`, README «Diagnosi»
+→ `compose.yaml:11-17`, README «Diagnosi»
 </details>
 
 <details>
 <summary><b>D54.</b> Quando serve l'opzione <code>-T</code>?</summary>
 
 Quando l'ingresso arriva da una pipe, per esempio `"Che ore sono?", "esci" | docker compose run --rm -T assistente`. Disattiva lo pseudo-terminale. `avvia.ps1 -SenzaTty` la aggiunge.
-→ `avvia.ps1:10-12`, README «Avvio con Docker»
+→ `avvia.ps1:32-34`, README «Avvio con Docker»
 </details>
 
 ### 5.9 Errori e diagnosi
@@ -1012,7 +1012,7 @@ Perché la cronologia la conserva chi chiama e la rimanda a ogni turno, come fa 
 <summary><b>D65.</b> Perché la risposta arriva a pezzi con SSE e non con una risposta sola?</summary>
 
 Perché il modello impiega 1–2 minuti e l'utente deve vedere il testo comparire. SSE manda eventi (`testo`, `strumento`, `fine`, `errore`) su una sola richiesta HTTP e basta per un flusso in una direzione. Lungo la strada nessuno deve tenere i pezzi in un buffer: per questo nginx ha `proxy_buffering off`.
-→ `servizio_backend/app.py:224`, `frontend/nginx/default.conf.template:23`; [14](14-backend-delle-chat.md), [15](15-chat-nel-browser.md)
+→ `servizio_backend/app.py:224`, `frontend/nginx/default.conf.template:24`; [14](14-backend-delle-chat.md), [15](15-chat-nel-browser.md)
 </details>
 
 <details>
@@ -1025,8 +1025,8 @@ Una domanda senza risposta lascerebbe la chat incoerente, come un turno fallito 
 <details>
 <summary><b>D67.</b> Perché nginx inoltra `/api` invece di far parlare il browser con il back-end?</summary>
 
-Così pagina e API hanno la stessa origine: non serve configurare il CORS e il back-end resta su `127.0.0.1`. Servono però `proxy_buffering off` (altrimenti lo streaming non è uno streaming) e `max_fails=0` (senza, nginx rispondeva `502` per 10 secondi dopo il ritorno del back-end).
-→ `frontend/nginx/default.conf.template:1-3`, `:18-24`; [15, sezione 5](15-chat-nel-browser.md)
+Così pagina e API hanno la stessa origine: non serve configurare il CORS, e in Docker (step 9) il back-end non pubblica nessuna porta: ci arriva solo nginx. Servono però `proxy_buffering off` (altrimenti lo streaming non è uno streaming) e un nome risolto a ogni richiesta (`resolver` e `proxy_pass` a una variabile), perché nginx parta anche a back-end spento e lo ritrovi quando torna. Lo step 8 aveva invece un `upstream` verso l'host con `max_fails=0`, tolto con lo step 9.
+→ `frontend/nginx/default.conf.template:16-27`; [15, sezione 5](15-chat-nel-browser.md)
 </details>
 
 <details>

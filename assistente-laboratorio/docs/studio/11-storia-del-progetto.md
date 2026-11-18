@@ -1149,8 +1149,8 @@ Elementi ancora aperti, ricontrollati sul codice e sulla repository del 12 novem
     L'ha deciso l'utente. Voleva un'app, ma una chat nel browser installabile dà finestra e icona da app e lascia validi `CLAUDE.md` e lo step 9.
 16. **Che difetto ha trovato la revisione finale dello step 8?**
     DOMPurify vietava immagini, moduli e stili, ma lasciava passare tag come `<video>`, `<audio>` e SVG che caricano risorse esterne. Ora c'è un elenco chiuso di tag ammessi e nginx manda una Content-Security-Policy.
-17. **Perché nginx ha `max_fails=0`?**
-    Con l'impostazione predefinita nginx metteva da parte il back-end dopo un errore e rispondeva `502` per 10 secondi anche dopo il suo ritorno.
+17. **Perché nello step 8 nginx aveva `max_fails=0`?**
+    Con l'impostazione predefinita nginx metteva da parte il back-end dopo un errore e rispondeva `502` per 10 secondi anche dopo il suo ritorno. Con lo step 9 l'`upstream` non c'è più: nginx risolve il nome del back-end a ogni richiesta, e `max_fails=0` è stato tolto.
 
 ---
 

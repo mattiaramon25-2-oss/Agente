@@ -202,7 +202,7 @@ mostra così come sono. Le immagini nelle risposte non si vedono: è voluto.
 
 ## 5. nginx: inoltro di `/api`
 
-Il container `frontend` (`compose.yaml:114-128`) è fatto in due fasi (`frontend/Dockerfile`): la prima
+Il container `frontend` (`compose.yaml:114-130`) è fatto in due fasi (`frontend/Dockerfile`): la prima
 compila con Vite (`npm ci`, `npm run build`), la seconda è nginx senza privilegi
 (`nginx-unprivileged`, porta 8080) con i file compilati. Compose lo pubblica solo come
 `127.0.0.1:${FRONTEND_PORTA:-8780}:8080`; la variabile ha un valore predefinito e niente `:?`, come
@@ -226,8 +226,10 @@ La configurazione è `frontend/nginx/default.conf.template` (nginx sostituisce `
 tra origini diverse: il back-end non deve elencare origini ammesse e non pubblica nessuna porta. Nello
 step 8 il back-end girava sull'host e il container lo raggiungeva con `host.docker.internal`
 (`extra_hosts` in `compose.yaml`); dallo step 9 lo raggiunge per nome, `backend`, nella rete di Compose
-(`BACKEND_INDIRIZZO`, predefinita `backend`). `extra_hosts` resta per le prove del browser, che puntano
-nginx a un back-end di prova sull'host con `BACKEND_INDIRIZZO=host.docker.internal`. In sviluppo lo
+(`BACKEND_INDIRIZZO`, predefinita `backend`). Le prove del browser puntano nginx a un back-end di prova
+sull'host con `BACKEND_INDIRIZZO=host.docker.internal`: quel nome lo risolve il DNS di Docker Desktop,
+perché il `resolver` di nginx non legge `/etc/hosts`; `extra_hosts` resta per gli altri strumenti del
+container (curl, wget, getent). In sviluppo lo
 stesso lavoro lo fa Vite (`vite.config.ts:11-20`), con la stessa regola «togli `/api`».
 
 **Il nome si risolve a ogni richiesta (step 9).** Con un nome scritto in `proxy_pass` nginx lo risolve
@@ -434,7 +436,7 @@ Una presentazione di 10 slide. Ogni slide: titolo, tre punti brevi, che cosa mos
 ### Slide 6 · nginx e `/api`
 - Stessa origine, niente CORS
 - `proxy_buffering off` per lo streaming
-- `max_fails=0`: il back-end riavviato risponde subito
+- Nome del back-end risolto a ogni richiesta: nginx parte anche a back-end spento
 
 *Da mostrare:* `frontend/nginx/default.conf.template` e la tabella della sezione 5.
 

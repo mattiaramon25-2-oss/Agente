@@ -43,14 +43,14 @@ flowchart LR
 
 | Cosa | Valore | Dove |
 |---|---|---|
-| Avvio | dallo step 9 `docker compose up -d` (servizio `backend`); fuori da Docker `docker compose up -d database`, poi `python -m servizio_agente` e `python -m servizio_backend` | `compose.yaml:84-110`, `servizio_backend/__main__.py:39` |
+| Avvio | dallo step 9 `docker compose up -d` (servizio `backend`); fuori da Docker `docker compose up -d database`, poi `python -m servizio_agente` e `python -m servizio_backend` | `compose.yaml:84-110`, `servizio_backend/__main__.py:46` |
 | Tabelle | `progetti`, `chat`, `messaggi`, create all'avvio con `IF NOT EXISTS` | `servizio_backend/schema.sql:3,11,20` |
 | Salvataggio del turno | una transazione: due messaggi, cronologia, `aggiornata`, titolo | `servizio_backend/archivio.py:218-234` |
 | Un turno per chat | `RegistroTurni.occupa` / `libera`; `409` se occupata | `servizio_backend/turni.py:20-40`, `app.py:197-198` |
 | Tempi verso l'agente | 5 s per collegarsi, 180 s di lettura tra due eventi | `servizio_backend/client_agente.py:10` |
 | Limiti | `nome` 1–100, `istruzioni` fino a 4000, `q` almeno 2, ricerca al massimo 50, titolo 60 + «…» | `servizio_backend/app.py:30-35,228`, `archivio.py:80`, `testi.py` |
-| Variabili | `BACKEND_PORTA`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `POSTGRES_PORTA` (predefinita 5432); facoltative `BACKEND_HOST`, `POSTGRES_HOST`, `AGENTE_INDIRIZZO` (predefinite `127.0.0.1`) | `servizio_backend/configurazione.py:8`, `:57-63` |
-| Ascolto | fuori da Docker solo `127.0.0.1`, anche PostgreSQL; nel container `0.0.0.0`, senza porta pubblicata | `servizio_backend/__main__.py:69`, `compose.yaml:84-110` |
+| Variabili | `BACKEND_PORTA`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `POSTGRES_PORTA` (predefinita 5432); facoltative `BACKEND_HOST`, `POSTGRES_HOST`, `AGENTE_INDIRIZZO` (predefinite `127.0.0.1`) | `servizio_backend/configurazione.py:8`, `:70-76` |
+| Ascolto | fuori da Docker solo `127.0.0.1`, anche PostgreSQL; nel container `0.0.0.0`, senza porta pubblicata | `servizio_backend/__main__.py:76`, `compose.yaml:84-110` |
 | Log | `logs/servizio_backend.log`, mai i testi dei messaggi | `assistente/registro.py:12` |
 | Prove | 625 passati e 64 saltati (dopo le correzioni della revisione finale); `--docker` 23 passati; `--lmstudio --docker tests/test_reale_backend.py` 4 passati | → sezione 9 |
 
@@ -211,12 +211,13 @@ resta il testo fisso. Dettagli in [04, sezione 23](04-grafo-langgraph.md#23-le-i
   JSON `500`, e un percorso senza questo gestore darebbe una pagina di testo non conforme al vincolo
   «errori sempre in JSON». Decisione presa dopo la revisione del Task 8, insieme a: id limitati a
   `2**31 - 1` (sono `INTEGER`), nome del progetto ripulito dagli spazi.
-- `leggi_valori_backend` (`configurazione.py:35`), chiamata da `carica_configurazione_backend` (riga 68), elenca tutte le variabili mancanti insieme;
+- `leggi_valori_backend` (`configurazione.py:48`), chiamata da `carica_configurazione_backend` (riga 81), elenca tutte le variabili mancanti insieme;
   `BACKEND_PORTA` deve essere diversa da `AGENTE_PORTA`, `MCP_PORTA` e `API_PORTA`.
-- Avvio (`__main__.py:39`): configurazione, log, porta libera, database (`controlla` e `prepara`; se non risponde,
+- Avvio (`__main__.py:46`): configurazione, log, porta libera, database (`controlla` e `prepara`; se non risponde,
   l'errore riporta il motivo di psycopg, per esempio `password authentication failed`, e suggerisce
   `docker compose up -d database` e il controllo del `.env`; il motivo va anche nel log, mai il dsn), poi controlla l'agente e, se non risponde, **avvisa
-  senza fermarsi** (`/salute` lo riporta). `SIGBREAK` e `SIGTERM` diventano un arresto ordinato
+  senza fermarsi** (`/salute` lo riporta) e suggerisce come avviarlo: `python -m servizio_agente` sull'host,
+  `docker compose up -d agente` quando `AGENTE_INDIRIZZO` non è `127.0.0.1` (`__main__.py:39-43`). `SIGBREAK` e `SIGTERM` diventano un arresto ordinato
   (`__main__.py:28-37`).
 - Log in `logs/servizio_backend.log`: avvio, arresto, **una riga per ogni richiesta** (middleware `riga_di_log`,
   `app.py:72`: `richiesta metodo=GET endpoint=/progetti esito=ok stato=200 durata=0.01`, solo il percorso, mai la
@@ -294,13 +295,15 @@ ha messo il back-end in Docker, nel servizio Compose `backend` ([08, sezione 7.1
 - **Tre indirizzi da variabili.** Prima `127.0.0.1` era scritto nel codice in tre punti. Ora ci sono
   `BACKEND_HOST` (indirizzo di ascolto di uvicorn, un indirizzo IP come `AGENTE_HOST`), `POSTGRES_HOST`
   (host del database nel DSN) e `AGENTE_INDIRIZZO` (host di `url_agente`), tutte con predefinito
-  `127.0.0.1` (`servizio_backend/configurazione.py:57-63`): fuori da Docker non cambia nulla. Nel
+  `127.0.0.1` (`servizio_backend/configurazione.py:70-76`): fuori da Docker non cambia nulla.
+  `POSTGRES_HOST` e `AGENTE_INDIRIZZO` sono solo nomi o indirizzi: con `://`, barre o spazi
+  `ErroreConfigurazione` nomina la variabile (`configurazione.py:12-22`). Nel
   container le imposta Compose: `0.0.0.0`, `database`, `agente`, più `POSTGRES_PORTA: "5432"`, la porta
   dentro la rete di Compose.
 - **I messaggi dicono l'indirizzo vero**, per esempio «Il database PostgreSQL non risponde su
-  database:5432 …» (`servizio_backend/__main__.py:54`).
+  database:5432 …» (`servizio_backend/__main__.py:61`).
 - **La configurazione si legge senza `psycopg`.** `leggi_valori_backend` controlla le variabili e
-  restituisce i valori; solo `carica_configurazione_backend` importa `make_conninfo` (riga 69). Così il
+  restituisce i valori; solo `carica_configurazione_backend` importa `make_conninfo` (riga 82). Così il
   file del doppio clic, che gira sull'host, controlla il `.env` senza caricare le DLL bloccate.
 - **Nessuna porta pubblicata.** Dall'host il back-end si interroga attraverso nginx:
   `Invoke-RestMethod http://127.0.0.1:8780/api/salute`.
